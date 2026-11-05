@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EthScope — Ethereum Block Explorer</title>
+<meta name="description" content="EthScope: Etherscan-style Ethereum mainnet block explorer. Data by Blockscout.">
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230784c3'/%3E%3Ctext x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EE%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#/">
+      <span class="brand-badge">E</span>
+      <span class="brand-name">Eth<span class="brand-accent">Scope</span></span>
+    </a>
+    <form id="search-form" class="search" autocomplete="off">
+      <input id="search-input" type="text" placeholder="Search by Address / Txn Hash / Block / Token / ENS" aria-label="Search">
+      <button type="submit" title="Search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </button>
+      <div id="search-suggest" class="suggest hidden"></div>
+    </form>
+    <nav class="navlinks">
+      <a href="#/" data-nav>Home</a>
+      <span class="netpill" title="Data: Blockscout v2 API, Ethereum mainnet"><span class="dot"></span>Mainnet</span>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="error-banner" class="error-banner hidden"></div>
+  <div id="view"></div>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <span>EthScope · Ethereum mainnet explorer</span>
+    <span class="muted">Data: <a href="https://eth.blockscout.com" target="_blank" rel="noopener">Blockscout</a> v2 API · No API keys</span>
+  </div>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
