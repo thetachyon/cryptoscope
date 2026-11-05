@@ -211,3 +211,62 @@ Server: `~/workspace/ethscope/venv/bin/uvicorn app:app --port 8035` from `~/work
 ## Tree state
 
 No venv, no `__pycache__` under `~/workspace/cryptoscope/ethscope` (removed the one uvicorn created). `app.py` unmodified.
+
+
+---
+
+# EthScope — wallet dashboard verification (2026-11-05)
+
+Server: `~/workspace/ethscope/venv/bin/uvicorn app:app --port 8035` from `~/workspace/cryptoscope/ethscope` (venv: fastapi 0.162.0, httpx 0.28.1, uvicorn 0.54.0). No new dependencies, keyless only. Test addresses: vitalik.eth `0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045` and Bitfinex hot wallet `0x742d35Cc6634C0532925a3b844Bc454e4438f44e`.
+
+## Structure (for the planned hoist/split)
+
+- `app.py` split mechanically (AST script, backup `/tmp/app.py.bak`): new `chains.py` (chain registry), `clients.py` (httpx clients, cache, `UpstreamError`, NO_PROXY fix), `pricing.py` (USD pricing + daily price series), `formatting.py` (wei/ETH/token math, ages, shorteners). `app.py` 1,840 → 1,505 lines + wallet wiring.
+- `wallet.py` (new): all wallet endpoints; aggregation reads Blockscout only through `EVMAdapter` (address / token_balances / nfts / transactions / token_transfers) so a future non-EVM chain plugs in as another adapter. `api/index.py` unchanged (sibling-module imports work on Vercel).
+- Frontend: wallet code is one self-contained section in `static/app.js` (`walletLanding` + `walletPage` + helpers), plus small hooks: header nav "Wallet", address-page "💼 Wallet Dashboard" button, "💼 Wallet" link on address search suggestions, Wallet group in API docs, 24h % column on the address Tokens tab.
+- 72 routes total after wiring (`api/index.py` imports cleanly).
+
+## Backend — wallet endpoints (curl, all HTTP 200 unless noted)
+
+| Test | Result |
+|---|---|
+| `GET /api/ethscope/wallet/<vitalik>` (aggregate) | 200 in 5.09s — total native USD **$13,304.63**, 24h change **−7.68%** (native-only at this stage), ENS `vitalik.eth`, errors []. Ethereum 5.7804 ETH = $12,891.71; Optimism 0.1811 ETH = $404.21; Gnosis 8.7095 xDAI = $8.71; Sepolia 61.72 ETH, USD null (no market price — see below) |
+| `GET /wallet/<vitalik>/tokens?chain=optimism` | 200 in 3.47s — total **$225.70**, 412 tokens, 28 priced, 296 NFTs. Top: WETH $78.04, USDT $43.34, USDC $39.17, DAI $35.21 |
+| `GET /wallet/<vitalik>/tokens?chain=ethereum` | 200 in 21.6s (retry; first try hit the old 10s `bs()` timeout) — total **$525,406.45**, count 8,193, priced 376, NFTs 1,263. Top: WHITE $311,900.00 (24h +6.07%), KNCL $99,156.21 (−0.94%), MOODENG $77,405.96 (−9.22%), FOLD $9,513.71, OMG $6,027.60, ENS $5,331.21 |
+| `GET /wallet/<vitalik>/nfts` | 200 in 3.74s — **200 items** (50/chain), all with images. First: ethereum WEI, NFNFT, UwU #1001 |
+| `GET /wallet/<vitalik>/activity` | 200 in 3.26s — **50 items**, merged, sorted desc (first 2026-11-05T05:30:48Z), cursors for all 4 chains; per-chain counts: ethereum 28, sepolia 21, optimism 1, gnosis 0 |
+| `GET /wallet/<vitalik>/activity?chain=ethereum&<cursor>` (Load-more) | 200 — 50 items, first ts 2026-10-07T03:09:35Z, strictly older than page 1's last ethereum item (2026-10-18T20:50:47Z), further cursor present |
+| `GET /wallet/<vitalik>/history?days=30` | 200 in 33.9s (cold; repeat calls hit the 60s token cache + 600s chart cache) — **31 points**; first 2026-10-06 **$597,297.11**, last 2026-11-05 **$535,006.70**. Included top 5: WHITE $311,900, KNCL $99,156, MOODENG $77,406, FOLD $9,514, OMG $6,028 (all ethereum); 45 priced holdings excluded (top 5 only) |
+| `GET /wallet/<vitalik>/pnl` | 200 in 5.29s — realized PnL **$0.00**, proceeds $0, cost $0; priced 0, **unpriced 111**, unmatched 0, tokens priced 4. Rows: sepolia (symbol None) 47 unpriced, ethereum VETO 43 unpriced, gnosis OPPORTUNITY_CREDITS 17 unpriced, optimism SNX 4 unpriced — all unlisted/spam tokens with no CoinGecko history, honestly excluded |
+| `GET /wallet/<bitfinex>/pnl` | 200 in 14.9s — realized PnL **$0.00**, **proceeds $19,987,584.78 = cost $19,987,584.78**; priced 48, unpriced 55, unmatched 1, tokens priced 8. Rows: USDT 4 priced (proceeds = cost to the cent — stablecoin at ~$1.00, FIFO matching verified), ENA 18 priced, UNI 16, XAUT 9, USDF 1, sepolia (None) 50 unpriced, gnosis Blast Box 3 unpriced, optimism MAME 2 unpriced |
+| `GET /wallet/<bitfinex>` (aggregate, 2nd address) | 200 — total native USD **$222.09** (Optimism $221.99, Gnosis $0.10, mainnet ~$0 — a hot wallet that sweeps), ens null |
+| `GET /api/ethscope/ethereum/search?q=vitalik.eth` | 200 — address hit `vitalik.eth` → `0xd8dA…96045` (the path `#/wallet/vitalik.eth` uses) |
+| `GET /api/ethscope/docs` | 200 — **6 wallet endpoints** listed (`/wallet/{address}`, `/tokens`, `/history`, `/pnl`, `/nfts`, `/activity`) |
+| `GET /api/ethscope/ethereum/address/<vitalik>/tokens` (address Tokens tab, incl. new 24h % col) | 200 in 39.6s — total_usd **$525,406.45**, 8,193 items; WHITE $311,900 (+6.07%), KNCL $99,156 (−0.39%), MOODENG $77,406 (−8.84%) |
+
+## Bugs found & fixed during wallet verification
+
+1. **Aggregate timed out on mainnet tokens.** First design fetched token holdings inside the aggregate; vitalik's 3.36 MB mainnet list blew the 8s per-chain timeout (3 of 4 chains errored, totals 0). Fixed with the two-tier design: aggregate = native balances only (`total_usd` native-only, `tokens_status: "pending"`); holdings load progressively per chain via `/tokens?chain=` (30s → 45s guard).
+2. **24h changes missing on top holdings.** The CoinGecko budget was spent pricing unpriced dust/spam tokens first (no CG listing), leaving the big holdings without a change figure. Fixed: Phase A prices the 24h change for the top 3 Blockscout-priced items by value first; Phase B prices unpriced items with the remaining budget. Verified: WHITE +6.07%, KNCL −0.94%, MOODENG −9.22% now populated.
+3. **History valued Sepolia ETH at mainnet ETH prices.** `_daily_native_prices` used the CoinGecko coin id directly, so Sepolia's 61.72 "ETH" added ~$137k of phantom value (first history run: last point $151,032, Optimism-only tokens). Fixed: history includes a native series only for chains whose aggregate section has a real USD price. Verified: last point now $535,006.70 ≈ top-5 tokens $504,003 + native $13,305 + CG-close drift.
+4. **PnL priced nothing (two causes).** (a) Transfer token objects expose the address as `address_hash`, not `address` — the grouping key and the CoinGecko series lookup both read `address` (always null/empty), so every series fetch hit CoinGecko with an empty contract ("coin not found"). Fixed all `address` reads on token objects to `address_hash` first (also in `formatting.py:token_transfer_short` and `_instance_short`, and the NFT `token_address` field — those fed null token addresses into tx/NFT pages too). (b) XAUT market_chart "coin not found" was my own wrong contract address in the probe, not a CoinGecko gap — the correct `0x68749665FF8D…782F38` returns prices. After the fix, Bitfinex PnL prices 48 transfers across 8 tokens (see table).
+5. **Address Tokens tab 502'd on vitalik** (twice, at the 10s `bs()` default timeout). The wallet path already used 45s; the address path did not. Fixed: `_address_tokens` now uses `timeout=45.0`. Verified 200 in 39.6s on retry.
+6. **History's first run missed mainnet tokens.** The history endpoint's all-chains token load re-fetched everything (per-chain calls didn't populate its cache) and mainnet timed out inside the 30s guard. Fixed: `_chain_tokens_guarded` caches per (address, chain) for 60s, shared by the frontend's per-chain calls and history. Guard raised 30s → 45s to match the `bs()` timeout.
+
+## Honest limits (also stated in the UI + README)
+
+- **History is an estimate, never true PnL.** Today's balances × historical prices; assumes today's balances held throughout; deposits/withdrawals/trades ignored. Only the top 5 tokens by value are priced in (45 priced holdings excluded for vitalik); chains without a USD price (Sepolia) are excluded entirely.
+- **PnL is an estimate with stated coverage.** FIFO over the latest ~50 token transfers per chain, 90-day CoinGecko daily-close window. Only tokens with CoinGecko price history can be priced; unlisted/spam tokens are counted unpriced and excluded (vitalik: 111/111 unpriced → $0 estimate with the gap stated, not hidden). Outgoing transfers with no cost basis in the window are unmatched and excluded. No full cost basis exists keyless — true realized PnL would need every acquisition price.
+- **Token holdings are slow for token-rich addresses.** Vitalik's mainnet token list is 3.36 MB; the same download took 15s, 21.6s, 39.6s and 61.6s at different moments today through the sandbox egress proxy, and stalled completely once (direct Blockscout curl, HTTP 000 at 60s). The dashboard degrades per chain (error section, never a whole-dashboard failure) and the frontend uses a 60s timeout on wallet calls.
+- **24h change coverage is partial.** Only native holdings + priced tokens that have a 24h change feed the combined figure; the hero states the covered USD amount. Unpriced tokens (7,817 of vitalik's 8,193) are excluded from holdings totals entirely.
+
+## Frontend
+
+- `node --check static/app.js` → **OK**.
+- `GET /`, `/app.js`, `/styles.css` → all 200.
+- Regression sweep (same run): chains, docs (6 wallet endpoints), ethereum/optimism stats, `block/latest` (height 26351552), address txs (50 items), contract USDC, `charts/price?days=7` (200, `prices` array), gastracker, pending, search — all 200. (My first charts check used the wrong path `/charts/eth-price` and 404'd; the real route is `/charts/price`.)
+- Not verified (no browser tooling here): live rendering of `#/wallet/vitalik.eth` — JS is syntax-checked and logic-reviewed only; the `data-chain` click-switch, dust toggle, value sort, history day buttons and activity Load-more paths were reviewed, not clicked. ENS resolve is exercised at the API level (`/search?q=vitalik.eth` → correct address).
+
+## Tree state
+
+No venv, no `__pycache__` under `~/workspace/cryptoscope/ethscope` (checked after the final run). Do NOT push/deploy from here — parent handles that. Vercel deploy remains blocked (403 "Not authorized under scope thetachyon", awaiting Tejas granting the Vercel GitHub App access to the private `cryptoscope` repo).

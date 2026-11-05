@@ -89,10 +89,11 @@ function ipfsHttp(u) {
   if (String(u).startsWith("ipfs://")) return "https://dweb.link/ipfs/" + String(u).slice(7);
   return u;
 }
-async function fetchJson(url, opts) {
-  // 20s client-side guard so a stalled upstream can never hang the UI.
+async function fetchJson(url, opts, timeoutMs) {
+  // 20s client-side guard so a stalled upstream can never hang the UI
+  // (callers may pass a longer timeout for known-slow wallet calls).
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 20000);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs || 20000);
   try {
     const r = await fetch(url, { ...(opts || {}), signal: ctrl.signal });
     let j = null;
@@ -108,6 +109,11 @@ async function fetchJson(url, opts) {
 async function get(path) { return fetchJson(API + "/" + CHAIN + path); }
 /* Global (non-chain) endpoints: /chains, /docs. */
 async function getGlobal(path) { return fetchJson(API + path); }
+/* Wallet endpoints: mainnet token lists are multi-MB, so 60s. */
+async function getWallet(path) { return fetchJson(API + "/wallet" + path, null, 60000); }
+/* One explicit chain (used by the wallet page for ENS resolve + activity
+   Load-more); also 60s so a slow chain never aborts the dashboard. */
+async function getChain(chain, path) { return fetchJson(API + "/" + chain + path, null, 60000); }
 async function postJson(path, body) {
   return fetchJson(API + "/" + CHAIN + path, {
     method: "POST",
@@ -456,6 +462,37 @@ function linkContract(addr, text) {
   return `<a href="#/contract/${addr}">${esc(text || "View contract →")}</a>`;
 }
 
+/* ---------------- chain-aware links (wallet dashboard) ---------------- */
+/* Wallet pages link to tx/token/instance pages on a SPECIFIC chain, but
+   those routes render under the current CHAIN. A data-chain link switches
+   CHAIN (header select + netpill included) before the hashchange routes —
+   see the delegated click handler in DOMContentLoaded. */
+function chainBadge(chain) {
+  const info = CHAINS.find((c) => c.id === chain);
+  return `<span class="chain-badge">${esc(info ? info.label : chain)}</span>`;
+}
+function chainNativeSym(chain) {
+  const info = CHAINS.find((c) => c.id === chain);
+  return (info && info.native) || "ETH";
+}
+function linkTxC(chain, h, full) {
+  if (!h) return '<span class="muted">—</span>';
+  return `<a class="mono" data-chain="${esc(chain)}" href="#/tx/${h}">${esc(full ? h : shortH(h))}</a>`;
+}
+function linkAddrC(chain, a, full) {
+  if (!a || !a.hash) return '<span class="muted">—</span>';
+  const label = a.label && a.label !== a.hash ? esc(a.label) : esc(full ? a.hash : a.short || shortH(a.hash));
+  return `<a class="mono" data-chain="${esc(chain)}" href="#/address/${a.hash}">${label}</a>${a.is_contract ? ' <span class="badge grey" title="Contract">C</span>' : ""}`;
+}
+function linkTokenC(chain, addr, symbol) {
+  if (!addr) return '<span class="muted">—</span>';
+  return `<a class="mono" data-chain="${esc(chain)}" href="#/token/${addr}">${esc(symbol || shortH(addr))}</a>`;
+}
+function linkInstanceC(chain, tokenAddr, id) {
+  if (!tokenAddr || id == null) return '<span class="muted">—</span>';
+  return `<a data-chain="${esc(chain)}" href="#/token/${tokenAddr}/instance/${esc(String(id))}">View instance →</a>`;
+}
+
 /* ---------------- rows ---------------- */
 function txRow(t, lite) {
   const cells = [
@@ -650,7 +687,11 @@ function wireSearch(form, input, suggestBox) {
             : it.type === "transaction" ? "#/tx/" + it.hash
             : it.type === "block" ? "#/block/" + (it.block_number || it.hash) : null;
           if (!route) return "";
-          return `<a href="${route}"><span class="stype ${it.type}">${esc(it.type)}</span><span class="mono">${esc(it.name)}</span></a>`;
+          const main = `<a href="${route}"><span class="stype ${it.type}">${esc(it.type)}</span><span class="mono">${esc(it.name)}</span></a>`;
+          // Address rows get a second link straight to the wallet dashboard.
+          return it.type === "address"
+            ? `<div class="suggest-row">${main}<a class="wallet-link" href="#/wallet/${it.hash}" title="Open wallet dashboard">💼 Wallet</a></div>`
+            : main;
         }).join("");
         suggestBox.classList.remove("hidden");
       } catch (e) { /* silent */ }
@@ -862,7 +903,7 @@ async function addressPage(h) {
     : "";
   const tc = a._txcount;
   render(`
-    <div class="pagehead"><h2>Address</h2></div>
+    <div class="pagehead"><h2>Address</h2> <a class="btn" href="#/wallet/${a.hash}" title="Cross-chain portfolio: balances, holdings, history, PnL, NFTs, activity">💼 Wallet Dashboard</a></div>
     <div class="card">
       <div style="padding:14px 16px;border-bottom:1px solid var(--line)">
         <div class="addr-title"><span class="mono" style="font-size:15px">${esc(a.hash)}</span> ${copyBtn(a.hash)}${labelPill(a.hash)}</div>
@@ -915,16 +956,18 @@ function renderAddrTab(h) {
     body.innerHTML = `<table class="tbl"><thead><tr><th>Parent Txn</th><th>Age</th><th>From</th><th>To</th><th class="r">Value</th><th>Status</th></tr></thead><tbody id="ain"></tbody></table><button class="loadmore" id="ain-more">Load more</button>`;
     mountPager("#ain", "#ain-more", `/address/${h}/internal`, internalRow, "No internal transactions");
   } else if (addrTab === "tokens") {
-    body.innerHTML = `<table class="tbl"><thead><tr><th>Token</th><th class="r">Balance</th><th class="r">USD Price</th><th class="r">USD Value</th><th>Type</th></tr></thead><tbody id="atok"><tr><td colspan="5"><div class="spinner">Loading…</div></td></tr></tbody></table><div id="atok-total"></div>`;
+    body.innerHTML = `<table class="tbl"><thead><tr><th>Token</th><th class="r">Balance</th><th class="r">USD Price</th><th class="r">USD Value</th><th class="r">24h %</th><th>Type</th></tr></thead><tbody id="atok"><tr><td colspan="6"><div class="spinner">Loading…</div></td></tr></tbody></table><div id="atok-total"></div>`;
     get(`/address/${h}/tokens`).then((d) => {
       const el = $("#atok");
       if (!el) return;
-      el.innerHTML = d.items.length ? d.items.map((t) =>
-        `<tr><td>${linkToken(t.address, t.symbol)} <span class="muted">${esc(t.name || "")}</span></td><td class="r mono">${esc(t.balance)}</td><td class="r mono">${t.usd_price != null ? usd(t.usd_price) : "—"}</td><td class="r mono">${t.usd_value != null ? usd(t.usd_value) : "—"}</td><td><span class="badge grey">${esc(t.type || "—")}</span></td></tr>`
-      ).join("") : '<tr><td colspan="5"><div class="empty">No token balances</div></td></tr>';
+      el.innerHTML = d.items.length ? d.items.map((t) => {
+        const chg = t.usd_change_24h_pct;
+        const chgHtml = chg == null ? "—" : `<span style="color:${chg >= 0 ? "var(--green)" : "var(--red)"}">${chg >= 0 ? "+" : ""}${Number(chg).toFixed(2)}%</span>`;
+        return `<tr><td>${linkToken(t.address, t.symbol)} <span class="muted">${esc(t.name || "")}</span></td><td class="r mono">${esc(t.balance)}</td><td class="r mono">${t.usd_price != null ? usd(t.usd_price) : "—"}</td><td class="r mono">${t.usd_value != null ? usd(t.usd_value) : "—"}</td><td class="r mono">${chgHtml}</td><td><span class="badge grey">${esc(t.type || "—")}</span></td></tr>`;
+      }).join("") : '<tr><td colspan="6"><div class="empty">No token balances</div></td></tr>';
       const tot = $("#atok-total");
       if (tot) tot.innerHTML = `<div class="total-row"><span>Portfolio total (USD)</span><span>${usd(d.total_usd)}</span></div><div class="muted" style="padding:8px 16px 12px;font-size:12px">USD values for ERC-20 holdings (Blockscout exchange rate, CoinGecko fallback). NFTs show no USD value.</div>`;
-    }).catch((e) => { const el = $("#atok"); if (el) el.innerHTML = `<tr><td colspan="5"><div class="empty">Error: ${esc(e.message)}</div></td></tr>`; });
+    }).catch((e) => { const el = $("#atok"); if (el) el.innerHTML = `<tr><td colspan="6"><div class="empty">Error: ${esc(e.message)}</div></td></tr>`; });
   }
 }
 
@@ -1363,6 +1406,7 @@ function docsGroup(path) {
   if (p.startsWith("/block")) return "Blocks";
   if (p.startsWith("/tx")) return "Transactions";
   if (p.startsWith("/address")) return "Addresses";
+  if (p.startsWith("/wallet")) return "Wallet";
   if (p.startsWith("/token")) return "Tokens";
   if (p.startsWith("/contract")) return "Contracts";
   if (p.startsWith("/charts")) return "Charts";
@@ -1389,7 +1433,7 @@ async function apiDocsPage() {
     const g = docsGroup(e.path);
     (groups[g] = groups[g] || []).push(e);
   }
-  const order = ["Chain & Gas", "Blocks", "Transactions", "Addresses", "Tokens", "Contracts", "Charts", "Pending", "Search", "Meta", "Other"];
+  const order = ["Chain & Gas", "Blocks", "Transactions", "Addresses", "Wallet", "Tokens", "Contracts", "Charts", "Pending", "Search", "Meta", "Other"];
   const shown = order.filter((g) => groups[g]).concat(Object.keys(groups).filter((g) => !order.includes(g)));
   $("#docs-body").innerHTML = `
     <div class="explainer"><b>Fair use:</b> this API is keyless and needs no auth — it proxies the public Blockscout API, public RPCs, and CoinGecko’s keyless tier, all of which are rate-limited upstream. Please cache responses, keep request rates modest, and expect occasional 502s when an upstream is slow. Nothing here is authenticated or billed.</div>
@@ -1401,6 +1445,342 @@ async function apiDocsPage() {
       </div>`).join("")}</div>`).join("")}`;
 }
 
+/* ---------------- wallet dashboard ---------------- */
+/* Self-contained: everything the #/wallet route needs lives in this
+   section (plus getWallet/getChain and the chain-aware links above).
+   A future walletscope app lifts this section as-is. Backend:
+   GET /api/ethscope/wallet/{address} (+ /tokens, /history, /pnl,
+   /nfts, /activity). */
+
+const WALLET_ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
+const WALLET_CHAINS = ["ethereum", "sepolia", "optimism", "gnosis"];
+let walletRun = 0; // bumped per walletPage() call; stale fetches bail
+
+function pctHtml(p) {
+  if (p == null || !Number.isFinite(Number(p))) return '<span class="muted">—</span>';
+  const v = Number(p);
+  return `<span style="color:${v >= 0 ? "var(--green)" : "var(--red)"}">${v >= 0 ? "+" : ""}${v.toFixed(2)}%</span>`;
+}
+
+async function resolveWalletParam(param) {
+  if (WALLET_ADDR_RE.test(param)) return { address: param, ens: null };
+  const d = await getChain("ethereum", "/search?q=" + encodeURIComponent(param));
+  const hit = (d.items || []).find((it) => it.type === "address");
+  if (!hit) throw new Error("No address found for \"" + param + "\" (searched Ethereum mainnet)");
+  return { address: hit.hash, ens: hit.name };
+}
+
+function walletLanding() {
+  clearPoll();
+  document.title = "Wallet Dashboard — EthScope";
+  render(`
+    <div class="pagehead"><h2>💼 Wallet Dashboard</h2></div>
+    <div class="card"><div style="padding:18px 16px">
+      <p class="muted" style="margin-top:0">One address, all four chains — native balances, ERC-20 holdings with USD values, portfolio history, estimated realized PnL, NFTs and activity. No API keys; data from Blockscout + CoinGecko's keyless tier.</p>
+      <form id="wallet-form" class="search" autocomplete="off" style="max-width:640px">
+        <input id="wallet-input" type="text" placeholder="Address (0x…) or ENS name (vitalik.eth)">
+        <button type="submit" title="Open wallet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+      </form>
+      <p style="margin:14px 0 0">Try: <a href="#/wallet/vitalik.eth">vitalik.eth</a></p>
+    </div></div>`);
+  $("#wallet-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = $("#wallet-input").value.trim();
+    if (v) location.hash = "#/wallet/" + encodeURIComponent(v);
+  });
+}
+
+async function walletPage(param) {
+  clearPoll();
+  const run = ++walletRun;
+  const alive = () => run === walletRun && document.getElementById("wallet-root");
+  render(`
+    <div id="wallet-root">
+    <div class="pagehead"><h2>💼 Wallet Dashboard</h2><span class="mono muted" id="w-addr">${esc(param)}</span></div>
+    <div class="card"><div id="w-hero"><div class="spinner">Resolving address…</div></div></div>
+    <div class="card"><div class="card-head">Per-Chain Breakdown</div><div id="w-chains"><div class="spinner">Loading…</div></div></div>
+    <div class="card"><div class="card-head">Holdings <span class="spacer"></span><label class="muted" style="font-weight:400;font-size:12px"><input type="checkbox" id="w-dust"> Show dust (&lt; $1)</label></div><div id="w-holdings"><div class="spinner">Loading token holdings…</div></div></div>
+    <div class="card"><div class="card-head">Portfolio Value — Estimate <span class="sample-badge">ESTIMATE</span><span class="spacer"></span><span class="daybtns" id="w-hist-btns"><button class="btn" data-days="7">7D</button><button class="btn active" data-days="30">30D</button><button class="btn" data-days="90">90D</button></span></div><div id="w-history"><div class="spinner">Loading history…</div></div></div>
+    <div class="card"><div class="card-head">Estimated Realized PnL <span class="sample-badge">ESTIMATE</span></div><div id="w-pnl"><div class="spinner">Loading PnL…</div></div></div>
+    <div class="card"><div class="card-head">NFTs <span class="spacer"></span><span id="w-nft-count" class="badge grey">…</span></div><div id="w-nfts"><div class="spinner">Loading NFTs…</div></div></div>
+    <div class="card"><div class="card-head">Activity — All Chains</div><div id="w-activity"><div class="spinner">Loading activity…</div></div></div>
+    </div>`);
+
+  // Resolve ENS names through the existing ethereum search path.
+  let addr, ensName = null;
+  try {
+    const r = await resolveWalletParam(param);
+    addr = r.address; ensName = r.ens;
+  } catch (e) {
+    if (!alive()) return;
+    $("#w-hero").innerHTML = `<div class="empty">Could not resolve “${esc(param)}”: ${esc(e.message)}<br><a href="#/wallet">Try another address</a></div>`;
+    for (const id of ["w-chains", "w-holdings", "w-history", "w-pnl", "w-nfts", "w-activity"]) {
+      const el = document.getElementById(id); if (el) el.innerHTML = "";
+    }
+    return;
+  }
+  document.title = `${ensName || shortH(addr)} — Wallet — EthScope`;
+  const addrEl = $("#w-addr");
+  if (addrEl) addrEl.innerHTML = `<a class="mono" href="#/address/${addr}">${esc(addr)}</a>${ensName ? ` <span class="badge info">${esc(ensName)}</span>` : ""} ${copyBtn(addr)}`;
+
+  const st = {
+    addr, ens: ensName, agg: null,
+    tokens: {}, // chain -> section from /tokens?chain=
+    tokensDone: 0, showDust: false, sortDesc: true,
+    histDays: 30, activityCursors: {}, activityRows: [],
+  };
+
+  /* ---- hero + chain cards (recomputed as token sections arrive) ---- */
+  function totals() {
+    let native = 0, tokens = 0, tokensKnown = false;
+    if (st.agg) native = Number(st.agg.total_native_usd) || 0;
+    for (const c of WALLET_CHAINS) {
+      const sec = st.tokens[c];
+      if (sec && sec.tokens_total_usd != null) { tokens += sec.tokens_total_usd; tokensKnown = true; }
+    }
+    return { native, tokens, tokensKnown, total: native + tokens };
+  }
+  function combinedChange() {
+    // Value-weighted 24h change over native holdings + priced tokens
+    // that have a 24h change. Returns {pct, covered} or null.
+    let cur = 0, prior = 0;
+    if (st.agg && st.agg.change_24h_pct != null && st.agg.change_24h_coverage_usd) {
+      const v = st.agg.change_24h_coverage_usd;
+      cur += v; prior += v / (1 + st.agg.change_24h_pct / 100);
+    }
+    for (const c of WALLET_CHAINS) {
+      for (const t of (st.tokens[c] || {}).tokens || []) {
+        if (t.usd_value != null && t.usd_change_24h_pct != null) {
+          cur += t.usd_value; prior += t.usd_value / (1 + t.usd_change_24h_pct / 100);
+        }
+      }
+    }
+    if (prior <= 0 || cur <= 0) return null;
+    return { pct: (cur - prior) / prior * 100, covered: cur };
+  }
+  function renderHero() {
+    const el = $("#w-hero"); if (!el) return;
+    if (!st.agg) { el.innerHTML = `<div class="empty">Wallet aggregate failed to load.</div>`; return; }
+    const t = totals();
+    const chg = combinedChange();
+    const pending = st.tokensDone < WALLET_CHAINS.length;
+    const covNote = chg
+      ? `24h change covers ${usd(chg.covered)} of ${usd(t.total)} (native + priced tokens with a 24h change)`
+      : "No 24h change data available";
+    el.innerHTML = `
+      <div class="wallet-hero">
+        <div><div class="k">Portfolio Total (USD)</div><div class="v">${usd(t.total)}</div><div class="sub">Native ${usd(t.native)}${t.tokensKnown ? ` · Tokens ${usd(t.tokens)}` : " · Tokens loading…"}${pending ? ' <span class="muted">(holdings still loading)</span>' : ""}</div></div>
+        <div><div class="k">24h Change</div><div class="v">${chg ? pctHtml(chg.pct) : '<span class="muted">—</span>'}</div><div class="sub">${esc(covNote)}</div></div>
+        <div><div class="k">Address</div><div class="v" style="font-size:15px"><span class="mono">${esc(st.ens || shortH(st.addr))}</span></div><div class="sub">${esc(st.agg.testnet_note || "")}</div></div>
+      </div>
+      ${st.agg.errors && st.agg.errors.length ? `<div class="notice" style="margin:12px 16px">Some chains failed in the aggregate: ${esc(st.agg.errors.join(", "))}. Sections below still load per chain.</div>` : ""}`;
+  }
+  function renderChains() {
+    const el = $("#w-chains"); if (!el) return;
+    if (!st.agg) { el.innerHTML = `<div class="empty">Chain breakdown unavailable (aggregate failed).</div>`; return; }
+    const t = totals();
+    el.innerHTML = `<div class="wchain-grid">${WALLET_CHAINS.map((c) => {
+      const sec = (st.agg.chains || {})[c] || {};
+      const tok = st.tokens[c];
+      const tokUsd = tok && tok.tokens_total_usd != null ? tok.tokens_total_usd : null;
+      const chainUsd = (sec.chain_total_usd || 0) + (tokUsd || 0);
+      const share = t.total > 0 ? chainUsd / t.total * 100 : 0;
+      const sym = chainNativeSym(c);
+      return `<div class="wchain">
+        <div class="k">${esc(sec.label || c)} ${chainBadge(c)}</div>
+        <div class="v">${usd(chainUsd)} <span class="muted" style="font-size:12px">${share.toFixed(1)}%</span></div>
+        <div class="sub">Native: <span class="mono">${ethFmt(sec.native_balance)} ${esc(sym)}</span>${sec.native_usd_value != null ? ` (${usd(sec.native_usd_value)})` : " (no market price)"}</div>
+        <div class="sub">Tokens: ${tokUsd != null ? usd(tokUsd) : (tok ? "—" : "loading…")}${tok && tok.tokens_count != null ? ` · ${num(tok.tokens_priced_count)} priced of ${num(tok.tokens_count)}` : ""}</div>
+        <div class="sub">NFTs: ${tok && tok.nft_count != null ? num(tok.nft_count) : "—"}</div>
+        ${sec.error ? `<div class="sub" style="color:var(--red)">Error: ${esc(sec.error)}</div>` : ""}
+        ${tok && tok.error ? `<div class="sub" style="color:var(--red)">Holdings error: ${esc(tok.error)}</div>` : ""}
+      </div>`;
+    }).join("")}</div>`;
+  }
+
+  /* ---- holdings (merged across chains, top 50 by value) ---- */
+  function renderHoldings() {
+    const el = $("#w-holdings"); if (!el) return;
+    const all = [];
+    let pricedCount = 0, totalCount = 0;
+    for (const c of WALLET_CHAINS) {
+      const sec = st.tokens[c];
+      if (!sec) continue;
+      totalCount += sec.tokens_count || 0;
+      pricedCount += sec.tokens_priced_count || 0;
+      for (const t of sec.tokens || []) all.push({ ...t, chain: c });
+    }
+    if (st.tokensDone === 0) { el.innerHTML = `<div class="spinner">Loading token holdings…</div>`; return; }
+    if (!all.length) { el.innerHTML = `<div class="empty">No priced token holdings on any chain.</div>`; return; }
+    all.sort((a, b) => (b.usd_value || 0) - (a.usd_value || 0));
+    if (!st.sortDesc) all.reverse();
+    const shown = all.filter((t) => st.showDust || t.usd_value == null || t.usd_value >= 1).slice(0, 50);
+    const dustHidden = all.filter((t) => t.usd_value != null && t.usd_value < 1).length;
+    el.innerHTML = `
+      <table class="tbl"><thead><tr><th>Token</th><th>Chain</th><th class="r">Balance</th><th class="r">Price</th><th class="r"><a href="#" id="w-sort-value" style="color:inherit">Value ${st.sortDesc ? "↓" : "↑"}</a></th><th class="r">24h %</th></tr></thead>
+      <tbody>${shown.map((t) => `<tr>
+        <td>${linkTokenC(t.chain, t.address, t.symbol)} <span class="muted">${esc(t.name || "")}</span></td>
+        <td>${chainBadge(t.chain)}</td>
+        <td class="r mono">${esc(t.balance)}</td>
+        <td class="r mono">${t.usd_price != null ? usd(t.usd_price) : "—"}</td>
+        <td class="r mono">${t.usd_value != null ? usd(t.usd_value) : "—"}</td>
+        <td class="r mono">${pctHtml(t.usd_change_24h_pct)}</td>
+      </tr>`).join("")}</tbody></table>
+      <div class="muted" style="padding:10px 16px;font-size:12px">Showing ${shown.length} of ${all.length} priced holdings (top 50 per chain, sorted by value). Only tokens with a USD price are listed — ${num(pricedCount)} of ${num(totalCount)} holdings priced across all chains; the rest have no market price and are excluded.${dustHidden && !st.showDust ? ` ${dustHidden} dust holding(s) under $1 hidden — tick “Show dust” to reveal.` : ""}</div>`;
+    const sv = $("#w-sort-value");
+    if (sv) sv.onclick = (e) => { e.preventDefault(); st.sortDesc = !st.sortDesc; renderHoldings(); };
+  }
+  const dustBox = $("#w-dust");
+  if (dustBox) dustBox.onchange = () => { st.showDust = dustBox.checked; renderHoldings(); };
+
+  /* ---- history chart (estimate — today's balances x past prices) ---- */
+  async function renderHistory() {
+    const el = $("#w-history"); if (!el) return;
+    el.innerHTML = `<div class="spinner">Loading history…</div>`;
+    try {
+      const d = await getWallet(`/${addr}/history?days=${st.histDays}`);
+      if (!alive()) return;
+      const pts = (d.points || []).map((p) => ({ x: p.date, y: p.value_usd }));
+      el.innerHTML = `
+        <div class="chart-wrap">${svgChart(pts, { label: `Portfolio value, ${st.histDays} days (estimate)`, fmtY: (v) => "$" + Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 }) })}</div>
+        <div class="muted" style="padding:0 16px 14px;font-size:12px">${esc(d.method || "")} ${esc(d.note || "")}<br>
+        Priced in: ${(d.included || []).map((t) => `${esc(t.token || "?")} (${esc(t.chain)})`).join(", ") || "native only"} · ${d.excluded_tokens || 0} priced holding(s) excluded from the chart (top 5 only).</div>`;
+    } catch (e) {
+      if (!alive()) return;
+      el.innerHTML = `<div class="empty">History unavailable: ${esc(e.message)}</div>`;
+    }
+  }
+  document.querySelectorAll("#w-hist-btns .btn").forEach((b) => {
+    b.onclick = () => {
+      document.querySelectorAll("#w-hist-btns .btn").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      st.histDays = Number(b.dataset.days) || 30;
+      renderHistory();
+    };
+  });
+
+  /* ---- estimated realized PnL (FIFO over recent token transfers) ---- */
+  async function renderPnl() {
+    const el = $("#w-pnl"); if (!el) return;
+    try {
+      const d = await getWallet(`/${addr}/pnl`);
+      if (!alive()) return;
+      const rows = (d.rows || []).filter((r) => r.transfers_priced > 0 || r.transfers_unpriced > 0);
+      el.innerHTML = `
+        <div style="padding:14px 16px">
+          <div class="wallet-hero" style="padding:0">
+            <div><div class="k">Estimated Realized PnL (90d window)</div><div class="v" style="color:${d.realized_pnl_usd >= 0 ? "var(--green)" : "var(--red)"}">${d.realized_pnl_usd >= 0 ? "+" : ""}${usd(d.realized_pnl_usd)}</div></div>
+            <div><div class="k">Proceeds</div><div class="v">${usd(d.proceeds_usd)}</div></div>
+            <div><div class="k">Cost Basis (FIFO)</div><div class="v">${usd(d.cost_usd)}</div></div>
+          </div>
+          <p class="muted" style="font-size:12.5px">${esc(d.method || "")}</p>
+          <p class="muted" style="font-size:12.5px">Coverage: ${num(d.transfers_priced)} transfer(s) priced, ${num(d.transfers_unpriced)} unpriced (no CoinGecko history — excluded), ${num(d.transfers_unmatched)} outgoing with no cost basis in the window (excluded).${d.transfers_priced === 0 ? " No priced transfers in this window, so no realized PnL can be estimated — common for wallets whose recent transfers are unlisted/spam tokens." : ""}</p>
+          ${rows.length ? `<table class="tbl"><thead><tr><th>Token</th><th>Chain</th><th class="r">Proceeds</th><th class="r">Cost</th><th class="r">Realized PnL</th><th class="r">Priced / Unpriced / Unmatched</th></tr></thead><tbody>
+            ${rows.map((r) => `<tr><td>${linkTokenC(r.chain, r.token_address, r.token_symbol || shortH(r.token_address))} <span class="muted">${esc(r.token_name || "")}</span></td><td>${chainBadge(r.chain)}</td><td class="r mono">${usd(r.proceeds_usd)}</td><td class="r mono">${usd(r.cost_usd)}</td><td class="r mono" style="color:${r.realized_pnl_usd >= 0 ? "var(--green)" : "var(--red)"}">${r.realized_pnl_usd >= 0 ? "+" : ""}${usd(r.realized_pnl_usd)}</td><td class="r mono">${r.transfers_priced} / ${r.transfers_unpriced} / ${r.transfers_unmatched}</td></tr>`).join("")}</tbody></table>` : ""}
+        </div>`;
+    } catch (e) {
+      if (!alive()) return;
+      el.innerHTML = `<div class="empty">PnL unavailable: ${esc(e.message)}</div>`;
+    }
+  }
+
+  /* ---- NFT gallery ---- */
+  async function renderNfts() {
+    const el = $("#w-nfts"); if (!el) return;
+    try {
+      const d = await getWallet(`/${addr}/nfts`);
+      if (!alive()) return;
+      const cnt = $("#w-nft-count"); if (cnt) cnt.textContent = num(d.count) + " shown";
+      if (!d.items || !d.items.length) { el.innerHTML = `<div class="empty">No NFTs on any chain.</div>`; return; }
+      el.innerHTML = `<div class="nftgrid">${d.items.map((n) => {
+        const img = ipfsHttp(n.image_url || n.media_url);
+        return `<a class="nft-card" data-chain="${esc(n.chain)}" href="#/token/${esc(n.token_address)}/instance/${esc(String(n.token_id))}">
+          ${img ? `<img src="${esc(img)}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div style="aspect-ratio:1;background:#eef1f5;display:flex;align-items:center;justify-content:center;color:var(--muted)">No image</div>`}
+          <div class="nft-id">${esc(n.name || n.token_name || "NFT")} ${chainBadge(n.chain)}</div>
+          <div class="nft-sub">${esc(n.token_name || n.token_symbol || "")} · #${esc(String(n.token_id))} · ${esc(n.token_type || "")}</div>
+        </a>`;
+      }).join("")}</div>
+      <div class="muted" style="padding:0 16px 14px;font-size:12px">${esc(d.note || "")} Per chain: ${Object.entries(d.per_chain || {}).map(([c, n]) => `${esc(c)} ${n}`).join(" · ")}.${Object.keys(d.errors || {}).length ? " Errors: " + esc(Object.entries(d.errors).map(([c, e]) => c + ": " + e).join("; ")) : ""}</div>`;
+    } catch (e) {
+      if (!alive()) return;
+      el.innerHTML = `<div class="empty">NFTs unavailable: ${esc(e.message)}</div>`;
+    }
+  }
+
+  /* ---- unified activity feed (merged, time-sorted, Load-more/chain) ---- */
+  function activityRow(t) {
+    return `<tr><td>${linkTxC(t.chain, t.hash)}</td><td>${chainBadge(t.chain)}</td><td class="muted" style="white-space:nowrap">${esc(t.age || "")}</td><td>${linkAddrC(t.chain, t.from)}</td><td>${linkAddrC(t.chain, t.to)}</td><td class="r mono">${ethFmt(t.value_eth)}&nbsp;${esc(chainNativeSym(t.chain))}</td></tr>`;
+  }
+  async function renderActivity() {
+    const el = $("#w-activity"); if (!el) return;
+    try {
+      const d = await getWallet(`/${addr}/activity`);
+      if (!alive()) return;
+      st.activityCursors = d.next_page_params || {};
+      st.activityRows = d.items || [];
+      el.innerHTML = `
+        <table class="tbl"><thead><tr><th>Txn Hash</th><th>Chain</th><th>Age</th><th>From</th><th>To</th><th class="r">Value</th></tr></thead><tbody id="w-act-body"></tbody></table>
+        <button class="loadmore" id="w-act-more">Load more</button>
+        ${Object.keys(d.errors || {}).length ? `<div class="muted" style="padding:10px 16px;font-size:12px">Errors: ${esc(Object.entries(d.errors).map(([c, e]) => c + ": " + e).join("; "))}</div>` : ""}`;
+      const body = $("#w-act-body");
+      body.innerHTML = st.activityRows.length ? st.activityRows.map(activityRow).join("") : `<tr><td colspan="6"><div class="empty">No transactions on any chain.</div></td></tr>`;
+      wireActivityMore();
+    } catch (e) {
+      if (!alive()) return;
+      el.innerHTML = `<div class="empty">Activity unavailable: ${esc(e.message)}</div>`;
+    }
+  }
+  function wireActivityMore() {
+    const btn = $("#w-act-more"); if (!btn) return;
+    const hasCursor = () => Object.values(st.activityCursors).some((c) => c);
+    btn.style.display = hasCursor() ? "" : "none";
+    btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = "Loading…";
+      const chains = Object.keys(st.activityCursors).filter((c) => st.activityCursors[c]);
+      const results = await Promise.all(chains.map(async (c) => {
+        const q = new URLSearchParams({ chain: c, ...st.activityCursors[c] }).toString();
+        try { return await getWallet(`/${addr}/activity?${q}`); }
+        catch (e) { return { chain: c, items: [], next_page_params: null }; }
+      }));
+      if (!alive()) return;
+      const fresh = [];
+      for (const r of results) {
+        st.activityCursors[r.chain] = r.next_page_params || null;
+        fresh.push(...(r.items || []));
+      }
+      fresh.sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+      st.activityRows.push(...fresh);
+      const body = $("#w-act-body");
+      if (body && fresh.length) body.insertAdjacentHTML("beforeend", fresh.map(activityRow).join(""));
+      btn.disabled = false; btn.textContent = "Load more";
+      btn.style.display = hasCursor() ? "" : "none";
+    };
+  }
+
+  // Aggregate first (hero + chains), then token holdings per chain in
+  // parallel — the hero/totals recompute as each chain's holdings land.
+  // History, PnL, NFTs and activity load independently.
+  try { st.agg = await getWallet("/" + addr); } catch (e) { st.agg = null; }
+  if (!alive()) return;
+  renderHero(); renderChains();
+  WALLET_CHAINS.forEach((c) => {
+    getWallet(`/${addr}/tokens?chain=${c}`).then((sec) => {
+      if (!alive()) return;
+      st.tokens[c] = sec; st.tokensDone++;
+      renderHero(); renderChains(); renderHoldings();
+    }).catch((e) => {
+      if (!alive()) return;
+      st.tokens[c] = { chain: c, tokens: [], tokens_total_usd: null, tokens_count: null, tokens_priced_count: null, nft_count: null, error: e.message };
+      st.tokensDone++;
+      renderHero(); renderChains(); renderHoldings();
+    });
+  });
+  renderHistory();
+  renderPnl();
+  renderNfts();
+  renderActivity();
+}
+
 /* ---------------- router ---------------- */
 const routes = [
   [/^#\/?$/, () => home()],
@@ -1408,6 +1788,8 @@ const routes = [
   [/^#\/gastracker$/, () => gasPage()],
   [/^#\/pending$/, () => pendingPage()],
   [/^#\/api-docs$/, () => apiDocsPage()],
+  [/^#\/wallet$/, () => walletLanding()],
+  [/^#\/wallet\/(.+)$/, (m) => walletPage(decodeURIComponent(m[1]))],
   [/^#\/block\/([^/]+)$/, (m) => blockPage(m[1])],
   [/^#\/tx\/(0x[0-9a-fA-F]{64})$/, (m) => txPage(m[1])],
   [/^#\/address\/(0x[0-9a-fA-F]{40})$/, (m) => addressPage(m[1])],
@@ -1437,6 +1819,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         const old = b.textContent; b.textContent = "✓";
         setTimeout(() => { b.textContent = old; }, 1200);
       });
+    }
+    // Chain-aware links (wallet dashboard): switch CHAIN before the
+    // hashchange routes, so a tx/token on another chain renders there.
+    const a = e.target.closest("a[data-chain]");
+    if (a && a.dataset.chain && a.dataset.chain !== CHAIN && CHAINS.some((c) => c.id === a.dataset.chain)) {
+      CHAIN = a.dataset.chain;
+      localStorage.setItem("ethscope-chain", CHAIN);
+      const sel = document.getElementById("chain-select");
+      if (sel) sel.value = CHAIN;
+      updateNetpill();
     }
   });
   window.addEventListener("hashchange", route);

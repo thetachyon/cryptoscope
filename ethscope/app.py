@@ -13,9 +13,6 @@ Vercel:      served via api/index.py (ASGI app) + vercel.json rewrites.
 import json
 import os
 import re
-import time
-from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
 
 import httpx
 from fastapi import FastAPI, Request
@@ -23,89 +20,49 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+# Cross-chain plumbing lives in separate modules so it can be hoisted into
+# cryptoscope/common/ later (see chains.py / clients.py / pricing.py /
+# formatting.py / wallet.py). app.py keeps the FastAPI app, core logic and
+# routes.
+from chains import CHAINS, DEFAULT_CHAIN
+from clients import (
+    CHART_TTL,
+    TIMEOUT,
+    UpstreamError,
+    _cache_get,
+    _cache_set,
+    bs,
+    coingecko,
+    rpc,
+)
+from formatting import (
+    _instance_short,
+    addr_info,
+    block_short,
+    decode_input,
+    gwei,
+    internal_tx_short,
+    rpc_tx_short,
+    token_amount,
+    token_transfer_short,
+    tx_short,
+    wei_to_eth,
+)
+from pricing import enrich_token_balances
+from wallet import (
+    _wallet,
+    _wallet_activity,
+    _wallet_activity_page,
+    _wallet_history,
+    _wallet_nfts,
+    _wallet_pnl,
+    _wallet_tokens,
+)
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
-# The sandbox sets NO_PROXY with bracketed IPv6 literals ([::1], [fd8b:...])
-# which httpx's env-proxy parser rejects (InvalidURL). Strip the bracketed
-# forms; the bare forms (::1, fd8b:...) remain and match identically.
-for _k in ("no_proxy", "NO_PROXY"):
-    _v = os.environ.get(_k)
-    if _v:
-        os.environ[_k] = ",".join(p for p in _v.split(",") if "[" not in p)
-
-# ---------------------------------------------------------------- chains
-# Only chains whose Blockscout host answers AND whose public RPC answers were
-# kept (verified 2026-11-05). Dropped: arbitrum.blockscout.com (connection
-# fails), base.blockscout.com (HTTP 403), polygon.blockscout.com (HTTP 403
-# Cloudflare).
-CHAINS = {
-    "ethereum": {
-        "label": "Ethereum",
-        "blockscout": "https://eth.blockscout.com/api/v2",
-        "rpc": "https://ethereum.publicnode.com",
-        "coingecko_platform": "ethereum",
-        "coingecko_coin": "ethereum",
-        "native": "ETH",
-    },
-    "sepolia": {
-        "label": "Sepolia",
-        "blockscout": "https://eth-sepolia.blockscout.com/api/v2",
-        "rpc": "https://ethereum-sepolia.publicnode.com",
-        "coingecko_platform": "ethereum",
-        "coingecko_coin": "ethereum",
-        "native": "ETH",
-    },
-    "optimism": {
-        "label": "Optimism",
-        "blockscout": "https://optimism.blockscout.com/api/v2",
-        "rpc": "https://optimism.publicnode.com",
-        "coingecko_platform": "optimistic-ethereum",
-        "coingecko_coin": "ethereum",
-        "native": "ETH",
-    },
-    "gnosis": {
-        "label": "Gnosis",
-        "blockscout": "https://gnosis.blockscout.com/api/v2",
-        "rpc": "https://gnosis.publicnode.com",
-        "coingecko_platform": "xdai",
-        "coingecko_coin": "xdai",
-        "native": "xDAI",
-    },
-}
-DEFAULT_CHAIN = "ethereum"
-
-TIMEOUT = httpx.Timeout(10.0)
-HEADERS = {"User-Agent": "EthScope/1.0"}
-CACHE_TTL = 60  # seconds, for hot endpoints
-CHART_TTL = 600  # seconds, for chart / CoinGecko data
-TOKEN_PRICE_TTL = 300  # seconds, for per-token CoinGecko prices
-
-_cache: dict = {}
-
 app = FastAPI(title="EthScope", version="1.1.0")
-
-
-# ---------------------------------------------------------------- cache
-def _cache_get(key):
-    ent = _cache.get(key)
-    if ent and ent[0] > time.time():
-        return ent[1]
-    _cache.pop(key, None)
-    return None
-
-
-def _cache_set(key, val, ttl=CACHE_TTL):
-    if len(_cache) > 512:  # simple bound
-        _cache.clear()
-    _cache[key] = (time.time() + ttl, val)
-
-
-# ---------------------------------------------------------------- errors
-class UpstreamError(Exception):
-    def __init__(self, msg, status=502):
-        self.msg = msg
-        self.status = status
 
 
 @app.exception_handler(UpstreamError)
@@ -124,298 +81,6 @@ def _require_chain(chain: str):
     """Return None if the chain is known, else a 404 JSONResponse."""
     if chain not in CHAINS:
         return JSONResponse({"error": "Unknown chain"}, status_code=404)
-    return None
-
-
-# ---------------------------------------------------------------- http
-async def bs(chain, path, params=None):
-    """GET Blockscout v2 for a chain. Returns parsed JSON, None on 404,
-    raises UpstreamError otherwise."""
-    base = CHAINS[chain]["blockscout"]
-    try:
-        async with httpx.AsyncClient(timeout=TIMEOUT, headers=HEADERS, follow_redirects=True) as c:
-            r = await c.get(base + path, params=params or {})
-    except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as e:
-        raise UpstreamError(f"Blockscout unreachable ({type(e).__name__})")
-    if r.status_code == 404:
-        return None
-    if r.status_code >= 400:
-        raise UpstreamError(f"Blockscout returned HTTP {r.status_code}")
-    try:
-        return r.json()
-    except Exception:
-        raise UpstreamError("Blockscout returned invalid JSON")
-
-
-async def rpc(chain, method, params=None):
-    """JSON-RPC call against a chain's public RPC. Returns the `result`
-    field. A JSON-RPC error object becomes a 400 UpstreamError (e.g. a
-    reverted eth_call); transport failures become 502."""
-    url = CHAINS[chain]["rpc"]
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or []}
-    try:
-        async with httpx.AsyncClient(timeout=TIMEOUT, headers=HEADERS, follow_redirects=True) as c:
-            r = await c.post(url, json=payload)
-    except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as e:
-        raise UpstreamError(f"{CHAINS[chain]['label']} RPC unreachable ({type(e).__name__})")
-    if r.status_code >= 400:
-        raise UpstreamError(f"{CHAINS[chain]['label']} RPC returned HTTP {r.status_code}")
-    try:
-        d = r.json()
-    except Exception:
-        raise UpstreamError(f"{CHAINS[chain]['label']} RPC returned invalid JSON")
-    if isinstance(d, dict) and d.get("error"):
-        err = d["error"]
-        msg = err.get("message") if isinstance(err, dict) else str(err)
-        raise UpstreamError(f"RPC error: {msg}", status=400)
-    return d.get("result") if isinstance(d, dict) else None
-
-
-async def coingecko(path, params=None):
-    """GET CoinGecko keyless API. Returns parsed JSON or None on any
-    failure (callers degrade gracefully, never hang)."""
-    try:
-        async with httpx.AsyncClient(timeout=TIMEOUT, headers=HEADERS, follow_redirects=True) as c:
-            r = await c.get("https://api.coingecko.com/api/v3" + path, params=params or {})
-    except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError):
-        return None
-    if r.status_code != 200:
-        return None
-    try:
-        return r.json()
-    except Exception:
-        return None
-
-
-async def cg_token_price(platform, contract_address):
-    """USD price for one token contract on a CoinGecko platform id.
-    CoinGecko's keyless tier caps simple/token_price at ONE contract
-    address per request (error 10012 otherwise), so this is per-address
-    with a 5-min cache. Returns a float or None."""
-    key = f"cgprice:{platform}:{contract_address.lower()}"
-    hit = _cache_get(key)
-    if hit is not None:
-        return hit
-    d = await coingecko(
-        f"/simple/token_price/{platform}",
-        params={"contract_addresses": contract_address, "vs_currencies": "usd"},
-    )
-    price = None
-    if isinstance(d, dict):
-        entry = d.get(contract_address.lower()) or d.get(contract_address)
-        if isinstance(entry, dict) and entry.get("usd") is not None:
-            try:
-                price = float(entry["usd"])
-            except (TypeError, ValueError):
-                price = None
-    _cache_set(key, price, ttl=TOKEN_PRICE_TTL)
-    return price
-
-
-# ---------------------------------------------------------------- format helpers
-def _wei_str(v) -> str:
-    try:
-        return str(int(str(v)))
-    except (ValueError, TypeError):
-        return "0"
-
-
-def _hex_int(v) -> int:
-    """Parse a hex (0x...) or decimal quantity to int; 0 on garbage."""
-    try:
-        s = str(v)
-        return int(s, 16) if s.startswith(("0x", "0X")) else int(s)
-    except (ValueError, TypeError):
-        return 0
-
-
-def wei_to_eth(v) -> str:
-    """Wei (int-as-string) -> ETH decimal string, trailing zeros stripped."""
-    try:
-        d = Decimal(_wei_str(v)) / Decimal(10**18)
-    except InvalidOperation:
-        return "0"
-    s = format(d.normalize(), "f")
-    return s
-
-
-def gwei(v) -> str:
-    try:
-        return f"{Decimal(_wei_str(v)) / Decimal(10**9):.2f}"
-    except InvalidOperation:
-        return "0.00"
-
-
-def token_amount(value, decimals) -> str:
-    try:
-        dec = int(decimals or 0)
-        d = Decimal(_wei_str(value)) / (Decimal(10) ** dec)
-    except (InvalidOperation, ValueError):
-        return "0"
-    s = format(d.normalize(), "f")
-    if "." in s:
-        i, f = s.split(".")
-        f = f[:6].rstrip("0")
-        s = i + ("." + f if f else "")
-    return s
-
-
-def short(h: str) -> str:
-    if not h or len(h) < 18:
-        return h or ""
-    return h[:10] + "..." + h[-8:]
-
-
-def age(ts: str) -> str:
-    """ISO timestamp -> '12 secs ago' style relative age."""
-    if not ts:
-        return ""
-    try:
-        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        secs = int((datetime.now(timezone.utc) - dt).total_seconds())
-    except Exception:
-        return ts
-    if secs < 0:
-        secs = 0
-    if secs < 60:
-        return f"{secs} secs ago"
-    mins = secs // 60
-    if mins < 60:
-        return f"{mins} mins ago"
-    hrs = mins // 60
-    if hrs < 24:
-        return f"{hrs} hrs {mins % 60} mins ago"
-    days = hrs // 24
-    return f"{days} days ago"
-
-
-def addr_info(a) -> dict | None:
-    """Compact address object: hash + display label + flags."""
-    if not a or not isinstance(a, dict):
-        return None
-    h = a.get("hash") or ""
-    label = a.get("ens_domain_name") or a.get("name") or h
-    return {
-        "hash": h,
-        "label": label,
-        "short": short(h) if label == h else label,
-        "is_contract": bool(a.get("is_contract")),
-        "is_scam": bool(a.get("is_scam")),
-    }
-
-
-def tx_short(t: dict) -> dict:
-    return {
-        "hash": t.get("hash"),
-        "block": t.get("block"),
-        "timestamp": t.get("timestamp"),
-        "age": age(t.get("timestamp")),
-        "from": addr_info(t.get("from")),
-        "to": addr_info(t.get("to")),
-        "value_eth": wei_to_eth(t.get("value")),
-        "fee_eth": wei_to_eth((t.get("fee") or {}).get("value")) if isinstance(t.get("fee"), dict) else "0",
-        "gas_price_gwei": gwei(t.get("gas_price")),
-        "status": t.get("result") or t.get("status"),
-        "method": t.get("method"),
-        "type": t.get("type"),
-    }
-
-
-def rpc_tx_short(t: dict) -> dict:
-    """tx_short shape for a raw JSON-RPC transaction object (pending block)."""
-    return {
-        "hash": t.get("hash"),
-        "block": None,
-        "timestamp": None,
-        "age": "",
-        "from": addr_info({"hash": t.get("from")}) if t.get("from") else None,
-        "to": addr_info({"hash": t.get("to")}) if t.get("to") else None,
-        "value_eth": wei_to_eth(_hex_int(t.get("value"))),
-        "fee_eth": "0",
-        "gas_price_gwei": f"{_hex_int(t.get('gasPrice')) / 10**9:.2f}" if t.get("gasPrice") else "0.00",
-        "status": "pending",
-        "method": None,
-        "type": t.get("type"),
-        "gas": _hex_int(t.get("gas")),
-        "nonce": _hex_int(t.get("nonce")),
-    }
-
-
-def block_short(b: dict) -> dict:
-    return {
-        "height": b.get("height"),
-        "hash": b.get("hash"),
-        "timestamp": b.get("timestamp"),
-        "age": age(b.get("timestamp")),
-        "miner": addr_info(b.get("miner")),
-        "tx_count": b.get("transactions_count"),
-        "gas_used": b.get("gas_used"),
-        "gas_limit": b.get("gas_limit"),
-        "gas_used_pct": round(float(b.get("gas_used_percentage") or 0), 2),
-        "base_fee_gwei": gwei(b.get("base_fee_per_gas")),
-        "burnt_fees_eth": wei_to_eth(b.get("burnt_fees")),
-        "rewards": [
-            {"recipient": r.get("recipient"), "type": r.get("type"), "value_eth": wei_to_eth(r.get("reward"))}
-            for r in (b.get("rewards") or [])
-        ],
-        "size": b.get("size"),
-        "withdrawals_count": b.get("withdrawals_count"),
-        "blob_tx_count": b.get("blob_transactions_count"),
-    }
-
-
-def token_transfer_short(tt: dict) -> dict:
-    tok = tt.get("token") or {}
-    total = tt.get("total") or {}
-    dec = total.get("decimals") if total.get("decimals") is not None else tok.get("decimals")
-    return {
-        "tx_hash": tt.get("transaction_hash"),
-        "block": tt.get("block_number"),
-        "timestamp": tt.get("timestamp"),
-        "age": age(tt.get("timestamp")),
-        "from": addr_info(tt.get("from")),
-        "to": addr_info(tt.get("to")),
-        "token": {
-            "address": tok.get("address"),
-            "name": tok.get("name"),
-            "symbol": tok.get("symbol"),
-            "decimals": dec,
-            "type": tok.get("type"),
-            "icon_url": tok.get("icon_url"),
-        },
-        "amount": token_amount(total.get("value"), dec),
-        "type": tt.get("type"),
-    }
-
-
-def internal_tx_short(i: dict) -> dict:
-    return {
-        "tx_hash": i.get("transaction_hash"),
-        "block": i.get("block_number"),
-        "timestamp": i.get("timestamp"),
-        "age": age(i.get("timestamp")),
-        "from": addr_info(i.get("from")),
-        "to": addr_info(i.get("to")),
-        "value_eth": wei_to_eth(i.get("value")),
-        "gas_limit": i.get("gas_limit"),
-        "type": i.get("type"),
-        "success": i.get("success"),
-        "error": i.get("error"),
-        "created_contract": i.get("created_contract", {}).get("hash") if isinstance(i.get("created_contract"), dict) else None,
-    }
-
-
-def decode_input(hexstr: str | None) -> str | None:
-    """Return UTF-8 text of tx input if it is printable, else None."""
-    if not hexstr or hexstr == "0x":
-        return None
-    try:
-        raw = bytes.fromhex(hexstr[2:] if hexstr.startswith("0x") else hexstr)
-        txt = raw.decode("utf-8")
-    except Exception:
-        return None
-    if txt and all(32 <= ord(c) < 127 or c in "\n\r\t" for c in txt):
-        return txt
     return None
 
 
@@ -925,64 +590,15 @@ async def _address_internal(chain, h, params):
 
 
 async def _address_tokens(chain, h):
-    """Token balances with USD values. Blockscout `exchange_rate` wins;
-    otherwise one cached CoinGecko lookup per token (max 5 per call —
-    CoinGecko's keyless tier allows only one contract address per
-    simple/token_price request). ERC-721/1155 items get null USD fields.
-    A CoinGecko failure never breaks the endpoint."""
-    d = await bs(chain, f"/addresses/{h}/token-balances")
+    """Token balances with USD values (pricing.enrich_token_balances).
+    ERC-721/1155 items get null USD fields. A CoinGecko failure never
+    breaks the endpoint."""
+    d = await bs(chain, f"/addresses/{h}/token-balances", timeout=45.0)
     if d is None:
         return JSONResponse({"error": "Address not found"}, status_code=404)
-    items = []
-    for tb in d if isinstance(d, list) else d.get("items", []):
-        tok = tb.get("token") or {}
-        items.append(
-            {
-                "address": tok.get("address_hash") or tok.get("address"),
-                "name": tok.get("name"),
-                "symbol": tok.get("symbol"),
-                "decimals": tok.get("decimals"),
-                "type": tok.get("type"),
-                "icon_url": tok.get("icon_url"),
-                "balance": token_amount(tb.get("value"), tok.get("decimals")),
-                "token_id": tb.get("token_id"),
-                "usd_price": None,
-                "usd_value": None,
-                "_exchange_rate": tok.get("exchange_rate"),
-            }
-        )
-    # USD enrichment for fungible tokens only. Blockscout's exchange_rate
-    # wins; otherwise one cached CoinGecko lookup per token (max 5 per
-    # call — CoinGecko's keyless tier allows only one contract address
-    # per simple/token_price request). ERC-721/1155 items get null USD
-    # fields. A CoinGecko failure never breaks the endpoint.
-    platform = CHAINS[chain]["coingecko_platform"]
-    cg_lookups = 0
-    total_usd = Decimal(0)
-    for it in items:
-        if it["type"] != "ERC-20" or not it["address"]:
-            it.pop("_exchange_rate", None)
-            continue
-        price = None
-        if it.get("_exchange_rate") is not None:
-            try:
-                price = float(it["_exchange_rate"])
-            except (TypeError, ValueError):
-                price = None
-        elif cg_lookups < 5:
-            cg_lookups += 1
-            price = await cg_token_price(platform, it["address"])
-        it.pop("_exchange_rate", None)
-        if price is not None:
-            try:
-                bal = Decimal(it["balance"])
-                val = bal * Decimal(str(price))
-                it["usd_price"] = price
-                it["usd_value"] = float(val)
-                total_usd += val
-            except (InvalidOperation, ValueError):
-                pass
-    return {"items": items, "total_usd": float(total_usd)}
+    raw = d if isinstance(d, list) else d.get("items", [])
+    items, total_usd = await enrich_token_balances(chain, raw)
+    return {"items": items, "total_usd": total_usd}
 
 
 async def _token(chain, h):
@@ -1011,30 +627,6 @@ async def _token_transfers(chain, h, params):
     return {
         "items": [token_transfer_short(tt) for tt in d.get("items", [])],
         "next_page_params": d.get("next_page_params"),
-    }
-
-
-def _instance_short(inst: dict) -> dict:
-    return {
-        "id": inst.get("id"),
-        "image_url": inst.get("image_url"),
-        "media_url": inst.get("media_url"),
-        "media_type": inst.get("media_type"),
-        "animation_url": inst.get("animation_url"),
-        "external_app_url": inst.get("external_app_url"),
-        "is_unique": inst.get("is_unique"),
-        "metadata": inst.get("metadata"),
-        "owner": addr_info(inst.get("owner")) if isinstance(inst.get("owner"), dict) else None,
-        "token": (
-            {
-                "address": (inst.get("token") or {}).get("address"),
-                "name": (inst.get("token") or {}).get("name"),
-                "symbol": (inst.get("token") or {}).get("symbol"),
-                "type": (inst.get("token") or {}).get("type"),
-            }
-            if isinstance(inst.get("token"), dict)
-            else None
-        ),
     }
 
 
@@ -1440,6 +1032,17 @@ DOCS_BASE = [
     {"method": "GET", "suffix": "/search", "description": "Universal search: addresses, tokens, transactions, blocks, ENS.", "params": ["q"], "example": "/api/ethscope/ethereum/search?q=vitalik.eth"},
 ]
 
+# Global (cross-chain) endpoints: no legacy/chain-prefixed expansion —
+# they aggregate all chains and are listed verbatim in _docs_payload.
+DOCS_GLOBAL = [
+    {"method": "GET", "path": "/api/ethscope/wallet/{address}", "description": "Cross-chain wallet (FAST): per-chain NATIVE balances with USD values, ENS, status. Token holdings are NOT included — they load progressively via /wallet/{address}/tokens. total_usd here is the native-only total.", "params": [], "example": "/api/ethscope/wallet/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"},
+    {"method": "GET", "path": "/api/ethscope/wallet/{address}/tokens", "description": "Token holdings per chain (top 50 by USD value, totals, counts). Slow for token-rich addresses — Blockscout /token-balances is one giant unpaginated download. Optional ?chain= loads one chain only.", "params": ["chain"], "example": "/api/ethscope/wallet/0xd8dA.../tokens?chain=ethereum"},
+    {"method": "GET", "path": "/api/ethscope/wallet/{address}/history", "description": "Portfolio value history (ESTIMATE): today's balances x historical prices. Native coins + top 5 tokens by current value.", "params": ["days"], "example": "/api/ethscope/wallet/0xd8dA.../history?days=30"},
+    {"method": "GET", "path": "/api/ethscope/wallet/{address}/pnl", "description": "Estimated realized PnL (FIFO) over the latest 50 token transfers per chain, priced at CoinGecko daily closes. Unpriced/unmatched transfers are counted and excluded, never invented.", "params": [], "example": "/api/ethscope/wallet/0xd8dA.../pnl"},
+    {"method": "GET", "path": "/api/ethscope/wallet/{address}/nfts", "description": "NFT holdings across all chains (first 50 per chain).", "params": [], "example": "/api/ethscope/wallet/0xd8dA.../nfts"},
+    {"method": "GET", "path": "/api/ethscope/wallet/{address}/activity", "description": "Recent transactions across all chains, merged and sorted by time (top 50), with per-chain next_page_params for Load-more. With ?chain=<id>&<cursor params> returns one further shaped page of that chain.", "params": ["chain (optional)", "block_number/index/items_count (cursor, optional)"], "example": "/api/ethscope/wallet/0xd8dA.../activity"},
+]
+
 
 def _docs_payload():
     endpoints = []
@@ -1452,6 +1055,7 @@ def _docs_payload():
         )
     endpoints.append({"method": "GET", "path": "/api/ethscope/chains", "description": "List the supported chains with their Blockscout/RPC endpoints and native coin.", "params": [], "example": "/api/ethscope/chains"})
     endpoints.append({"method": "GET", "path": "/api/ethscope/docs", "description": "This endpoint list.", "params": [], "example": "/api/ethscope/docs"})
+    endpoints.extend(DOCS_GLOBAL)
     return {"chains": list(CHAINS.keys()), "endpoints": endpoints}
 
 
@@ -1476,6 +1080,64 @@ async def api_chains():
 @app.get("/api/ethscope/docs")
 async def api_docs():
     return _docs_payload()
+
+
+# ---------------------------------------------------------------- wallet (cross-chain aggregation)
+@app.get("/api/ethscope/wallet/{address}")
+async def api_wallet(address: str):
+    if not _ADDR_RE.fullmatch(address or ""):
+        return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+    return await _wallet(address)
+
+
+@app.get("/api/ethscope/wallet/{address}/tokens")
+async def api_wallet_tokens(address: str, chain: str | None = None):
+    if not _ADDR_RE.fullmatch(address or ""):
+        return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+    if chain is not None and chain not in CHAINS:
+        return JSONResponse({"error": "Unknown chain"}, status_code=404)
+    return await _wallet_tokens(address, chain)
+
+
+@app.get("/api/ethscope/wallet/{address}/history")
+async def api_wallet_history(address: str, days: int = 30):
+    if not _ADDR_RE.fullmatch(address or ""):
+        return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+    if days < 1 or days > 90:
+        return JSONResponse({"error": "days must be between 1 and 90"}, status_code=400)
+    return await _wallet_history(address, days)
+
+
+@app.get("/api/ethscope/wallet/{address}/pnl")
+async def api_wallet_pnl(address: str):
+    if not _ADDR_RE.fullmatch(address or ""):
+        return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+    return await _wallet_pnl(address)
+
+
+@app.get("/api/ethscope/wallet/{address}/nfts")
+async def api_wallet_nfts(address: str):
+    if not _ADDR_RE.fullmatch(address or ""):
+        return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+    return await _wallet_nfts(address)
+
+
+@app.get("/api/ethscope/wallet/{address}/activity")
+async def api_wallet_activity(address: str, request: Request):
+    if not _ADDR_RE.fullmatch(address or ""):
+        return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+    params = dict(request.query_params)
+    chain = params.pop("chain", None)
+    if chain:
+        # One further page of one chain (Load-more): cursor params are
+        # Blockscout's next_page_params for that chain.
+        if chain not in CHAINS:
+            return JSONResponse({"error": "Unknown chain"}, status_code=404)
+        try:
+            return await _wallet_activity_page(address, chain, params)
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=502)
+    return await _wallet_activity(address)
 
 
 # ---------------------------------------------------------------- legacy mainnet routes (aliases for chain=ethereum)
