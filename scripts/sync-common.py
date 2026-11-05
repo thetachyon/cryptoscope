@@ -12,6 +12,13 @@ metadata) gets:
   <app>/static/       — fresh copy of frontend/ (generated, never hand-edit)
   <app>/static/config.js — GENERATED from <app>/config.py (never hand-edit)
 
+Frontend overlay: an app may ship its own <app>/frontend/ directory
+(solscope does — the EVM SPA does not fit Solana). Its files, limited
+to the FRONTEND_FILES names, are copied over the canonical ones in
+<app>/static/ after the canonical copy, and `check` compares them
+against the overlay source instead of the canonical files. Edit the
+overlay source, never the generated static/ copies.
+
 Usage:
   python3 scripts/sync-common.py sync    # copy canonical -> apps (default)
   python3 scripts/sync-common.py check   # verify apps match canonical
@@ -99,6 +106,13 @@ def sync_app(app_dir: Path):
     static.mkdir(exist_ok=True)
     for f in FRONTEND_FILES:
         shutil.copy2(FRONTEND_SRC / f, static / f)
+    # Per-app frontend overlay (solscope): same filenames only.
+    overlay = app_dir / "frontend"
+    if overlay.is_dir():
+        for f in FRONTEND_FILES:
+            src = overlay / f
+            if src.exists():
+                shutil.copy2(src, static / f)
     (static / "config.js").write_text(render_config_js(cfg, app_dir))
     print(f"synced {app_dir.name}: common/ + static/ + config.js")
 
@@ -115,12 +129,16 @@ def check_app(app_dir: Path):
         for f in sorted(set(want) | set(have)):
             if want.get(f) != have.get(f):
                 problems.append(f"{app_dir.name}/common/{f}: differs from canonical")
-    # static/ (frontend files only; config.js checked separately)
+    # static/ (frontend files only; config.js checked separately).
+    # An app's frontend/ overlay replaces the canonical source for the
+    # files it provides (solscope).
     static = app_dir / "static"
+    overlay = app_dir / "frontend"
     for f in FRONTEND_FILES:
-        src, dst = FRONTEND_SRC / f, static / f
+        src = (overlay / f) if (overlay.is_dir() and (overlay / f).exists()) else (FRONTEND_SRC / f)
+        dst = static / f
         if not dst.exists() or _sha256(src) != _sha256(dst):
-            problems.append(f"{app_dir.name}/static/{f}: differs from canonical")
+            problems.append(f"{app_dir.name}/static/{f}: differs from {'overlay' if src.parent == overlay else 'canonical'}")
     want_cfg = render_config_js(cfg, app_dir)
     got_cfg = (static / "config.js").read_text() if (static / "config.js").exists() else ""
     if want_cfg != got_cfg:

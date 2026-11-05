@@ -64,6 +64,19 @@ from common.wallet import (
     _wallet_pnl,
     _wallet_tokens,
 )
+from common.solana_explorer import (
+    sol_address,
+    sol_address_signatures,
+    sol_docs_payload,
+    sol_program,
+    sol_search,
+    sol_slot,
+    sol_slots,
+    sol_stats,
+    sol_token,
+    sol_token_transfers,
+    sol_tx,
+)
 
 
 def _add_handlers(app: FastAPI) -> None:
@@ -337,5 +350,66 @@ def create_wallet_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
         return await _wallet_activity(address)
 
     # Static frontend (wallet-only shell), mounted last so /api/* routes win.
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+    return app
+
+
+def create_solana_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
+    """Solana explorer app (solscope). Data is the public Solana RPC
+    (keyless); no Blockscout, no EVM. `scope` is the URL/API prefix
+    (e.g. "solscope")."""
+    api = f"/api/{scope}"
+    app = FastAPI(title=title, version="2.0.0")
+    _add_handlers(app)
+
+    @app.get(api + "/chains")
+    async def api_chains():
+        return {"chains": [{"id": "solana", "label": "Solana", "rpc": "https://api.mainnet-beta.solana.com", "native": "SOL", "coingecko_platform": "solana"}]}
+
+    @app.get(api + "/docs")
+    async def api_docs():
+        return sol_docs_payload(api)
+
+    @app.get(api + "/stats")
+    async def api_stats():
+        return await sol_stats()
+
+    @app.get(api + "/slots")
+    async def api_slots(limit: int = 10, before: int | None = None):
+        return await sol_slots(limit=limit, before=before)
+
+    @app.get(api + "/slot/{n}")
+    async def api_slot(n: str):
+        return await sol_slot(n)
+
+    @app.get(api + "/tx/{sig}")
+    async def api_tx(sig: str):
+        return await sol_tx(sig)
+
+    @app.get(api + "/address/{addr}")
+    async def api_address(addr: str):
+        return await sol_address(addr)
+
+    @app.get(api + "/address/{addr}/signatures")
+    async def api_address_signatures(addr: str, before: str | None = None):
+        return await sol_address_signatures(addr, before=before)
+
+    @app.get(api + "/token/{mint}")
+    async def api_token(mint: str):
+        return await sol_token(mint)
+
+    @app.get(api + "/token/{mint}/transfers")
+    async def api_token_transfers(mint: str, before: str | None = None):
+        return await sol_token_transfers(mint, before=before)
+
+    @app.get(api + "/program/{addr}")
+    async def api_program(addr: str):
+        return await sol_program(addr)
+
+    @app.get(api + "/search")
+    async def api_search(q: str = ""):
+        return await sol_search(q)
+
+    # Static frontend, mounted last so /api/* routes win.
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
     return app

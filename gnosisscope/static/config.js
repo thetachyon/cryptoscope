@@ -26,6 +26,11 @@ window.SCOPE_CONFIG = {
       "url": "https://optimismscope.vercel.app"
     },
     {
+      "chain": "solana",
+      "name": "SolScope",
+      "url": "https://solscope.vercel.app"
+    },
+    {
       "chain": null,
       "name": "WalletScope",
       "url": "https://walletscope.vercel.app"

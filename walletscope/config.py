@@ -33,5 +33,10 @@ SIBLINGS = [
         "chain": "gnosis",
         "name": "GnosisScope",
         "url": "https://gnosisscope.vercel.app"
-    }
+    },
+    {
+        "chain": "solana",
+        "name": "SolScope",
+        "url": "https://solscope.vercel.app"
+    },
 ]

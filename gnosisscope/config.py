@@ -28,6 +28,11 @@ SIBLINGS = [
         "url": "https://optimismscope.vercel.app"
     },
     {
+        "chain": "solana",
+        "name": "SolScope",
+        "url": "https://solscope.vercel.app"
+    },
+    {
         "chain": None,
         "name": "WalletScope",
         "url": "https://walletscope.vercel.app"

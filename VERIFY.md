@@ -145,3 +145,83 @@ ids. `/config.js` and `/app.js` serve 200 in every app.
   available (unlisted SPL tokens contribute nothing to the chart).
 - Live browser rendering of `#/wallet/<solana-address>` was not
   possible here — JS is syntax-checked and logic-reviewed only.
+
+## SolScope (2026-11-05)
+
+### Sources probed from this sandbox (curl, before building)
+- `solana.publicnode.com`: getSlot, getRecentPerformanceSamples,
+  getBalance work (~0.5s). getSupply is indexed there ("Indexed requests
+  require a personal token"). Indexed methods are blocked.
+- `api.mainnet-beta.solana.com`: getSupply, getBlock (needs
+  maxSupportedTransactionVersion 1), getTransaction (jsonParsed),
+  getSignaturesForAddress, getAccountInfo (jsonParsed), getTokenSupply,
+  getSlotLeader, getEpochInfo all work. getTokenLargestAccounts is
+  persistently rate-limited (429 direct, 403 via the app) — see limits.
+- Jupiter APIs unreachable from the sandbox — not used anywhere.
+
+### What was built
+- `common/solana_explorer.py`: RPC routing (fast methods publicnode
+  first, indexed methods mainnet-beta first; 429/403 retried once per
+  endpoint after 1.5s), stats/slots/slot/tx/address/signatures/token/
+  transfers/program/search + docs payload; parsed-instruction decoding
+  (System/Token/Associated/Memo/Stake/Vote/BPF/Compute-Budget/lookup-table
+  names) + account + SPL token balance changes.
+- `common/factory.py`: `create_solana_app` — `/api/solscope/*` (12
+  endpoints + /chains + /docs).
+- `solscope/`: thin app (config + entrypoint + vercel.json + api/index.py)
+  + `solscope/frontend/` overlay SPA (665 lines, own views: home, slot,
+  tx, address, token, program, api-docs; light theme, hash routing, 10s
+  home polling). `scripts/sync-common.py` gained per-app frontend
+  overlays (solscope's files replace the canonical ones in static/).
+- SolScope added to every app's SIBLINGS (cross-links).
+
+### Bugs found & fixed
+1. DexScreener priced the wrong token: for mints that are the QUOTE
+   token in a pair (e.g. USDC in PUMP/USDC), baseToken/priceUsd describe
+   the other token — USDC showed as "PUMP $0.003876". Fixed in
+   `common/solana.py`: only pairs where baseToken.address == mint are
+   used; others fall through to CoinGecko. USDC now $1.0013. (Same bug
+   affected the wallet dashboard's SPL pricing — fixed there too.)
+2. My test JitoSOL mint was mistyped (decoded to 31 bytes, not 32);
+   correct mint is `J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn`
+   (taken from the wallet's own verified holdings).
+
+### Verified live (uvicorn :8041, real mainnet data)
+- `/stats`: slot 465,895,740, epoch 1078, TPS 2,222.1, SOL $89.21
+  (-6.83% 24h), circulating 590,287,408.88, total 637,066,664.13.
+- `/slots?limit=3`: 465,895,816 (453 txs), 465,895,815 (445),
+  465,895,814 (486); `/slot/latest`: 465,895,834, 544 txs, 100
+  signatures shown.
+- `/tx/28tFJX1d…` (slot 465,894,558): success, fee 0.000005 SOL,
+  instructions [Unknown Program, System Program transfer], 7 accounts,
+  5 logs, 531 compute units.
+- `/address/vines1vzr…`: account, 0.039869364 SOL, 6 SPL holdings,
+  3 priced ($0.0028), 25 signatures.
+- `/address/E16prLnW…`: account, 0.006261482 SOL, SPL $53.02, 15 sigs.
+- `/token/EPjFWdd5…` (USDC): symbol USDC, 6 decimals, supply
+  8,905,355,695.76, price $1.0013; `/token/J1toso1u…` (JitoSOL): price
+  $116.63, supply 7,835,727.46.
+- `/token/EPjFWdd5…/transfers`: 25 items.
+- `/program/TokenkegQ…`: executable, owner BPF upgradeable loader,
+  25 invoking signatures.
+- `/search`: address → account, `465895800` → slot, garbage → 404.
+- Frontend: `node --check` passes; `/`, `/app.js`, `/config.js` all
+  200 with correct content types; overlay verified (static/app.js is
+  the 665-line Solana SPA, not the canonical EVM one).
+- `scripts/sync-common.py check` → "in sync: 6 apps".
+- EVM regression: ethscope `/stats` 200 (ETH $2,232.17).
+
+### Honest limits
+- Top holders are usually unavailable: `getTokenLargestAccounts` is
+  persistently rate-limited on the public RPC (429/403) — the token
+  page shows "Top holders unavailable: ..." instead of holders, never
+  invented. It may succeed intermittently.
+- Token-2022 holdings invisible (same limit as the wallet dashboard).
+- Parsed-instruction coverage: jsonParsed instructions decode known
+  programs; unknown programs show program id + raw data only.
+- Slot leaders are not shown (getSlotLeader only reports the current
+  slot's leader, not historical ones).
+- Live browser rendering of the SolScope pages was not possible here —
+  JS is syntax-checked and logic-reviewed only.
+- Vercel `buildCommand` (sync) untested live — deploy still blocked
+  (403 team scope); the committed vendored copies are the fallback.

@@ -190,6 +190,12 @@ async def _dexscreener_token(mint):
             best = None
             best_liq = -1.0
             for p in d.get("pairs") or []:
+                # Only pairs where THIS mint is the base token: when the
+                # mint is the quote token (e.g. USDC in a PUMP/USDC pool),
+                # baseToken/priceUsd describe the OTHER token.
+                bt = p.get("baseToken") or {}
+                if bt.get("address") != mint:
+                    continue
                 try:
                     price = float(p.get("priceUsd")) if p.get("priceUsd") is not None else None
                 except (TypeError, ValueError):
@@ -202,7 +208,6 @@ async def _dexscreener_token(mint):
                     liq = 0.0
                 if liq > best_liq:
                     best_liq = liq
-                    bt = p.get("baseToken") or {}
                     try:
                         chg = float((p.get("priceChange") or {}).get("h24"))
                     except (TypeError, ValueError):
