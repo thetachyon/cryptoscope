@@ -75,3 +75,73 @@ ids. `/config.js` and `/app.js` serve 200 in every app.
   and will 404 until the projects are created.
 - **Labels are mainnet-only** (unchanged): `labels.json` is vendored into
   every app but pills render only for Ethereum addresses.
+
+## Solana holdings in WalletScope (2026-11-05)
+
+### Sources probed from this sandbox (curl, before building)
+- `solana.publicnode.com` getBalance: works, ~0.5s. Indexed methods
+  (`getTokenAccountsByOwner`, `getProgramAccounts`) blocked there:
+  "Indexed requests require a personal token".
+- `api.mainnet-beta.solana.com` getProgramAccounts (classic SPL Token
+  program, jsonParsed, dataSize 165, memcmp owner @ offset 32): works,
+  ~1-2s. `getTokenAccountsByOwner` on the same host returns a persistent
+  "Parse error" (-32700); `getSignaturesForAddress` works.
+  Token-2022 getProgramAccounts is rejected ("WrongSize") — not covered.
+- Jupiter APIs (`api.jup.ag`, `token.jup.ag`): unreachable from the
+  sandbox (connection fails) — not used.
+- CoinGecko keyless: SOL price + SPL `simple/token_price/solana` work,
+  but the free tier allows ONE mint per request (error 10012 on a batch).
+- DexScreener `latest/dex/tokens/{mint}`: works, returns symbol/name/
+  priceUsd + 24h change for tokens with a DEX pair.
+- Blockchair Solana API: sandbox egress IP is blacklisted — not used.
+- Ankr public Solana RPC: requires an API key — not used. DRPC /
+  OnFinality public endpoints: time out from the sandbox — not used.
+
+### What was built
+- `common/solana.py`: `is_solana_address` (pure-Python base58), SOL
+  balance (publicnode, mainnet-beta fallback), SPL accounts
+  (mainnet-beta getProgramAccounts, one retry on 429), SOL quote
+  (CoinGecko), SPL prices (DexScreener most-liquid pair first, then
+  CoinGecko for the rest, max 5, largest balances first; symbols from
+  DexScreener, else CoinGecko contract endpoint, else truncated mint).
+- `common/wallet.py` now aggregates over `WALLET_CHAINS` (EVM + Solana);
+  PnL / NFT gallery / activity stay EVM-only. A Solana address shows
+  zero balances (no errors) on EVM sections and vice versa — a 422 from
+  Blockscout on a base58 address is swallowed the same way a 404 is.
+- `common/factory.py` wallet endpoints accept EVM (0x) or Solana
+  (base58) addresses; `/chains` lists all five chains.
+- Frontend: `WALLET_CHAINS` + Solana, Solana addresses resolve without
+  an ENS lookup, Solana token links go to Solscan (until SolScope),
+  activity heading is now "Activity — EVM Chains".
+
+### Verification (uvicorn :8040, live)
+- `vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg`: aggregate $3.56
+  (0.039869364 SOL @ $89.03, 24h -6.55%), no errors; tokens: 6 holdings,
+  3 priced ($0.0028 total — SMOG $0.0015, SI $0.0009, unlabelled
+  55USDUiv… $0.0004), nft_count 1; history 30d: 30 points $4.63 → $3.56.
+- `E16prLnWTwfLUYgXRTELYgw4u8QUnN9CAcHceLrDTjN1`: tokens $53.08 —
+  JitoSOL 0.251436 × $116.76 = $29.36 (24h -6.68%), PSOL 0.240585 ×
+  $98.62 = $23.73 (24h -6.51%); third holding (12.7M units of an
+  unlisted pump token) unpriced; aggregate native $0.56, no errors.
+- EVM regression: vitalik.eth aggregate $13,300.05, 24h -8.53%, no
+  errors; Solana section zero with no error; `tokens?chain=solana`
+  returns an empty section, no error.
+- Invalid address → 400 with a clear message. `/chains` lists all five
+  chains; `/docs` lists solana. PnL/NFTs/activity for a Solana address
+  return empty EVM results, no errors. Home + app.js 200.
+- `node --check` passes on the frontend app.js; `scripts/sync-common.py
+  check` → "in sync: 5 apps match canonical common/ + frontend/".
+
+### Honest limits
+- Classic SPL Token program only — Token-2022 holdings are invisible
+  (mainnet-beta rejects the query). NFT-like accounts (decimals 0,
+  amount 1) are counted, not listed as fungible holdings, and are not
+  shown in the NFT gallery.
+- Prices: only tokens with a DexScreener pair or a CoinGecko listing
+  get a USD value (vines: 3 of 6 priced); CoinGecko fallback is capped
+  at 5 mints per tokens call, largest balances first.
+- PnL, NFT gallery and activity are EVM-only; the history chart prices
+  Solana native + listed SPL tokens via CoinGecko daily closes where
+  available (unlisted SPL tokens contribute nothing to the chart).
+- Live browser rendering of `#/wallet/<solana-address>` was not
+  possible here — JS is syntax-checked and logic-reviewed only.

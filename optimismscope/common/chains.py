@@ -50,3 +50,23 @@ CHAINS = {
 }
 
 DEFAULT_CHAIN = "ethereum"
+
+
+# ---------------------------------------------------------------- wallet chains
+# WALLET_CHAINS is what the WalletScope dashboard aggregates over: the EVM
+# chains above plus Solana (non-EVM — no Blockscout, no explorer app yet).
+# Explorer apps use CHAINS only; never add a non-EVM chain there (the
+# scope factory binds Blockscout + eth_call per chain).
+WALLET_CHAINS = {
+    **CHAINS,
+    "solana": {
+        "label": "Solana",
+        "blockscout": None,
+        "rpc": "https://api.mainnet-beta.solana.com",
+        "coingecko_platform": "solana",
+        "coingecko_coin": "solana",
+        "native": "SOL",
+        "native_decimals": 9,
+        "adapter": "solana",
+    },
+}

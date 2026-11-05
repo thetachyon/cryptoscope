@@ -18,8 +18,9 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from common.chains import CHAINS
+from common.chains import CHAINS, WALLET_CHAINS
 from common.clients import UpstreamError
+from common.solana import is_solana_address
 from common.explorer import (
     _ADDR_RE,
     _address,
@@ -242,6 +243,25 @@ def create_scope_app(*, chain: str, scope: str, title: str, static_dir: str) -> 
     return app
 
 
+def _wallet_chain_entry(chain: str) -> dict:
+    c = WALLET_CHAINS[chain]
+    return {
+        "id": chain,
+        "label": c["label"],
+        "blockscout": c.get("blockscout"),
+        "rpc": c.get("rpc"),
+        "coingecko_platform": c["coingecko_platform"],
+        "native": c["native"],
+    }
+
+
+def _valid_wallet_address(address):
+    """EVM address (0x + 40 hex) or Solana base58 address."""
+    return bool(address) and (
+        bool(_ADDR_RE.fullmatch(address)) or is_solana_address(address)
+    )
+
+
 def create_wallet_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     """Cross-chain wallet dashboard app. No explorer routes — the wallet
     aggregation endpoints plus an Ethereum search endpoint (ENS
@@ -253,11 +273,12 @@ def create_wallet_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
 
     @app.get(api + "/chains")
     async def api_chains():
-        return {"chains": [_chain_entry(cid) for cid in CHAINS]}
+        return {"chains": [_wallet_chain_entry(cid) for cid in WALLET_CHAINS]}
 
     @app.get(api + "/docs")
     async def api_docs():
-        return _docs_payload(api, wallet_prefix=api, include_base=False)
+        return _docs_payload(api, wallet_prefix=api, include_base=False,
+                             chains=list(WALLET_CHAINS.keys()))
 
     @app.get(api + "/search")
     async def api_search(q: str = ""):
@@ -266,42 +287,42 @@ def create_wallet_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
 
     @app.get(api + "/wallet/{address}")
     async def api_wallet(address: str):
-        if not _ADDR_RE.fullmatch(address or ""):
-            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+        if not _valid_wallet_address(address or ""):
+            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, or a Solana base58 address)"}, status_code=400)
         return await _wallet(address)
 
     @app.get(api + "/wallet/{address}/tokens")
     async def api_wallet_tokens(address: str, chain: str | None = None):
-        if not _ADDR_RE.fullmatch(address or ""):
-            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
-        if chain is not None and chain not in CHAINS:
+        if not _valid_wallet_address(address or ""):
+            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, or a Solana base58 address)"}, status_code=400)
+        if chain is not None and chain not in WALLET_CHAINS:
             return JSONResponse({"error": "Unknown chain"}, status_code=404)
         return await _wallet_tokens(address, chain)
 
     @app.get(api + "/wallet/{address}/history")
     async def api_wallet_history(address: str, days: int = 30):
-        if not _ADDR_RE.fullmatch(address or ""):
-            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+        if not _valid_wallet_address(address or ""):
+            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, or a Solana base58 address)"}, status_code=400)
         if days < 1 or days > 90:
             return JSONResponse({"error": "days must be between 1 and 90"}, status_code=400)
         return await _wallet_history(address, days)
 
     @app.get(api + "/wallet/{address}/pnl")
     async def api_wallet_pnl(address: str):
-        if not _ADDR_RE.fullmatch(address or ""):
-            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+        if not _valid_wallet_address(address or ""):
+            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, or a Solana base58 address)"}, status_code=400)
         return await _wallet_pnl(address)
 
     @app.get(api + "/wallet/{address}/nfts")
     async def api_wallet_nfts(address: str):
-        if not _ADDR_RE.fullmatch(address or ""):
-            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+        if not _valid_wallet_address(address or ""):
+            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, or a Solana base58 address)"}, status_code=400)
         return await _wallet_nfts(address)
 
     @app.get(api + "/wallet/{address}/activity")
     async def api_wallet_activity(address: str, request: Request):
-        if not _ADDR_RE.fullmatch(address or ""):
-            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars)"}, status_code=400)
+        if not _valid_wallet_address(address or ""):
+            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, or a Solana base58 address)"}, status_code=400)
         params = dict(request.query_params)
         chain = params.pop("chain", None)
         if chain:

@@ -1,8 +1,8 @@
 # WalletScope
 
-Cross-chain wallet dashboard — one address across Ethereum, Sepolia, Optimism, and Gnosis: native + ERC-20 holdings with USD values, portfolio history, estimated realized PnL, NFT gallery, and a unified activity feed. No API keys anywhere.
+Cross-chain wallet dashboard — one address across Ethereum, Sepolia, Optimism, Gnosis, and Solana: native + token holdings with USD values, portfolio history, estimated realized PnL, NFT gallery, and a unified activity feed. No API keys anywhere.
 
-**Data sources (all keyless):** [Blockscout](https://eth.blockscout.com) v2 public API per chain; public JSON-RPC endpoints (`*.publicnode.com`); CoinGecko keyless API for token USD prices and daily closes.
+**Data sources (all keyless):** [Blockscout](https://eth.blockscout.com) v2 public API per EVM chain; public JSON-RPC endpoints (`*.publicnode.com`); Solana public RPC (`solana.publicnode.com` for SOL balances, `api.mainnet-beta.solana.com` for SPL token accounts); DexScreener + CoinGecko keyless APIs for Solana token prices, symbols, and daily closes.
 
 ## Run locally
 
@@ -42,14 +42,14 @@ All aggregation logic lives in `common/wallet.py` (per-chain `EVMAdapter`: addre
 
 | Endpoint | What it does |
 |---|---|
-| `GET /wallet/{address}` | Fast aggregate: per-chain native balance + USD + ENS, portfolio native total, value-weighted 24h change (native only at this stage). Token holdings are NOT fetched here (see below) |
-| `GET /wallet/{address}/tokens[?chain=]` | Token holdings per chain (top 50 by USD value, totals, counts, NFT count). Slow for token-rich addresses — Blockscout `/token-balances` is one giant unpaginated download. Optional `?chain=` loads one chain only |
-| `GET /wallet/{address}/history?days=30` | Portfolio value estimate: today's balances (native + top 5 tokens by value) × each day's historical price, 7/30/90 days. **Estimate, not true history** — see below |
-| `GET /wallet/{address}/pnl` | Estimated realized PnL: FIFO over the latest ~50 token transfers/chain, price-at-tx-time via CoinGecko daily closes (90d window). **Estimate with stated coverage** — see below |
-| `GET /wallet/{address}/nfts` | NFT holdings across all chains (first 50/chain) with image, collection, token id |
-| `GET /wallet/{address}/activity[?chain=&…]` | Recent txs across all chains, merged + time-sorted (top 50), with per-chain `next_page_params`. With `?chain=<id>` + cursor params returns one further shaped page of that chain (Load-more) |
+| `GET /wallet/{address}` | Fast aggregate: per-chain native balance + USD + ENS, portfolio native total, value-weighted 24h change (native only at this stage). Token holdings are NOT fetched here (see below). Accepts an EVM address (0x…) or a Solana base58 address |
+| `GET /wallet/{address}/tokens[?chain=]` | Token holdings per chain (top 50 by USD value, totals, counts, NFT count). Slow for token-rich addresses — Blockscout `/token-balances` is one giant unpaginated download. Optional `?chain=` loads one chain only (`?chain=solana` for SPL holdings) |
+| `GET /wallet/{address}/history?days=30` | Portfolio value estimate: today's balances (native + top 5 tokens by value) × each day's historical price, 7/30/90 days. **Estimate, not true history** — see below. Solana native + listed SPL tokens are priced in via CoinGecko daily closes |
+| `GET /wallet/{address}/pnl` | Estimated realized PnL: FIFO over the latest ~50 token transfers/chain, price-at-tx-time via CoinGecko daily closes (90d window). **Estimate with stated coverage** — see below. EVM chains only; Solana transfers are not included |
+| `GET /wallet/{address}/nfts` | NFT holdings across EVM chains (first 50/chain) with image, collection, token id. Solana NFTs are counted in the per-chain breakdown but not shown in this gallery yet |
+| `GET /wallet/{address}/activity[?chain=&…]` | Recent txs across EVM chains, merged + time-sorted (top 50), with per-chain `next_page_params`. With `?chain=<id>` + cursor params returns one further shaped page of that chain (Load-more). Solana activity is not wired into this feed yet |
 | `GET /search?q=` | Ethereum-mainnet search (ENS / address resolution for the dashboard) |
-| `GET /chains`, `GET /docs` | All four chains; full endpoint catalogue |
+| `GET /chains`, `GET /docs` | All five chains; full endpoint catalogue |
 
 Upstream failures return `{"error": ...}` (HTTP 502) — never tracebacks. A slow/failed chain returns an `error` for that chain only, never fails the whole dashboard.
 
@@ -59,8 +59,10 @@ Upstream failures return `{"error": ...}` (HTTP 502) — never tracebacks. A slo
 - **USD pricing.** Blockscout token `exchange_rate` first, CoinGecko `simple/token_price` fallback (one contract per request, max 5 lookups per tokens call — top-3 priced holdings get their 24h change first, remaining budget prices unpriced items). Unpriced tokens have no market price and are excluded from holdings totals. Sepolia ETH has no market value (Blockscout reports no price), so Sepolia balances are excluded from USD totals everywhere, including history.
 - **History is an estimate, labeled as such in the UI.** Today's balances (native coins on priced chains + top 5 tokens by current value) multiplied by each day's historical price (CoinGecko daily closes). It assumes today's balances held throughout the window — deposits, withdrawals and trades are ignored — so it is NOT true historical PnL.
 - **PnL is an estimate with stated coverage.** FIFO over the latest ~50 token transfers per chain (90-day window): incoming transfers are acquisitions at that day's CoinGecko close, outgoing transfers are disposals matched against lots; self-transfers ignored. Only tokens with CoinGecko price history can be priced — transfers of unlisted/spam tokens are counted as unpriced and excluded, and outgoing transfers with no cost basis in the window are counted as unmatched and excluded. The UI shows priced/unpriced/unmatched counts next to every figure.
-- **NFTs** come from Blockscout `/addresses/{h}/nft`, first 50 per chain; cards link out to the instance pages on the chain's Scope app.
-- **Activity** merges the first page of txs per chain, sorted by time; Load-more fetches further pages per chain (`/activity?chain=<id>&<cursor>`) and merges client-side.
+- **NFTs** come from Blockscout `/addresses/{h}/nft`, first 50 per EVM chain; cards link out to the instance pages on the chain's Scope app. Solana NFT-like accounts (decimals 0, amount 1) are counted in the per-chain breakdown but not shown in the gallery.
+- **Activity** merges the first page of txs per EVM chain, sorted by time; Load-more fetches further pages per chain (`/activity?chain=<id>&<cursor>`) and merges client-side. Solana activity is not wired into this feed yet.
+- **Solana holdings.** SOL balance via `solana.publicnode.com` `getBalance`; SPL token accounts via `api.mainnet-beta.solana.com` `getProgramAccounts` on the classic SPL Token program only (Token-2022 accounts are rejected by that RPC — not covered). USD prices: DexScreener per mint (most-liquid pair, incl. 24h change) first, CoinGecko `simple/token_price/solana` for the rest (max 5 mints, largest balances first — the free tier allows one mint per request); symbols from DexScreener, else the CoinGecko contract endpoint, else the truncated mint. Unpriced holdings are counted but excluded from totals. Jupiter's APIs are unreachable from the sandbox and are not used. Solana token links go to Solscan until SolScope exists.
+- **Cross-address behaviour.** An EVM address shows zero balances (no errors) on the Solana section, and a Solana address shows zero balances (no errors) on the EVM sections — each side treats the other side's address format as "unseen".
 
 ## Frontend notes
 
@@ -72,4 +74,4 @@ Upstream failures return `{"error": ...}` (HTTP 502) — never tracebacks. A slo
 
 - Blockscout token objects expose the token address as `address_hash`, not `address` — the wallet PnL, NFT and token-transfer code reads `address_hash` first.
 - Sandbox quirk: the environment's `NO_PROXY` contains bracketed IPv6 literals (`[::1]`) that httpx's env-proxy parser rejects — `common/clients.py` strips them at import. The egress proxy itself is still used for outbound calls.
-- No Solana or BTC yet (EVM chains only). Solana holdings go into this dashboard first (public Solana RPC + Jupiter price API, keyless), then a full SolScope; BitScope follows the same pattern.
+- No BTC yet. Solana holdings are in this dashboard (see above); a full SolScope comes next, then BitScope (same wallet-first pattern).

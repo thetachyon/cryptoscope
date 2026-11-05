@@ -32,6 +32,7 @@ const FALLBACK_CHAINS = [
   { id: "sepolia", label: "Sepolia", native: "ETH" },
   { id: "optimism", label: "Optimism", native: "ETH" },
   { id: "gnosis", label: "Gnosis", native: "xDAI" },
+  { id: "solana", label: "Solana", native: "SOL" },
 ];
 let CHAINS = FALLBACK_CHAINS.slice();
 let CHAIN = CFG.chain || "ethereum";
@@ -496,6 +497,7 @@ function linkAddrC(chain, a, full) {
 }
 function linkTokenC(chain, addr, symbol) {
   if (!addr) return '<span class="muted">—</span>';
+  if (chain === "solana") return `<a class="mono" href="https://solscan.io/token/${esc(addr)}" target="_blank" rel="noopener" title="Open on Solscan (no SolScope yet)">${esc(symbol || shortH(addr))}</a>`;
   if (WALLET_ONLY && scopeUrl(chain)) return `<a class="mono" href="${esc(scopeUrl(chain))}/#/token/${addr}">${esc(symbol || shortH(addr))}</a>`;
   return `<a class="mono" data-chain="${esc(chain)}" href="#/token/${addr}">${esc(symbol || shortH(addr))}</a>`;
 }
@@ -1482,7 +1484,8 @@ async function apiDocsPage() {
    /nfts, /activity). */
 
 const WALLET_ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
-const WALLET_CHAINS = ["ethereum", "sepolia", "optimism", "gnosis"];
+const SOL_ADDR_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const WALLET_CHAINS = ["ethereum", "sepolia", "optimism", "gnosis", "solana"];
 let walletRun = 0; // bumped per walletPage() call; stale fetches bail
 
 function pctHtml(p) {
@@ -1492,7 +1495,9 @@ function pctHtml(p) {
 }
 
 async function resolveWalletParam(param) {
-  if (WALLET_ADDR_RE.test(param)) return { address: param, ens: null };
+  // EVM address or Solana base58 address: use as-is. Anything else is
+  // treated as an ENS name and resolved on Ethereum mainnet.
+  if (WALLET_ADDR_RE.test(param) || SOL_ADDR_RE.test(param)) return { address: param, ens: null };
   const d = await getChain("ethereum", "/search?q=" + encodeURIComponent(param));
   const hit = (d.items || []).find((it) => it.type === "address");
   if (!hit) throw new Error("No address found for \"" + param + "\" (searched Ethereum mainnet)");
@@ -1505,12 +1510,12 @@ function walletLanding() {
   render(`
     <div class="pagehead"><h2>💼 Wallet Dashboard</h2></div>
     <div class="card"><div style="padding:18px 16px">
-      <p class="muted" style="margin-top:0">One address, all four chains — native balances, ERC-20 holdings with USD values, portfolio history, estimated realized PnL, NFTs and activity. No API keys; data from Blockscout + CoinGecko's keyless tier.</p>
+      <p class="muted" style="margin-top:0">One address, five chains — native balances, token holdings with USD values, portfolio history, estimated realized PnL, NFTs and activity. Solana included (SOL + SPL holdings). No API keys; data from Blockscout, the public Solana RPC, DexScreener + CoinGecko's keyless tier.</p>
       <form id="wallet-form" class="search" autocomplete="off" style="max-width:640px">
-        <input id="wallet-input" type="text" placeholder="Address (0x…) or ENS name (vitalik.eth)">
+        <input id="wallet-input" type="text" placeholder="Address (0x… / Solana) or ENS name (vitalik.eth)">
         <button type="submit" title="Open wallet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
       </form>
-      <p style="margin:14px 0 0">Try: <a href="#/wallet/vitalik.eth">vitalik.eth</a></p>
+      <p style="margin:14px 0 0">Try: <a href="#/wallet/vitalik.eth">vitalik.eth</a> · <a href="#/wallet/vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg">a Solana wallet</a></p>
     </div></div>`);
   $("#wallet-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -1532,7 +1537,7 @@ async function walletPage(param) {
     <div class="card"><div class="card-head">Portfolio Value — Estimate <span class="sample-badge">ESTIMATE</span><span class="spacer"></span><span class="daybtns" id="w-hist-btns"><button class="btn" data-days="7">7D</button><button class="btn active" data-days="30">30D</button><button class="btn" data-days="90">90D</button></span></div><div id="w-history"><div class="spinner">Loading history…</div></div></div>
     <div class="card"><div class="card-head">Estimated Realized PnL <span class="sample-badge">ESTIMATE</span></div><div id="w-pnl"><div class="spinner">Loading PnL…</div></div></div>
     <div class="card"><div class="card-head">NFTs <span class="spacer"></span><span id="w-nft-count" class="badge grey">…</span></div><div id="w-nfts"><div class="spinner">Loading NFTs…</div></div></div>
-    <div class="card"><div class="card-head">Activity — All Chains</div><div id="w-activity"><div class="spinner">Loading activity…</div></div></div>
+    <div class="card"><div class="card-head">Activity — EVM Chains</div><div id="w-activity"><div class="spinner">Loading activity…</div></div></div>
     </div>`);
 
   // Resolve ENS names through the existing ethereum search path.
@@ -1550,8 +1555,11 @@ async function walletPage(param) {
   }
   document.title = `${ensName || shortH(addr)} — Wallet — ${TITLE}`;
   const addrEl = $("#w-addr");
-  const addrHref = (WALLET_ONLY && scopeUrl("ethereum")) ? scopeUrl("ethereum") + "/#/address/" + addr : "#/address/" + addr;
-  if (addrEl) addrEl.innerHTML = `<a class="mono" href="${addrHref}">${esc(addr)}</a>${ensName ? ` <span class="badge info">${esc(ensName)}</span>` : ""} ${copyBtn(addr)}`;
+  // Solana addresses have no EthScope page — link out to Solscan until SolScope exists.
+  const addrHref = SOL_ADDR_RE.test(addr)
+    ? `https://solscan.io/account/${addr}`
+    : ((WALLET_ONLY && scopeUrl("ethereum")) ? scopeUrl("ethereum") + "/#/address/" + addr : "#/address/" + addr);
+  if (addrEl) addrEl.innerHTML = `<a class="mono" href="${addrHref}"${SOL_ADDR_RE.test(addr) ? ' target="_blank" rel="noopener"' : ""}>${esc(addr)}</a>${ensName ? ` <span class="badge info">${esc(ensName)}</span>` : ""} ${copyBtn(addr)}`;
 
   const st = {
     addr, ens: ensName, agg: null,
@@ -1753,7 +1761,7 @@ async function walletPage(param) {
         <button class="loadmore" id="w-act-more">Load more</button>
         ${Object.keys(d.errors || {}).length ? `<div class="muted" style="padding:10px 16px;font-size:12px">Errors: ${esc(Object.entries(d.errors).map(([c, e]) => c + ": " + e).join("; "))}</div>` : ""}`;
       const body = $("#w-act-body");
-      body.innerHTML = st.activityRows.length ? st.activityRows.map(activityRow).join("") : `<tr><td colspan="6"><div class="empty">No transactions on any chain.</div></td></tr>`;
+      body.innerHTML = st.activityRows.length ? st.activityRows.map(activityRow).join("") : `<tr><td colspan="6"><div class="empty">No EVM transactions — Solana activity is not wired into this feed yet.</div></td></tr>`;
       wireActivityMore();
     } catch (e) {
       if (!alive()) return;

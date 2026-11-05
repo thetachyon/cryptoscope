@@ -69,7 +69,7 @@ Dropped chains (do not re-add without re-probing): Arbitrum (`arbitrum.blockscou
 
 ## Queue
 
-After the split: Solana holdings into the wallet dashboard → **SolScope** (full Solana explorer, own directory) → **BitScope** (Bitcoin explorer via keyless mempool.space / Blockstream Esplora) → stablecoin Scopes (Top 8: USDT, USDC, DAI, USDe, FDUSD, PYUSD, TUSD, USDD — peg status, supply, holders, transfers, depeg history, reserves).
+Solana holdings into the wallet dashboard ✓ (SOL + SPL, keyless — see `walletscope/README.md`) → **SolScope** (full Solana explorer, own directory) → **BitScope** (Bitcoin explorer via keyless mempool.space / Blockstream Esplora) → stablecoin Scopes (Top 8: USDT, USDC, DAI, USDe, FDUSD, PYUSD, TUSD, USDD — peg status, supply, holders, transfers, depeg history, reserves).
 
 ## Deploy status
 

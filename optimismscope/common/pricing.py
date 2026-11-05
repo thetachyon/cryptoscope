@@ -11,7 +11,7 @@ import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 
-from common.chains import CHAINS
+from common.chains import CHAINS, WALLET_CHAINS
 from common.clients import CHART_TTL, TOKEN_PRICE_TTL, _cache_get, _cache_set, bs, coingecko
 
 
@@ -219,12 +219,13 @@ def _daily_series(prices):
 
 async def _daily_native_prices(chain, days):
     """{date: usd_price} for a chain's native coin over the last `days` days
-    (CoinGecko market_chart, 10-min cache). Empty dict on failure."""
+    (CoinGecko market_chart, 10-min cache). Empty dict on failure. Uses
+    WALLET_CHAINS so Solana (coingecko_coin "solana") works too."""
     key = f"{chain}:dailyprice:{days}"
     hit = _cache_get(key)
     if hit is not None:
         return hit
-    coin = CHAINS[chain]["coingecko_coin"]
+    coin = WALLET_CHAINS[chain]["coingecko_coin"]
     d = await coingecko(
         f"/coins/{coin}/market_chart", params={"vs_currency": "usd", "days": days}
     )

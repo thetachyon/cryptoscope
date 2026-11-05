@@ -1,8 +1,15 @@
 """Cross-chain wallet aggregation for the *Scope apps.
 
-Fan-out over the 4 live chains (ethereum, sepolia, optimism, gnosis):
-per-chain native + token balances with USD values, NFT holdings,
+Fan-out over the wallet chains (ethereum, sepolia, optimism, gnosis,
+solana): per-chain native + token balances with USD values, NFT holdings,
 unified activity, portfolio history, and an estimated realized PnL.
+
+Solana is a first-class wallet chain (SOL + SPL holdings via the public
+Solana RPC, DexScreener and CoinGecko — see common/solana.py) but it is
+NOT an explorer chain: PnL, the NFT gallery and the activity feed are
+EVM-only for now (Solana has no transfer-history source wired), and the
+history chart prices Solana natively + top SPL tokens via CoinGecko
+daily closes where listed.
 
 Design notes (the user-facing method statements live in README.md and in
 the dashboard UI — every figure here is labeled with its method):
@@ -22,11 +29,12 @@ the dashboard UI — every figure here is labeled with its method):
   so Sepolia balances are excluded from USD totals.
 """
 import asyncio
+import re
 from collections import deque
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
-from common.chains import CHAINS
+from common.chains import CHAINS, WALLET_CHAINS
 from common.clients import CHART_TTL, _cache_get, _cache_set, bs
 from common.formatting import token_amount, tx_short, wei_to_eth
 from common.pricing import (
@@ -34,6 +42,12 @@ from common.pricing import (
     _daily_native_prices,
     enrich_token_balances,
     native_quote,
+)
+from common.solana import (
+    is_solana_address,
+    sol_balance,
+    sol_native_quote,
+    sol_token_holdings,
 )
 
 WALLET_CHAIN_TIMEOUT = 8.0  # seconds per chain section (fast aggregate)
@@ -43,16 +57,18 @@ HISTORY_TOP_TOKENS = 5  # tokens priced into the history chart
 PNL_MAX_TOKENS = 8  # distinct tokens priced for the PnL estimate
 PNL_DAYS = 90  # price-at-time window (CoinGecko daily closes)
 
+_EVM_ADDR_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
 
 # ---------------------------------------------------------------- adapters
 class EVMAdapter:
     """Per-chain data adapter for EVM chains (Blockscout v2).
 
     Aggregation code talks to this adapter, never to bs() directly, so a
-    future non-EVM chain (e.g. Solana) can plug in as another adapter
-    implementing the same methods — address, token balances, NFTs,
-    transactions, token transfers — without a rewrite of the aggregation.
-    Only EVM chains exist today; CHAINS is the EVM chain registry.
+    non-EVM chain plugs in as another adapter without a rewrite of the
+    aggregation. Solana does exactly that (common/solana.py) — its
+    adapter implements the address / token-balances subset the wallet
+    needs; PnL, NFTs and activity stay EVM-only for now.
     """
 
     async def address(self, chain, h):
@@ -75,10 +91,11 @@ ADAPTER = EVMAdapter()
 
 
 def _empty_chain_section(chain, error=None):
+    c = WALLET_CHAINS[chain]
     return {
         "chain": chain,
-        "label": CHAINS[chain]["label"],
-        "native": CHAINS[chain]["native"],
+        "label": c["label"],
+        "native": c["native"],
         "native_balance": "0",
         "native_usd_price": None,
         "native_usd_value": None,
@@ -95,6 +112,15 @@ def _empty_chain_section(chain, error=None):
     }
 
 
+def _from_base_units(raw, decimals):
+    """Base-unit integer (wei, lamports) -> decimal string."""
+    try:
+        d = Decimal(str(raw)) / (Decimal(10) ** int(decimals))
+    except (InvalidOperation, ValueError, TypeError):
+        return "0"
+    return format(d.normalize(), "f")
+
+
 def _price_on_or_before(daily, date_str, max_back=7):
     """Price for a date from a {YYYY-MM-DD: price} map, falling back to the
     most recent earlier day (up to max_back days). None if nothing found."""
@@ -109,6 +135,40 @@ def _price_on_or_before(daily, date_str, max_back=7):
     return None
 
 
+async def _chain_wallet_fast_solana(chain, h):
+    """Solana FAST section: SOL balance (publicnode getBalance) + USD
+    (CoinGecko). No ENS on Solana. A balance-fetch failure is an error
+    for this chain only; a price failure just leaves USD fields null.
+    A non-Solana address (e.g. an EVM 0x address) yields zero balances
+    with no error, mirroring Blockscout 404s on the EVM side."""
+    out = _empty_chain_section(chain)
+    if not is_solana_address(h):
+        return out
+    bal_r, quote_r = await asyncio.gather(
+        sol_balance(h), sol_native_quote(), return_exceptions=True
+    )
+    errors = []
+    if isinstance(bal_r, Exception):
+        errors.append(str(bal_r))
+        lamports = 0
+    else:
+        lamports = bal_r
+    out["native_balance"] = _from_base_units(lamports, 9)
+    quote = quote_r if isinstance(quote_r, tuple) else (None, None)
+    price, change = quote
+    out["native_usd_price"] = price
+    out["native_change_24h_pct"] = change
+    try:
+        bal = Decimal(out["native_balance"])
+        if price is not None:
+            out["native_usd_value"] = float(bal * Decimal(str(price)))
+    except InvalidOperation:
+        pass
+    out["chain_total_usd"] = out["native_usd_value"]
+    out["error"] = "; ".join(errors) if errors else None
+    return out
+
+
 async def _chain_wallet_fast(chain, h):
     """One chain's FAST wallet section: native balance + USD + ENS only.
     Token holdings are deliberately NOT fetched here — Blockscout's
@@ -116,6 +176,13 @@ async def _chain_wallet_fast(chain, h):
     list is 3.4MB / ~15s through this sandbox's egress proxy), so holdings
     load progressively via _chain_tokens instead. A 404 (address unseen
     on this chain) yields zero balances, not an error."""
+    if WALLET_CHAINS[chain].get("adapter") == "solana":
+        return await _chain_wallet_fast_solana(chain, h)
+    if not _EVM_ADDR_RE.fullmatch(h):
+        # A Solana address on an EVM chain: Blockscout 422s on the
+        # malformed address, so skip the call and report zero balances
+        # (mirrors a 404 for an unseen address).
+        return _empty_chain_section(chain)
     addr_r, quote_r = await asyncio.gather(
         ADAPTER.address(chain, h),
         native_quote(chain),
@@ -144,12 +211,59 @@ async def _chain_wallet_fast(chain, h):
     return out
 
 
+async def _chain_tokens_solana(chain, h):
+    """Solana token holdings: SPL accounts (mainnet-beta
+    getProgramAccounts) + USD enrichment (DexScreener / CoinGecko).
+    Same section shape as the EVM path; NFT-like accounts (decimals 0,
+    amount 1) are counted, not listed as fungible holdings. A
+    non-Solana address yields an empty section, not an error."""
+    if not is_solana_address(h):
+        return {
+            "chain": chain,
+            "label": WALLET_CHAINS[chain]["label"],
+            "tokens": [],
+            "tokens_total_usd": 0.0,
+            "tokens_count": 0,
+            "tokens_priced_count": 0,
+            "nft_count": 0,
+            "error": None,
+        }
+    holdings = await sol_token_holdings(h)
+    priced = [it for it in holdings["items"] if it.get("usd_value") is not None]
+    priced.sort(key=lambda it: it["usd_value"], reverse=True)
+    return {
+        "chain": chain,
+        "label": WALLET_CHAINS[chain]["label"],
+        "tokens": priced[:WALLET_TOP_TOKENS],
+        "tokens_total_usd": holdings["total_usd"],
+        "tokens_count": holdings["tokens_count"],
+        "tokens_priced_count": holdings["tokens_priced_count"],
+        "nft_count": holdings["nft_count"],
+        "error": None,
+    }
+
+
 async def _chain_tokens(chain, h):
     """One chain's token holdings: full /token-balances download + USD
     enrichment. Slow for token-rich addresses (see _chain_wallet_fast) —
     callers give this a longer budget and load it progressively. The
     Blockscout read itself gets a 45s timeout: vitalik's mainnet list is
     3.4MB and stalls through the sandbox egress proxy."""
+    if WALLET_CHAINS[chain].get("adapter") == "solana":
+        return await _chain_tokens_solana(chain, h)
+    if not _EVM_ADDR_RE.fullmatch(h):
+        # Solana address on an EVM chain: skip the Blockscout call (it
+        # 422s on the malformed address) and report an empty section.
+        return {
+            "chain": chain,
+            "label": WALLET_CHAINS[chain]["label"],
+            "tokens": [],
+            "tokens_total_usd": 0.0,
+            "tokens_count": 0,
+            "tokens_priced_count": 0,
+            "nft_count": 0,
+            "error": None,
+        }
     raw_r = await ADAPTER.token_balances(chain, h)
     raw = []
     if isinstance(raw_r, list):
@@ -161,7 +275,7 @@ async def _chain_tokens(chain, h):
     priced.sort(key=lambda it: it["usd_value"], reverse=True)
     return {
         "chain": chain,
-        "label": CHAINS[chain]["label"],
+        "label": WALLET_CHAINS[chain]["label"],
         "tokens": priced[:WALLET_TOP_TOKENS],
         "tokens_total_usd": total,
         "tokens_count": len(items),
@@ -188,18 +302,18 @@ async def _chain_tokens_guarded(chain, h):
     except asyncio.TimeoutError:
         out = {
             "chain": chain,
-            "label": CHAINS[chain]["label"],
+            "label": WALLET_CHAINS[chain]["label"],
             "tokens": [],
             "tokens_total_usd": None,
             "tokens_count": None,
             "tokens_priced_count": None,
             "nft_count": 0,
-            "error": f"{CHAINS[chain]['label']} token holdings timed out after {WALLET_TOKENS_TIMEOUT:g}s",
+            "error": f"{WALLET_CHAINS[chain]['label']} token holdings timed out after {WALLET_TOKENS_TIMEOUT:g}s",
         }
     except Exception as e:  # never let one chain break the dashboard
         out = {
             "chain": chain,
-            "label": CHAINS[chain]["label"],
+            "label": WALLET_CHAINS[chain]["label"],
             "tokens": [],
             "tokens_total_usd": None,
             "tokens_count": None,
@@ -219,7 +333,7 @@ async def _wallet_tokens_all(h):
     if hit is not None:
         return hit
     sections = await asyncio.gather(
-        *[_chain_tokens_guarded(c, h) for c in CHAINS]
+        *[_chain_tokens_guarded(c, h) for c in WALLET_CHAINS]
     )
     chains_out = {}
     total = Decimal(0)
@@ -267,7 +381,7 @@ async def _wallet_tokens(h, chain=None):
     arrives). Returns the _wallet_tokens_all shape."""
     if chain is None:
         return await _wallet_tokens_all(h)
-    if chain not in CHAINS:
+    if chain not in WALLET_CHAINS:
         return {"error": "Unknown chain"}
     sec = await _chain_tokens_guarded(chain, h)
     top = []
@@ -306,7 +420,7 @@ async def _chain_wallet_guarded(chain, h):
     except asyncio.TimeoutError:
         return _empty_chain_section(
             chain,
-            error=f"{CHAINS[chain]['label']} timed out after {WALLET_CHAIN_TIMEOUT:g}s",
+            error=f"{WALLET_CHAINS[chain]['label']} timed out after {WALLET_CHAIN_TIMEOUT:g}s",
         )
     except Exception as e:  # never let one chain break the dashboard
         return _empty_chain_section(chain, error=str(e))
@@ -323,7 +437,7 @@ async def _wallet(h):
     if hit is not None:
         return hit
     sections = await asyncio.gather(
-        *[_chain_wallet_guarded(c, h) for c in CHAINS]
+        *[_chain_wallet_guarded(c, h) for c in WALLET_CHAINS]
     )
     chains_out = {}
     total = Decimal(0)
@@ -400,7 +514,7 @@ async def _wallet_history(h, days):
         if sec.get("native_usd_price") is not None
     }
     native_series = {}
-    for chain in CHAINS:
+    for chain in WALLET_CHAINS:
         if chain not in priced_chains:
             continue
         try:
@@ -415,7 +529,7 @@ async def _wallet_history(h, days):
         try:
             token_series[(t["chain"], (t["address"] or "").lower())] = (
                 await _cg_contract_daily_prices(
-                    CHAINS[t["chain"]]["coingecko_platform"], t["address"], days
+                    WALLET_CHAINS[t["chain"]]["coingecko_platform"], t["address"], days
                 )
             )
         except Exception:
@@ -648,6 +762,8 @@ async def _wallet_nfts(h):
         return hit
 
     async def _fetch(chain):
+        if not _EVM_ADDR_RE.fullmatch(h):
+            return chain, [], None
         try:
             d = await ADAPTER.nfts(chain, h)
         except Exception as e:
@@ -706,6 +822,8 @@ async def _wallet_activity(h):
         return hit
 
     async def _fetch(chain):
+        if not _EVM_ADDR_RE.fullmatch(h):
+            return chain, [], None, None
         try:
             d = await ADAPTER.transactions(chain, h)
         except Exception as e:
