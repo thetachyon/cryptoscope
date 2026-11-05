@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EthScope — Multichain Block Explorer</title>
-<meta name="description" content="EthScope: Etherscan-style multichain block explorer (Ethereum, Sepolia, Optimism, Gnosis). Data by Blockscout.">
+<title>Scope — Block Explorer</title>
+<meta name="description" content="Scope: Etherscan-style block explorer. Data by Blockscout.">
 <link rel="stylesheet" href="/styles.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230784c3'/%3E%3Ctext x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EE%3C/text%3E%3C/svg%3E">
 </head>
@@ -12,8 +12,8 @@
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a class="brand" href="#/">
-      <span class="brand-badge">E</span>
-      <span class="brand-name">Eth<span class="brand-accent">Scope</span></span>
+      <span class="brand-badge" id="brand-badge">E</span>
+      <span class="brand-name" id="brand-name">Eth<span class="brand-accent">Scope</span></span>
     </a>
     <form id="search-form" class="search" autocomplete="off">
       <input id="search-input" type="text" placeholder="Search by Address / Txn Hash / Block / Token / ENS" aria-label="Search">
@@ -23,13 +23,13 @@
       <div id="search-suggest" class="suggest hidden"></div>
     </form>
     <nav class="navlinks">
-      <a href="#/" data-nav>Home</a>
-      <a href="#/wallet">Wallet</a>
-      <a href="#/charts">Charts</a>
-      <a href="#/gastracker">Gas Tracker</a>
-      <a href="#/pending">Pending</a>
+      <a href="#/" data-nav class="nav-explorer">Home</a>
+      <a href="#/wallet" id="nav-wallet">Wallet</a>
+      <a href="#/charts" class="nav-explorer">Charts</a>
+      <a href="#/gastracker" class="nav-explorer">Gas Tracker</a>
+      <a href="#/pending" class="nav-explorer">Pending</a>
       <a href="#/api-docs">API</a>
-      <select id="chain-select" class="chainselect" aria-label="Chain" title="Chain"></select>
+      <select id="scope-select" class="chainselect" aria-label="Other scopes" title="Other scopes"></select>
       <span class="netpill" id="netpill" title="Data: Blockscout v2 API"><span class="dot"></span><span id="netpill-text">Ethereum</span></span>
     </nav>
   </div>
@@ -42,11 +42,12 @@
 
 <footer class="footer">
   <div class="wrap footer-inner">
-    <span>EthScope · Multichain explorer — <a href="#/wallet">Wallet</a> · <a href="#/charts">Charts</a> · <a href="#/gastracker">Gas Tracker</a> · <a href="#/pending">Pending</a> · <a href="#/api-docs">API Docs</a></span>
+    <span><span id="footer-brand">EthScope</span> · <a href="#/wallet" id="footer-wallet">Wallet</a> · <a href="#/charts" class="nav-explorer">Charts</a> · <a href="#/gastracker" class="nav-explorer">Gas Tracker</a> · <a href="#/pending" class="nav-explorer">Pending</a> · <a href="#/api-docs">API Docs</a></span>
     <span class="muted">Data: <a href="https://eth.blockscout.com" target="_blank" rel="noopener">Blockscout</a> v2 API · No API keys · Keyless, rate-limited upstream</span>
   </div>
 </footer>
 
+<script src="/config.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

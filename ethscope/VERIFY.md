@@ -270,3 +270,13 @@ Server: `~/workspace/ethscope/venv/bin/uvicorn app:app --port 8035` from `~/work
 ## Tree state
 
 No venv, no `__pycache__` under `~/workspace/cryptoscope/ethscope` (checked after the final run). Do NOT push/deploy from here — parent handles that. Vercel deploy remains blocked (403 "Not authorized under scope thetachyon", awaiting Tejas granting the Vercel GitHub App access to the private `cryptoscope` repo).
+
+## Split + hoist (2026-11-05, post-dashboard)
+
+The multichain app was split into five thin apps over a shared `common/`
+package: ethscope is now Ethereum-only (no chain switcher; header links to
+the sibling scopes and to WalletScope), sepoliascope / optimismscope /
+gnosisscope are the same explorer for one chain each, and walletscope is
+the cross-chain wallet dashboard. The old `/api/ethscope/{chain}/*` and
+legacy mainnet-alias routes are gone; each app serves `/api/<scope>/*`.
+Per-app verification results live in the repo-root [VERIFY.md](../VERIFY.md).
