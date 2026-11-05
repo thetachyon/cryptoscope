@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EthScope — Ethereum Block Explorer</title>
-<meta name="description" content="EthScope: Etherscan-style Ethereum mainnet block explorer. Data by Blockscout.">
+<title>EthScope — Multichain Block Explorer</title>
+<meta name="description" content="EthScope: Etherscan-style multichain block explorer (Ethereum, Sepolia, Optimism, Gnosis). Data by Blockscout.">
 <link rel="stylesheet" href="/styles.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230784c3'/%3E%3Ctext x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EE%3C/text%3E%3C/svg%3E">
 </head>
@@ -24,7 +24,12 @@
     </form>
     <nav class="navlinks">
       <a href="#/" data-nav>Home</a>
-      <span class="netpill" title="Data: Blockscout v2 API, Ethereum mainnet"><span class="dot"></span>Mainnet</span>
+      <a href="#/charts">Charts</a>
+      <a href="#/gastracker">Gas Tracker</a>
+      <a href="#/pending">Pending</a>
+      <a href="#/api-docs">API</a>
+      <select id="chain-select" class="chainselect" aria-label="Chain" title="Chain"></select>
+      <span class="netpill" id="netpill" title="Data: Blockscout v2 API"><span class="dot"></span><span id="netpill-text">Ethereum</span></span>
     </nav>
   </div>
 </header>
@@ -36,8 +41,8 @@
 
 <footer class="footer">
   <div class="wrap footer-inner">
-    <span>EthScope · Ethereum mainnet explorer</span>
-    <span class="muted">Data: <a href="https://eth.blockscout.com" target="_blank" rel="noopener">Blockscout</a> v2 API · No API keys</span>
+    <span>EthScope · Multichain explorer — <a href="#/charts">Charts</a> · <a href="#/gastracker">Gas Tracker</a> · <a href="#/pending">Pending</a> · <a href="#/api-docs">API Docs</a></span>
+    <span class="muted">Data: <a href="https://eth.blockscout.com" target="_blank" rel="noopener">Blockscout</a> v2 API · No API keys · Keyless, rate-limited upstream</span>
   </div>
 </footer>
 
