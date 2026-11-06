@@ -60,10 +60,13 @@ from common.wallet import (
     _wallet_activity,
     _wallet_activity_page,
     _wallet_history,
+    _wallet_incoming,
     _wallet_nfts,
     _wallet_pnl,
     _wallet_tokens,
 )
+from common.accounting import accounting_csv, accounting_export
+from common.bitcoin import is_bitcoin_address
 from common.risk import bitcoin_risk, evm_risk, solana_risk
 from common.crosschain import bitcoin_crosschain, evm_crosschain, solana_crosschain
 from common.explain import btc_tx_explain, evm_tx_explain, sol_tx_explain
@@ -113,9 +116,16 @@ from common.stablecoin import (
     sc_transfers,
     sc_whales,
 )
-from common.freeze import sc_freeze
+from common.freeze import freeze_watch, freeze_watch_any, sc_freeze
+from common.preflight import preflight
+from common.received import monitor_aftermath
+from common.recurring import detect_recurring
+from common.settlement import receipt, track_settlement
 from common.issuer_risk import sc_issuer_risk
 from common.payments_readiness import sc_payments_readiness
+from common.quotes import get_quote, quote_tokens_payload
+from common.allowance import check_allowance
+from common.guard import quote_guard, stablecoin_guard
 from common.stablecoin_score import sc_depeg_score
 from common.overview import (
     ov_activity,
@@ -368,10 +378,133 @@ def create_wallet_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
         return _docs_payload(api, wallet_prefix=api, include_base=False,
                              chains=list(WALLET_CHAINS.keys()))
 
+    @app.get(api + "/quote/tokens")
+    async def api_quote_tokens():
+        return quote_tokens_payload()
+
+    @app.get(api + "/quote")
+    async def api_quote(request: Request):
+        p = dict(request.query_params)
+        from_chain = p.get("from_chain", "")
+        to_chain = p.get("to_chain", "")
+        if from_chain not in WALLET_CHAINS or to_chain not in WALLET_CHAINS:
+            return JSONResponse({"error": "Unknown chain (from_chain / to_chain)"}, status_code=400)
+        if not p.get("amount") or not p.get("from_token") or not p.get("to_token"):
+            return JSONResponse({"error": "amount, from_token and to_token are required"}, status_code=400)
+        payload = await get_quote(
+            from_chain, p["from_token"], to_chain, p["to_token"],
+            p["amount"], p.get("from_address"),
+        )
+        if payload.get("error"):
+            return JSONResponse({"error": payload["error"]}, status_code=400)
+        return payload
+
+    @app.get(api + "/allowance")
+    async def api_allowance(request: Request):
+        p = dict(request.query_params)
+        owner = (p.get("owner") or "").strip()
+        token = (p.get("token") or "").strip()
+        spender = (p.get("spender") or "").strip()
+        if not owner or not token or not spender:
+            return JSONResponse({"error": "owner, token and spender are required"}, status_code=400)
+        try:
+            return await check_allowance(
+                owner, token, spender,
+                chain=p.get("chain") or "ethereum",
+                amount=p.get("amount"),
+            )
+        except UpstreamError as e:
+            return JSONResponse({"error": e.msg}, status_code=e.status)
+
+    @app.get(api + "/quote/guard")
+    async def api_quote_guard(request: Request):
+        p = dict(request.query_params)
+        if not p.get("coin"):
+            return JSONResponse({"error": "coin is required"}, status_code=400)
+        try:
+            return await quote_guard(
+                p["coin"], chain=p.get("chain") or None,
+                amount=p.get("amount"), slippage_pct=p.get("slippage_pct"),
+            )
+        except Exception as e:
+            from common.clients import UpstreamError as _UE
+            if isinstance(e, _UE):
+                return JSONResponse({"error": e.msg}, status_code=e.status)
+            raise
+
+    @app.get(api + "/freeze/watch")
+    async def api_freeze_watch(request: Request):
+        p = dict(request.query_params)
+        address = (p.get("address") or "").strip()
+        if not address:
+            return JSONResponse({"error": "address is required"}, status_code=400)
+        try:
+            return await freeze_watch_any(
+                address, coin=p.get("coin"), chain=p.get("chain"))
+        except UpstreamError as e:
+            return JSONResponse({"error": e.msg}, status_code=e.status)
+
+    @app.get(api + "/preflight")
+    async def api_preflight(request: Request):
+        p = dict(request.query_params)
+        address = (p.get("address") or "").strip()
+        if not address:
+            return JSONResponse({"error": "address is required"}, status_code=400)
+        return await preflight(address, coin=p.get("coin"),
+                               chain=p.get("chain"), amount=p.get("amount"))
+
+    @app.get(api + "/settle")
+    async def api_settle(request: Request):
+        p = dict(request.query_params)
+        chain = (p.get("chain") or "").strip()
+        h = (p.get("hash") or "").strip()
+        if not chain or not h:
+            return JSONResponse({"error": "chain and hash are required"}, status_code=400)
+        return await track_settlement(chain, h)
+
+    @app.get(api + "/receipt")
+    async def api_receipt(request: Request):
+        p = dict(request.query_params)
+        chain = (p.get("chain") or "").strip()
+        h = (p.get("hash") or "").strip()
+        if not chain or not h:
+            return JSONResponse({"error": "chain and hash are required"}, status_code=400)
+        return await receipt(chain, h)
+
+    @app.get(api + "/aftermath")
+    async def api_aftermath(request: Request):
+        p = dict(request.query_params)
+        chain = (p.get("chain") or "").strip()
+        h = (p.get("hash") or "").strip()
+        if not chain or not h:
+            return JSONResponse({"error": "chain and hash are required"}, status_code=400)
+        return await monitor_aftermath(chain, h)
+
     @app.get(api + "/search")
     async def api_search(q: str = ""):
         # ENS / address resolution runs against Ethereum mainnet.
         return await _search("ethereum", q)
+
+    @app.get(api + "/accounting/export")
+    async def api_accounting_export(request: Request):
+        from fastapi.responses import Response
+        p = dict(request.query_params)
+        address = (p.get("address") or "").strip()
+        fmt = (p.get("format") or "csv").lower()
+        if not address:
+            return JSONResponse({"error": "address is required"}, status_code=400)
+        if not _valid_wallet_address(address) and not is_bitcoin_address(address):
+            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, a Solana base58 address, or a Bitcoin address)"}, status_code=400)
+        if fmt not in ("csv", "json"):
+            return JSONResponse({"error": "format must be csv or json"}, status_code=400)
+        payload = await accounting_export(address)
+        if fmt == "json":
+            return payload
+        return Response(
+            accounting_csv(payload),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="cryptoscope-accounting-{address[:12]}.csv"'},
+        )
 
     @app.get(api + "/wallet/{address}")
     async def api_wallet(address: str):
@@ -406,6 +539,36 @@ def create_wallet_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
         if not _valid_wallet_address(address or ""):
             return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, or a Solana base58 address)"}, status_code=400)
         return await _wallet_nfts(address)
+
+    @app.get(api + "/wallet/{address}/incoming")
+    async def api_wallet_incoming(address: str):
+        # Incoming transfers only — the invoice-reconciliation feed
+        # (phase 2, Q3). Takes an address only: it accepts NO invoice
+        # data, so matching must run client-side on this payload.
+        if not _valid_wallet_address(address or ""):
+            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, or a Solana base58 address)"}, status_code=400)
+        return await _wallet_incoming(address)
+
+    @app.get(api + "/recurring")
+    async def api_recurring(request: Request):
+        # Recurring-payment tracker (phase 2, Q5): repeating payments
+        # for one address — same counterparty, same coin, approx same
+        # amount, roughly regular interval. ?direction=out (default) /
+        # in / all. Bitcoin addresses accepted too (like the
+        # accounting export); ENS names are NOT resolved here.
+        p = dict(request.query_params)
+        address = (p.get("address") or "").strip()
+        direction = (p.get("direction") or "out").lower()
+        if not address:
+            return JSONResponse({"error": "address is required"}, status_code=400)
+        if not _valid_wallet_address(address) and not is_bitcoin_address(address):
+            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, a Solana base58 address, or a Bitcoin address)"}, status_code=400)
+        if direction not in ("out", "in", "all"):
+            return JSONResponse({"error": "direction must be out, in or all"}, status_code=400)
+        try:
+            return await detect_recurring(address, direction)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
     @app.get(api + "/wallet/{address}/activity")
     async def api_wallet_activity(address: str, request: Request):
@@ -635,6 +798,11 @@ def create_stablecoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI
     async def api_depeg_score():
         return await sc_depeg_score(scope)
 
+    @app.get(api + "/quote-guard")
+    async def api_quote_guard(request: Request):
+        p = dict(request.query_params)
+        return await stablecoin_guard(scope, amount=p.get("amount"))
+
     @app.get(api + "/peg-leaderboard")
     async def api_peg_leaderboard():
         return await sc_peg_leaderboard(this_scope=scope)
@@ -662,6 +830,17 @@ def create_stablecoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI
     @app.get(api + "/freeze")
     async def api_freeze():
         return await sc_freeze(scope)
+
+    @app.get(api + "/freeze/watch")
+    async def api_freeze_watch(request: Request):
+        p = dict(request.query_params)
+        address = (p.get("address") or "").strip()
+        if not address:
+            return JSONResponse({"error": "address is required"}, status_code=400)
+        try:
+            return await freeze_watch(scope, address)
+        except UpstreamError as e:
+            return JSONResponse({"error": e.msg}, status_code=e.status)
 
     @app.get(api + "/issuer-risk")
     async def api_issuer_risk():
