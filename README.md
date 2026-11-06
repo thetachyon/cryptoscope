@@ -11,7 +11,7 @@ Home for Tejas's crypto tooling — explorers, forensics, and analytics, each in
 | [sepoliascope](./sepoliascope) | Same explorer for Sepolia. | `sepoliascope` |
 | [optimismscope](./optimismscope) | Same explorer for Optimism. | `optimismscope` |
 | [gnosisscope](./gnosisscope) | Same explorer for Gnosis. | `gnosisscope` |
-| [walletscope](./walletscope) | Cross-chain wallet dashboard (portfolio, history, PnL estimate, NFTs, activity) across all four chains. | `walletscope` |
+| [walletscope](./walletscope) | Cross-chain wallet dashboard (portfolio, history, PnL estimate, NFTs, activity, accounting export) across all four chains. | `walletscope` |
 | [solscope](./solscope) | Full Solana explorer (slots, transactions, accounts, SPL tokens, programs). | `solscope` |
 | [bitscope](./bitscope) | Bitcoin explorer (blocks, transactions, addresses, mempool, fees). | `bitscope` |
 | [usdtscope](./usdtscope) | Tether USD dashboard (peg, supply, holders, transfers, depegs, reserves). | `usdtscope` |

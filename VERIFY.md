@@ -792,3 +792,239 @@ endpoints re-verified 200 below.
   timeout each) + one Wormholescan call, cached 120s; the frontend
   fetches with a 30s timeout and renders "Cross-chain identity
   unavailable" on failure instead of blocking the address page.
+
+## Phase 2, P2 — Recipient pre-flight compliance check (2026-11-06)
+
+### What was built
+
+- `GET /api/walletscope/preflight?address=&coin=&chain=&amount=` (new
+  `common/preflight.py`, wired in `common/factory.py` `create_wallet_app`,
+  listed in `DOCS_GLOBAL`). One verdict (pass / warn / block) from five
+  checks: sanctions risk (reuses `common/risk.py`, OFAC SDN 514, never
+  rebuilt), EOA vs contract, recipient holds the coin, frozen/blacklisted
+  (recipient + up to 10 recent counterparties), first-seen + activity
+  recency. Works for EVM, Solana and Bitcoin addresses and ENS names;
+  coin is a stablecoin symbol (mainnet contracts only), native symbol,
+  0x contract, or SPL mint. Nothing creates or signs a transaction.
+- Frontend `#/preflight` (+ `#/preflight/<addr>`, auto-runs) in
+  `frontend/app.js`, walletscope-only route; explorer apps redirect to
+  walletscope. One-click "🛡️ Pre-flight check" button on every address
+  page (links out to walletscope) and on the wallet page, plus nav/footer
+  links and a wallet-landing link. Stablecoin symbols pin the chain
+  select to Ethereum (their contracts are mainnet-only).
+- `labels.json` extended 14 → 16 entries, both verified live against
+  Blockscout `/addresses` on 2026-11-06: Uniswap V3 SwapRouter
+  (`0xE592427A…`, name SwapRouter) and Uniswap V3 Positions NFT
+  (`0xC36442b4…`, name Uniswap V3 Positions NFT-V1, UNI-V3-POS). The
+  preflight page shows the label pill via the existing `labelFor()`.
+
+### Endpoint verification (all 200 unless noted; walletscope :8045)
+
+- `?address=0xd8dA…96045&coin=USDC&amount=100` (vitalik.eth) →
+  **pass**: risk 0/100 low (257 counterparties, 538 txs, 3 hops); EOA
+  with EIP-7702 delegation to `0x5a7f…f96f6d`; holds 39.192124 USDC
+  (< 100 planned); not frozen (`isBlacklisted()` false); 10
+  counterparties checked, none frozen; 78,427 txs, last activity
+  2026-11-06, first-seen honestly unknown (250 of 78,427 scanned).
+- `?address=0x0330070f…e54a&coin=USDC` (OFAC SDN, AMNOKGANG TECHNOLOGY
+  DEVELOPMENT COMPANY [DPRK4]) → **block**: risk 100/critical, direct
+  hit; recipient frozen/blacklisted for USDC (`isBlacklisted()` true);
+  3 counterparties checked, none frozen; 4 txs, first 2023-04-21,
+  last 2024-12-04.
+- `?address=vitalik.eth&coin=ETH` → 200, pass, resolves via ENS,
+  holds 5.793818533768043911 ETH; freeze check n/a (native coin).
+- No coin (`?address=0xd8dA…96045`) → 200, pass; freeze probed on
+  USDC + USDT (both not frozen). `?coin=TUSD` → warn: TUSD freeze
+  status cannot be verified on-chain (write-only blacklist).
+- Solana `vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg&coin=SOL` → 200,
+  pass, holds 0.039869364 SOL, risk 0/low (1-hop walk). Same address
+  with `&coin=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (USDC mint)
+  → 200, pass; mint freeze authority exists (`7dGbd2QZ…`), recipient
+  holds no token account for the mint.
+- Bitcoin `1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa&coin=BTC` → 200, pass,
+  holds 57.70674218 BTC, risk 0/low; 67,384 txs, last activity
+  2026-11-06. Bitcoin SDN `bc1q2lpgjntr348pfvxhfy33ehmdzy3gmx8w4052z6`
+  (TASK FORCE RUSICH [RUSSIA-EO14024]) → 200, **block**, risk
+  100/critical; 3 txs, first 2022-09-07 exact.
+- USDC contract as recipient (`0xA0b8…eb48&coin=USDC`) → 200,
+  **block**: recipient frozen (`isBlacklisted(USDC contract)` is
+  genuinely true on-chain — Circle blacklists its own contract
+  address, verified live) + contract warn; activity pass, 1,487 txs,
+  recency reads "250 pending (unconfirmed) transaction(s) at the top
+  of the list" (see bugs below).
+- `?address=not-an-address` → 400; missing `address` → 400.
+- `GET /api/walletscope/docs` lists `/preflight` (11 entries).
+- Static: `/`, `/app.js`, `/labels.json` (16 labels) all 200;
+  `node --check` passes on `frontend/app.js`;
+  `python3 scripts/sync-common.py check` → "in sync: 16 apps".
+- UI rendering was NOT verified in a live browser (no browser in this
+  session): the page markup, route wiring and `node --check` were
+  verified; the rendered page still needs one browser pass.
+
+### Bugs found live and fixed during verification
+
+- Blockscout's `/addresses/{hash}` record does NOT carry
+  `transactions_count` (absent even for vitalik.eth) — the count now
+  comes from `/addresses/{hash}/counters` (string field), and the
+  zero-transaction verdict follows the scanned evidence, not the
+  counter (a live run once read 0 while 250 txs were scanned).
+- Blockscout reports `is_contract: True` for EIP-7702 delegated EOAs
+  (vitalik.eth delegates to AmbireAccount7702). Address type now uses
+  `eth_getCode`: empty = EOA, `0xef01…` (46 or 48 hex chars observed
+  live) = delegated EOA, anything else = contract; Blockscout is the
+  fallback when the RPC fails.
+- `common/bitcoin.py` `btc_address_txs(after=…)` built
+  `/txs/:last_seen_txid`, a route that does not exist on mempool.space
+  or Esplora (both 404 "endpoint does not exist") — fixed to
+  `/txs/chain/:last_seen_txid`. This also repairs BitScope's address
+  load-more: verified live, page 1 200 (50 items) → page 2 200
+  (25 items).
+- `_classify` called async `_resolve_evm_name` without awaiting it
+  (ENS names and invalid addresses 500'd with `'coroutine' object has
+  no attribute 'lower'`) — `_classify` is now async.
+- The frozen-counterparty probe flagged the USDC contract itself as a
+  frozen counterparty (it is the `to` of every `transfer()` call, and
+  Circle blacklists it). Checked token contracts are now excluded
+  from the counterparty set.
+- Hot contracts sit under a permanent pile of pending txs (all 250
+  scanned USDC-contract txs are `result: pending`, no timestamp) —
+  recency now says so explicitly instead of dropping the line, and
+  uses the latest *confirmed* tx when one is in the scanned pages.
+
+### Honest limits
+
+- A pass is not proof the recipient is clean: the risk walk covers
+  only the loaded transactions, the SDN list is dated 2026-11-05, and
+  the issuer blacklist is not enumerable on-chain (recipient + 10
+  recent counterparties probed only).
+- Stablecoin symbols resolve to Ethereum-mainnet contracts only; on
+  another EVM chain pass the 0x contract address. USDD is Tron-native
+  — its EVM balance/freeze checks do not apply. TUSD freeze status is
+  honestly unknown (write-only blacklist, no on-chain read).
+- First-seen is exact only when the scanned pages cover the whole
+  history (small tx counts); for high-activity addresses it is
+  reported unknown with the reason, never guessed.
+- Solana freeze covers the mint's freeze authority + the recipient's
+  token-account state only; counterparty freeze is not checked on
+  Solana. Bitcoin has no issuer freeze.
+- Scores are a heuristic screening signal, not a legal determination.
+
+## Phase 2, Q2 — Accounting export, USD-at-time + FIFO cost basis (2026-11-06)
+
+### What was built
+
+- `common/accounting.py` (new): `accounting_export(address)` + CSV
+  renderer. `GET /api/walletscope/accounting/export?address=&format=csv`
+  (JSON variant `format=json`), wired in `common/factory.py`
+  `create_wallet_app`; listed in `/docs` (14 endpoints) via a
+  `DOCS_GLOBAL` entry in `common/explorer.py`. Accepts EVM, Solana and
+  Bitcoin addresses (400 otherwise; missing address / bad format → 400).
+- FIFO reuse, not re-implementation: the PnL loop in `common/wallet.py`
+  was extracted verbatim into `_fifo_run(transfers, daily)` (same
+  7-day lookback, same unpriced-skip, same matched-only proceeds/cost,
+  plus a per-disposal lot breakdown and lots-remaining) and `_wallet_pnl`
+  now calls it. The export FIFO's every (chain, coin) group — native
+  coins included — through that same engine.
+- Pricing: one CoinGecko daily-close series per distinct coin, fetched
+  once for the whole export window (native via `_daily_native_prices`,
+  ERC-20/SPL via `_cg_contract_daily_prices`, BTC via one
+  `market_chart` call), then priced per coin-day from the series.
+  Live-price fallback is labelled `estimate-current`; no price at all
+  → null USD fields, never invented. 5-min cache, like PnL.
+- Journal columns (documented in the JSON `column_mapping`, the UI card
+  and `walletscope/README.md`): receive → Debit `Crypto
+  Assets:{COIN}` / Credit `Other Income:Crypto Received` (=
+  amount_usd); send → Debit `Cost of Goods Sold:Crypto Disposed` /
+  Credit `Crypto Assets:{COIN}` (= cost_basis_usd); realized gain per
+  send row for separate posting; memo carries the tx hash. Every
+  journal row balances (debit_usd == credit_usd) or is empty.
+- UI: "Accounting Export" card on the wallet dashboard (`#/wallet/…`)
+  with direct CSV / JSON download links, the journal mapping, the
+  sampled-window note, and a link to the single-chain explorer CSV on
+  the address page (wallet-only page, like Quote / Pre-flight).
+
+### Verified live (uvicorn walletscope :8035, 2026-11-06)
+
+- EVM test address `0x7C2080F3fC32Be38193262144AC98302f3b6b9A6`
+  (picked from live data: 11 Ethereum txs, 14 token transfers):
+  `format=csv` → 200, 11,146 bytes, 26 rows × 21 columns, parses clean
+  with Python `csv` (0 unbalanced journal rows); `format=json` → 200,
+  26 rows, 18 receives / 8 sends, total received $367.43, total sent
+  $366.62, total fees $0.18, total cost basis $366.63, total realized
+  gain −$0.01. 22 rows `at-time`, 0 `estimate-current`, 4 `unavailable`
+  (WATTOIN + 3 Optimism spam tokens — amounts kept, USD null).
+  Chains: ethereum + optimism; Sepolia 0 rows; Gnosis errored both runs
+  (sandbox egress-proxy disconnects / 403 — reported in `errors`, the
+  export still succeeds with the other chains).
+- FIFO spot-checks (real rows): 2026-09-06 USDC send of 215 consumed
+  `15 @ $1.0000 (acq 2026-08-26); 100 @ $1.0000 (acq 2026-08-27);
+  100 @ $1.0000 (acq 2026-08-27)` — oldest-first, cost $215.00,
+  gain −$0.01. 2026-10-05 ETH send of 0.0002995 consumed two lots
+  (0.00001949 @ $2,507.87 acq 2026-09-06 + 0.00028 @ $2,691.99 acq
+  2026-09-25). The address then transacted live mid-verification: a
+  2026-11-06 50-USDT send consumed both 25-lots from 2026-10-27
+  (`25 @ $0.9989` × 2, cost $49.94, gain +$0.01) — the 24→26 row
+  growth between runs is that new on-chain activity, not a bug.
+- Fee attribution: only sends carry `fee_usd` (3 ETH sends: $0.04 /
+  $0.10 / $0.04, total $0.18); receives carry no fee (the sender paid
+  it). Token-transfer rows carry no fee (Blockscout's token-transfer
+  endpoint does not return it) — stated in the notes.
+- Solana `vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg` → 200, 9 rows,
+  all SOL receives, all `at-time` (e.g. 2026-03-19: 0.023737364 SOL,
+  $2.14; 2026-03-06: 0.015 SOL, $1.33), total received $3.56, 0 errors
+  after the EVM-fanout guard (see bugs below).
+- Bitcoin `1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa` (genesis address) →
+  200, 25 rows (first page), all BTC receives, all `at-time` (e.g.
+  2026-11-06: 0.00000546 BTC, $0.41), total received $33.13,
+  total fees $0.00 (receives carry no fee), 0 errors.
+- PnL regression (same server, vitalik.eth): realized $0.00,
+  proceeds $0.00, cost $0.00, priced 0, unpriced 67, unmatched 0 —
+  identical to the pre-refactor baseline recorded before `_fifo_run`
+  was extracted.
+- Error handling: no `address` → 400; `address=not-an-address` → 400;
+  `format=xml` → 400. `/docs` lists `/accounting/export`.
+  Second JSON call served from cache in 0.004s.
+- Static: served `/app.js` contains the Accounting Export card
+  ("Download CSV" link); `node --check` passes on `frontend/app.js`;
+  `python3 scripts/sync-common.py check` → "in sync: 16 apps".
+
+### Bugs found live and fixed during verification
+
+- Fee on receives: native rows initially carried the transaction fee
+  even when the address was the recipient (the sender paid it).
+  Fees are now attached only where the address paid them (EVM sender,
+  Solana fee-payer signer, BTC send rows).
+- Solana addresses fanned out to the EVM collectors: Blockscout 422s
+  on a base58 address, so every EVM chain errored for Solana wallets.
+  EVM collection is now gated on the EVM address regex (same guard as
+  `_wallet_activity`); Solana errors are empty.
+- SOL amounts printed float artifacts (`0.023737364000000004`) because
+  `sol_tx` balance changes arrive as floats. SOL/SPL amounts are now
+  quantized to lamport precision (9dp) before formatting.
+- Bitcoin fee on receives: the genesis-address export initially
+  reported $18.49 of fees on receive rows. BTC fees are now reported
+  only on sends, and the notes say the fee is the whole transaction's
+  fee (the address's share is unknown when several senders fund one
+  transaction).
+
+### Honest limits
+
+- Sampled window: first page per chain (50 native txs + 50 token
+  transfers per EVM chain, 10 Solana signatures, 25 Bitcoin txs).
+  Older history is NOT fetched — the export is complete only for
+  addresses whose whole history fits the window.
+- `estimate-current` rows are priced at today's live price, not at
+  transaction time; for old transactions that is a weak estimate, and
+  their FIFO lots inherit it (flagged per row).
+- Unpriced rows (unlisted/spam tokens, Sepolia ETH) keep their amount
+  with null USD fields; their FIFO lots are unpriced and unmatched
+  disposals get null cost basis, never guessed.
+- Token-transfer rows carry no fee_usd. Solana counterparties are
+  best-effort (largest opposite balance change). Bitcoin rows are net
+  flow per transaction.
+- This is an estimate, not tax advice: transfers to exchanges, gifts
+  and internal moves are all treated as disposals.
+- UI rendering was NOT verified in a live browser (no browser in this
+  session): the card markup, download-link construction and
+  `node --check` were verified; the rendered page still needs one
+  browser pass.
