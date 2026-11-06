@@ -309,6 +309,7 @@ async function txPage(sig) {
     const logs = t.logs || [];
     render(`
       <div class="pagehead"><h2><span class="mono">${esc(short58(t.signature))}</span></h2>${copyBtn(t.signature)}</div>
+      <div id="explain-card"><div class="card"><div style="padding:12px 16px" class="muted">Explaining transaction…</div></div></div>
       <div class="card">
         ${detailRow("Signature", `<span class="mono" style="word-break:break-all">${esc(t.signature)}</span> ${copyBtn(t.signature)}`)}
         ${detailRow("Status", statusBadge(t.status) + (t.err ? ` <span class="mono muted">${esc(typeof t.err === "string" ? t.err : JSON.stringify(t.err))}</span>` : ""))}
@@ -342,10 +343,183 @@ async function txPage(sig) {
         <div class="card-head">Logs</div>
         ${logs.length ? `<div style="padding:16px"><pre class="hex" style="margin:0">${esc(logs.join("\n"))}</pre></div>` : emptyBox("No program logs for this transaction.")}
       </div>`);
+    // "What happened" card (Feature 3) — loads independently so a slow
+    // explain never blocks the page.
+    loadExplainCard(sig);
   } catch (e) {
     render(`<div class="pagehead"><h2>Transaction</h2></div>
       <div class="card">${errBox("Could not load transaction " + short58(sig) + ": " + e.message)}</div>`);
   }
+}
+
+/* ---------------- explain card (Feature 3, tx pages) ---------------- */
+function explainCardHtml(e) {
+  const kindLabel = {
+    sol_transfer: "SOL transfer", spl_transfer: "Token transfer",
+    swap: "Swap", contract_call: "Program call", unknown: "Unknown",
+  }[e.kind] || e.kind || "Transaction";
+  const flowRows = (e.flows || []).map((f) => {
+    const tok = f.kind === "sol"
+      ? "SOL"
+      : (f.token && f.token.address ? linkToken(f.token.address) : "—");
+    const fromCell = f.from ? linkAddr(f.from.hash || f.from) : '<span class="muted">—</span>';
+    const toCell = f.to ? linkAddr(f.to.hash || f.to) : '<span class="muted">—</span>';
+    return `<tr><td>${tok}</td><td class="r mono">${esc(String(f.amount ?? "—"))}</td><td>${fromCell}</td><td>${toCell}</td></tr>`;
+  }).join("");
+  return `<div class="card">
+    <div class="card-head">What happened <span class="spacer"></span><span class="badge info">${esc(kindLabel)}</span></div>
+    <div style="padding:14px 16px">
+      <div style="font-size:15px;line-height:1.5">${esc(e.sentence || "This transaction could not be explained.")}</div>
+      ${flowRows ? `<table class="tbl" style="margin-top:12px"><thead><tr><th>Token</th><th class="r">Amount</th><th>From</th><th>To</th></tr></thead><tbody>${flowRows}</tbody></table>` : ""}
+      ${e.note ? `<div class="muted" style="font-size:12px;margin-top:10px">${esc(e.note)}</div>` : ""}
+    </div>
+  </div>`;
+}
+
+function loadExplainCard(sig) {
+  fetchJson(API + "/tx/" + encodeURIComponent(sig) + "/explain", null, 30000).then((e) => {
+    const el = document.getElementById("explain-card");
+    if (el) el.innerHTML = explainCardHtml(e);
+  }).catch((err) => {
+    const el = document.getElementById("explain-card");
+    if (el) el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">Explanation unavailable: ${esc(err.message)}</div></div>`;
+  });
+}
+
+/* ---------------- risk card (address pages) ---------------- */
+function riskCardHtml(r) {
+  const lvl = String(r.level || "low").toLowerCase();
+  const badgeCls = { low: "ok", elevated: "warn", high: "fail", critical: "fail" }[lvl] || "grey";
+  const reasons = (r.reasons || []).map((x) => `<li>${esc(x)}</li>`).join("");
+  const cov = r.coverage || {};
+  return `<div class="card risk-card risk-${esc(lvl)}">
+    <div class="card-head">Risk Score <span class="spacer"></span><span class="badge ${badgeCls}">${esc(lvl)}</span></div>
+    <div style="padding:14px 16px">
+      <div style="display:flex;align-items:baseline;gap:10px"><span class="risk-score">${esc(String(r.score))}</span><span class="muted">/ 100 · ${esc(lvl)}</span></div>
+      <ul class="risk-reasons">${reasons}</ul>
+      <div class="muted" style="font-size:12px;margin-top:10px">${esc(r.family_note || "")}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(cov.note || "")}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(r.method || "")} Source: OFAC SDN list (${esc((r.sdn && r.sdn.date) || "")}, ${esc(String((r.sdn && r.sdn.labels_total) || ""))} addresses).</div>
+    </div>
+  </div>`;
+}
+
+function loadRiskCard(addr) {
+  // 60s client timeout: the funder walk fans out to upstream pages.
+  fetchJson(API + "/address/" + encodeURIComponent(addr) + "/risk", null, 60000).then((r) => {
+    const el = document.getElementById("risk-card");
+    if (el) el.innerHTML = riskCardHtml(r);
+  }).catch((e) => {
+    const el = document.getElementById("risk-card");
+    if (el) el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">Risk score unavailable: ${esc(e.message)}</div></div>`;
+  });
+}
+
+/* ---------------- cross-chain card (address pages) ---------------- */
+/* Bridge linkage only: same-address EVM presence is not applicable on
+   this chain (different address format). Linkage to an address on
+   another chain is shown ONLY when an actual bridge transfer is
+   observed — there is no keyless way to prove two different-format
+   addresses belong to the same person. */
+function crosschainCardHtml(c) {
+  const note = `<div class="muted" style="font-size:12.5px;margin-top:2px">${esc(c.note || "")}</div>`;
+  let presence = "";
+  if (Array.isArray(c.evm_presence)) {
+    const rows = c.evm_presence.map((p) => {
+      const link = p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">View on ${esc(p.label)} →</a>` : esc(p.label);
+      let bal, act;
+      if (p.status === "active") {
+        bal = `<b class="mono">${esc(p.balance || "0")} ${esc(p.native || "")}</b>${p.is_contract ? ' <span class="badge grey">Contract</span>' : ""}`;
+        const parts = [];
+        if (p.transactions_count != null) parts.push(`<span class="mono">${num(p.transactions_count)}</span> txs`);
+        if (p.latest_tx && p.latest_tx.timestamp) parts.push(`latest ${esc(new Date(p.latest_tx.timestamp).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }))}`);
+        act = parts.length ? parts.join(" · ") : `<span class="muted">Active</span>`;
+      } else if (p.status === "no_activity") {
+        bal = `<span class="muted">0 ${esc(p.native || "")}</span>`;
+        act = `<span class="muted">No activity</span>`;
+      } else {
+        bal = `<span class="muted">—</span>`;
+        act = `<span class="muted">Unavailable${p.note ? " — " + esc(p.note) : ""}</span>`;
+      }
+      return `<tr><td><b>${esc(p.label)}</b></td><td class="r">${bal}</td><td class="r">${act}</td><td class="r">${link}</td></tr>`;
+    }).join("");
+    presence = `<div style="margin-top:12px"><b>Same address on every EVM chain</b></div>
+      <table class="tbl"><thead><tr><th>Chain</th><th class="r">Native balance</th><th class="r">Activity</th><th class="r"></th></tr></thead><tbody>${rows}</tbody></table>`;
+  } else {
+    presence = `<div class="muted" style="margin-top:12px">Same-address presence does not apply here — this address format exists on one chain only. Cross-chain linkage below comes from observed bridge transfers only.</div>`;
+  }
+  const b = c.bridges || {};
+  let bridges;
+  if (b.error) {
+    bridges = `<div class="muted" style="margin-top:12px">Bridge transfers unavailable: ${esc(b.error)}</div>`;
+  } else if (!(b.transfers || []).length) {
+    bridges = `<div class="muted" style="margin-top:12px">No ${esc(b.provider || "Wormhole")} bridge transfers observed for this address.</div>`;
+  } else {
+    const rows = (b.transfers || []).map((t) => {
+      const when = t.timestamp ? esc(new Date(t.timestamp).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })) : "—";
+      const dir = t.direction === "in" ? '<span class="badge ok">In</span>' : t.direction === "out" ? '<span class="badge warn">Out</span>' : '<span class="badge grey">Involving</span>';
+      const amt = t.amount_reported ? `<span class="mono">${esc(t.amount)}</span>` : `<span class="muted">amount not reported</span>`;
+      const tok = t.token_address ? `<span class="mono muted">${esc(String(t.token_address).length > 14 ? String(t.token_address).slice(0, 10) + "…" : t.token_address)}</span>` : "";
+      return `<tr><td style="white-space:nowrap">${when}</td><td>${dir}</td><td>${esc(t.from_chain || "?")} → ${esc(t.to_chain || "?")}</td><td class="r">${amt} ${tok}</td><td><span class="muted">${esc(t.app || "")}</span></td></tr>`;
+    }).join("");
+    bridges = `<div style="margin-top:12px"><b>Bridge transfers (${esc(b.provider || "Wormhole")})</b> <span class="muted" style="font-size:12px">${esc(b.note || "")}</span></div>
+      <table class="tbl"><thead><tr><th>Date</th><th>Direction</th><th>Route</th><th class="r">Amount</th><th>Via</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  const wallet = c.walletscope_url
+    ? `<div style="margin-top:14px"><a class="btn" href="${esc(c.walletscope_url)}" target="_blank" rel="noopener">💼 Open full portfolio in WalletScope →</a></div>`
+    : `<div class="muted" style="font-size:12.5px;margin-top:14px">WalletScope covers EVM + Solana only — no portfolio view for this address.</div>`;
+  return `<div class="card">
+    <div class="card-head">Cross-chain identity</div>
+    <div style="padding:14px 16px">
+      ${note}
+      ${presence}
+      ${bridges}
+      ${wallet}
+    </div>
+  </div>`;
+}
+
+function loadCrosschainCard(addr) {
+  fetchJson(API + "/address/" + encodeURIComponent(addr) + "/crosschain", null, 30000).then((c) => {
+    const el = document.getElementById("crosschain-card");
+    if (el) el.innerHTML = crosschainCardHtml(c);
+  }).catch((e) => {
+    const el = document.getElementById("crosschain-card");
+    if (el) el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">Cross-chain identity unavailable: ${esc(e.message)}</div></div>`;
+  });
+}
+
+/* ---------------- security card (token pages) ---------------- */
+/* Same shape as the EVM Security card; EVM-only checks arrive with
+   status "na" and are labelled as such — they are never pretended
+   to have run on Solana. */
+function securityCardHtml(s) {
+  const lvl = String(s.level || "low").toLowerCase();
+  const badgeCls = { low: "ok", elevated: "warn", high: "fail" }[lvl] || "grey";
+  const stBadge = { pass: "ok", warn: "warn", fail: "fail", unknown: "grey", na: "grey" };
+  const stLabel = { pass: "pass", warn: "warn", fail: "fail", unknown: "not detectable", na: "EVM-only" };
+  const rows = (s.checks || []).map((c) => {
+    const st = String(c.status || "unknown").toLowerCase();
+    return `<tr><td><b>${esc(c.label || c.id)}</b><div class="muted" style="font-size:12.5px;margin-top:2px">${esc(c.detail || "")}</div></td><td style="white-space:nowrap"><span class="badge ${stBadge[st] || "grey"}">${esc(stLabel[st] || st)}</span></td></tr>`;
+  }).join("");
+  return `<div class="card risk-card risk-${esc(lvl)}">
+    <div class="card-head">Security <span class="spacer"></span><span class="badge ${badgeCls}">${esc(lvl)} risk</span></div>
+    <div style="padding:14px 16px">
+      <table class="tbl"><tbody>${rows}</tbody></table>
+      <div class="muted" style="font-size:12px;margin-top:10px">${esc(s.method || "")}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(s.limits || "")}</div>
+    </div>
+  </div>`;
+}
+
+function loadSecurityCard(mint) {
+  fetchJson(API + "/token/" + encodeURIComponent(mint) + "/security", null, 60000).then((s) => {
+    const el = document.getElementById("security-card");
+    if (el) el.innerHTML = securityCardHtml(s);
+  }).catch((e) => {
+    const el = document.getElementById("security-card");
+    if (el) el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">Security scan unavailable: ${esc(e.message)}</div></div>`;
+  });
 }
 
 /* ---------------- address ---------------- */
@@ -378,6 +552,8 @@ async function addressPage(addr) {
         ${detailRow("Owner", a.owner ? `${linkAddr(a.owner)} <span class="mono muted">${esc(a.owner)}</span>` : "—")}
         ${detailRow("Executable", a.executable ? "Yes" : "No")}
       </div>
+      <div id="risk-card"><div class="card"><div style="padding:12px 16px" class="muted">Loading risk score…</div></div></div>
+      <div id="crosschain-card"><div class="card"><div style="padding:12px 16px" class="muted">Loading cross-chain identity…</div></div></div>
       <div class="card">
         <div class="card-head">SPL Token Holdings <span class="spacer"></span><span class="muted" style="font-weight:400;font-size:12px">${a.token_holdings ? num(a.token_holdings.tokens_count) + " tokens · " + num(a.token_holdings.tokens_priced_count) + " priced" + (a.token_holdings.nft_count ? " · " + num(a.token_holdings.nft_count) + " NFTs" : "") : ""}</span></div>
         ${holdings.length ? `<table class="tbl"><thead><tr><th>Token</th><th class="r">Balance</th><th class="r">Price</th><th class="r">Value</th></tr></thead><tbody>
@@ -396,6 +572,8 @@ async function addressPage(addr) {
         <div id="addr-sigs">${sigTable(sigs, "No signatures found for this address.")}</div>
         <button class="loadmore" id="addr-more" style="${sigs.length ? "" : "display:none"}">Load more</button>
       </div>`);
+    loadRiskCard(addr);
+    loadCrosschainCard(addr);
     // Load-more wiring (cursor = last signature shown).
     const moreBtn = $("#addr-more");
     if (moreBtn) {
@@ -456,6 +634,7 @@ async function tokenPage(mint) {
         ${detailRow("Initialized", t.is_initialized ? "Yes" : "No")}
         ${detailRow("Price", t.usd_price != null ? `${usdPrice(t.usd_price)}${pctChange(t.usd_change_24h_pct)}` : "— <span class='muted'>(unpriced)</span>")}
       </div>
+      <div id="security-card"><div class="card"><div style="padding:12px 16px" class="muted">Loading security scan…</div></div></div>
       <div class="card">
         <div class="card-head">Top Holders</div>
         ${holders && holders.length ? `<table class="tbl"><thead><tr><th>Holder</th><th class="r">Amount</th><th class="r">Share</th></tr></thead><tbody>
@@ -472,6 +651,7 @@ async function tokenPage(mint) {
         ${transfers._error ? errBox("Could not load transfers: " + transfers._error) : `<div id="token-transfers">${sigTable(tItems, "No transfers found for this token.")}</div>`}
         <button class="loadmore" id="token-more" style="${tItems.length ? "" : "display:none"}">Load more</button>
       </div>`);
+    loadSecurityCard(mint);
     const moreBtn = $("#token-more");
     if (moreBtn) {
       let before = tItems.length ? tItems[tItems.length - 1].signature : null;
