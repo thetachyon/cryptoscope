@@ -13,8 +13,16 @@ Home for Tejas's crypto tooling — explorers, forensics, and analytics, each in
 | [walletscope](./walletscope) | Cross-chain wallet dashboard (portfolio, history, PnL estimate, NFTs, activity) across all four chains. | `walletscope` |
 | [solscope](./solscope) | Full Solana explorer (slots, transactions, accounts, SPL tokens, programs). | `solscope` |
 | [bitscope](./bitscope) | Bitcoin explorer (blocks, transactions, addresses, mempool, fees). | `bitscope` |
+| [usdtscope](./usdtscope) | Tether USD dashboard (peg, supply, holders, transfers, depegs, reserves). | `usdtscope` |
+| [usdcscope](./usdcscope) | USD Coin dashboard (same). | `usdcscope` |
+| [daiscope](./daiscope) | Dai dashboard (same). | `daiscope` |
+| [usdescope](./usdescope) | Ethena USDe dashboard (same). | `usdescope` |
+| [fdusdsscope](./fdusdsscope) | First Digital USD dashboard (same). | `fdusdsscope` |
+| [pyusdsscope](./pyusdsscope) | PayPal USD dashboard (same). | `pyusdsscope` |
+| [tusdscope](./tusdscope) | TrueUSD dashboard (same). | `tusdscope` |
+| [usddscope](./usddscope) | Decentralized USD dashboard (same; Tron-native via TronScan). | `usddscope` |
 
-Every app is keyless — data via the public Blockscout v2 API, public JSON-RPC endpoints, the public Solana RPC, mempool.space / Blockstream Esplora, and CoinGecko's keyless tier. No API keys anywhere.
+Every app is keyless — data via the public Blockscout v2 API, public JSON-RPC endpoints, the public Solana RPC, mempool.space / Blockstream Esplora, DeFiLlama's stablecoins API, TronScan/TronGrid, and CoinGecko's keyless tier. No API keys anywhere.
 
 ## Layout
 
@@ -22,7 +30,9 @@ Every app is keyless — data via the public Blockscout v2 API, public JSON-RPC 
 common/             Shared Python package — the single source of truth.
                     Chain registry, per-chain Blockscout clients, USD
                     pricing, formatting, Keccak/ABI codec, explorer core,
-                    wallet aggregation, thin-app factories.
+                    wallet aggregation, Solana/Bitcoin clients,
+                    stablecoin dashboards (DeFiLlama + CoinGecko +
+                    Blockscout/TronScan), thin-app factories.
 frontend/           Shared SPA (index.html, app.js, styles.css,
                     labels.json). Per-app behaviour comes from each app's
                     generated static/config.js.
@@ -38,6 +48,14 @@ gnosisscope/        Gnosis explorer (thin)
 solscope/           Solana explorer (thin + frontend/ overlay)
 bitscope/           Bitcoin explorer (thin + frontend/ overlay)
 walletscope/        Cross-chain wallet dashboard (thin)
+usdtscope/          Tether USD dashboard (thin + frontend/ overlay)
+usdcscope/          USD Coin dashboard (thin + frontend/ overlay)
+daiscope/           Dai dashboard (thin + frontend/ overlay)
+usdescope/          Ethena USDe dashboard (thin + frontend/ overlay)
+fdusdsscope/        First Digital USD dashboard (thin + frontend/ overlay)
+pyusdsscope/        PayPal USD dashboard (thin + frontend/ overlay)
+tusdscope/          TrueUSD dashboard (thin + frontend/ overlay)
+usddscope/          Decentralized USD dashboard (thin + frontend/ overlay)
 VERIFY.md           Split verification log (per-app smoke tests)
 ```
 
@@ -73,7 +91,7 @@ Dropped chains (do not re-add without re-probing): Arbitrum (`arbitrum.blockscou
 
 ## Queue
 
-Solana holdings into the wallet dashboard ✓ (SOL + SPL, keyless — see `walletscope/README.md`) → **SolScope** ✓ (full Solana explorer, own directory — see `solscope/README.md`) → **BitScope** ✓ (Bitcoin explorer via keyless mempool.space / Blockstream Esplora — see `bitscope/README.md`) → stablecoin Scopes (Top 8: USDT, USDC, DAI, USDe, FDUSD, PYUSD, TUSD, USDD — peg status, supply, holders, transfers, depeg history, reserves).
+Solana holdings into the wallet dashboard ✓ (SOL + SPL, keyless — see `walletscope/README.md`) → **SolScope** ✓ (full Solana explorer, own directory — see `solscope/README.md`) → **BitScope** ✓ (Bitcoin explorer via keyless mempool.space / Blockstream Esplora — see `bitscope/README.md`) → **stablecoin Scopes** ✓ (Top 8: USDT, USDC, DAI, USDe, FDUSD, PYUSD, TUSD, USDD — peg status, supply, holders, transfers, depeg history, reserves — see `VERIFY.md` and each `<coin>scope/README.md`).
 
 ## Deploy status
 

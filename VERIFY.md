@@ -308,3 +308,149 @@ live mainnet data (uvicorn :8042). Nothing pushed or deployed in this pass.
   JS is syntax-checked and logic-reviewed only.
 - Vercel `buildCommand` (sync) untested live — deploy still blocked
   (403 team scope); the committed vendored copies are the fallback.
+
+## Stablecoin Scopes (2026-11-05)
+
+Eight focused dashboards — one per coin, thin apps over `common/stablecoin.py`
+(`create_stablecoin_app` in `common/factory.py`) with one shared frontend
+overlay SPA (`#/`, `#/holders`, `#/transfers`, `#/depegs`, `#/reserves`,
+`#/api-docs`; peg gauge, hand-rolled SVG price/supply charts with depeg
+markers, holders table, transfers list, reserves section). All checks run
+locally against live data (uvicorn, one port per app, 8051–8058). Nothing
+pushed or deployed in this pass.
+
+### API probing (curl, before building)
+
+- DeFiLlama `GET /stablecoins?includePrices=true` → `peggedAssets` with
+  numeric ids: USDT=1, USDC=2, DAI=5, TUSD=7, USDD=14, FDUSD=119,
+  PYUSD=120; **USDe=146** (symbol is case-sensitive `USDe` — a filter for
+  `USDE` misses it; its id was resolved from the list at build time).
+- DeFiLlama `GET /stablecoin/{id}` → description, `address`, `auditLinks`,
+  `price`, `currentChainBalances` {chain: {peggedUSD}}, and — despite the
+  name — `tokens`, a **daily total-supply history** [{date, circulating:
+  {peggedUSD}}] (USDT 3,264 pts from 2017-11-29; USDe 1,061 from
+  2023-12-11; USDD 1,567 from 2022-05-02). No `pegHistory` field (empty).
+- DeFiLlama `/stablecoincharts/*` 404s in every variant — not used. Price
+  history is `GET /stablecoinprices` (2,132 daily entries, ~6.4 MB,
+  cached 10 min per app process; tether in all entries, ethena-usde in
+  1,052).
+- CoinGecko `/coins/{gecko_id}` works keyless for all 8 ids (tether,
+  usd-coin, dai, ethena-usde, first-digital-usd, paypal-usd, true-usd,
+  usdd) — price/market-cap/supply fallback + homepage/whitepaper links.
+- Blockscout v2 `eth.blockscout.com` `/tokens/{addr}`,
+  `/tokens/{addr}/holders`, `/tokens/{addr}/transfers` work for all 7
+  Ethereum-primary contracts (addresses verified against DeFiLlama
+  `address` + CoinGecko; `/transfers?page_size=5` returns 422 — default
+  50/page used instead). Holders items carry `value` (raw base units);
+  transfers carry `total: {decimals, value}`.
+- Tron: `api.trongrid.io` works keyless (`/wallet/getnowblock` →
+  87,749,987). **USDD contract is `TXDk8mbtRbXeYuMNS83CfKPaYYT8XWv9Hz`**
+  (DeFiLlama `address`, confirmed live via `/wallet/getcontract` AND
+  TronScan token info: symbol USDD, "Decentralized USD"). The believed
+  address `TPYmHEhy5nXmKtc5f6KgQVPSMURkCPSoW9` is NOT a contract (empty
+  getcontract response). `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` is USDT on
+  Tron, not USDD. TronScan keyless
+  `apilist.tronscan.org/api/token_trc20` (info), `/token_trc20/holders`
+  and `/token_trc20/transfers` work — but only with the
+  **`contract_address=` parameter name** (`contract=` is silently
+  ignored by transfers — it returned USDT transfers — and 400s holders).
+- Reserves: no keyless machine-readable API exposes live reserve /
+  collateral figures for any coin (Ethena app API 307, api.ethena.fi
+  403, daistats.com/oasis/makerdao API hosts unreachable or 404). The
+  `/reserves` endpoint therefore returns issuer attestation/transparency
+  links + market figures labelled as market figures, `reserve_figures:
+  null` — never invented numbers.
+
+### What was built
+
+- `common/stablecoin.py`: per-coin config (DeFiLlama id, gecko id,
+  primary chain + contract, decimals, issuer, attestation links),
+  DeFiLlama + CoinGecko + Blockscout + TronScan clients, peg/depeg
+  computation (depeg = |price − $1| > 50 bps; health: ≤5 bps pegged,
+  ≤50 watch, >50 depegged), `sc_stats/peg/supply/holders/transfers/
+  depegs/reserves/chains/search` + docs payload.
+- `common/factory.py`: `create_stablecoin_app` — `/api/<scope>/*`
+  (11 endpoints: `/chains`, `/docs`, `/stats`, `/peg`, `/supply`,
+  `/holders`, `/transfers`, `/depegs`, `/reserves`, `/search`).
+- 8 thin apps (`usdtscope`, `usdcscope`, `daiscope`, `usdescope`,
+  `fdusdsscope`, `pyusdsscope`, `tusdscope`, `usddscope` — double-s is
+  the consistent pattern) each with config + entrypoint + vercel.json +
+  api/index.py + `frontend/` overlay SPA + README. All 8 added to every
+  app's `SIBLINGS` (15 apps × 14 siblings now).
+
+### Per-coin verification (all 200 unless noted)
+
+| Coin (port) | Price | Dev (bps) | Health | Supply | Holders (primary) | Top holder | Depeg days (worst) |
+|---|---|---|---|---|---|---|---|
+| USDT (8051) | $0.99853 | −14.70 | watch | $177.71B | 17,116,460 | 14.00B ($13.98B) | 48 / 2,131 (+113.56 bps, 2021-03-01) |
+| USDC (8052) | $0.99991 | −0.87 | pegged | $70.72B | 9,560,654 | 3.44B ($3.44B) | 53 / 2,131 (−389.35 bps, 2023-03-12, $0.9611 SVB) |
+| DAI (8053) | $1.00020 | +2.04 | pegged | $4.68B | 770,491 | 788.1M ($788.2M) | 48 / 2,131 (−374.51 bps, 2023-03-12) |
+| USDe (8054) | $0.99886 | −11.35 | watch | $4.56B | 47,200 | 2.09B ($2.09B) | 18 / 1,052 (+250 bps, 2023-12-25; most recent −161.85 bps, 2026-02-01) |
+| FDUSD (8055) | $0.99613 | −38.66 | watch | $289.78M | 4,343 | 100.0M ($99.6M) | 39 / 1,191 (+230 bps, 2024-08-08) |
+| PYUSD (8056) | $0.99953 | −4.71 | pegged | $2.66B | 114,600 | 556.5M ($556.2M) | 8 / 1,167 (+150 bps, 2023-08-28) |
+| TUSD (8057) | $0.99811 | −18.93 | watch | $484.48M | 346,905 | 97.6M ($97.4M) | 131 / 2,131 (−356.45 bps, 2024-02-29) |
+| USDD (8058) | $0.99731 | −26.95 | watch | $1.51B | 10,000* | 403.1M ($402.0M) | 273 / 1,644 (−415 bps, 2022-06-20, $0.9585) |
+
+\* USDD holder total is TronScan's capped list size (10,000), not necessarily the true holder count.
+
+Per-coin detail (all live):
+- **USDT**: mcap $177.57B; 7d −1.7% / 30d −3.4% supply; 102 chains, top Tron $92.51B, Ethereum $68.17B; peg30: 29 pts, 0 depeg days; supply90: 89 pts; holders page 2 works (next_page_params, first 9.18B); transfers 50, largest in page $137,198; most recent depeg +60 bps 2024-08-08.
+- **USDC**: mcap $70.34B; 7d −0.34% / 30d −4.29%; 125 chains, top Ethereum $43.09B; transfers 50, largest in page $49,996; most recent depeg +80 bps 2024-11-11.
+- **DAI**: mcap $4.52B; 7d −0.49% / 30d −1.67%; 36 chains, top Ethereum $4.11B; transfers 50, largest in page $263,143; most recent depeg −54.15 bps 2024-05-08; reserves page lists Sky app + DAI Stats + MakerDAO links.
+- **USDe**: mcap $4.52B; 7d +0.79% / 30d −7.83%; 30 chains, top Ethereum $2.50B; transfers 50, largest in page $883,323; reserves page lists Ethena audits + app.
+- **FDUSD**: mcap $288.76M; 7d −2.88% / 30d −9.59%; 6 chains, top Ethereum $178.7M; transfers 50, largest in page $4,084,337; most recent depeg −51.64 bps 2025-11-19.
+- **PYUSD**: mcap $2.70B; 7d −9.53% / 30d −7.86%; 18 chains, top Ethereum $1.73B; transfers 50, largest in page $11,581; most recent depeg +90 bps 2024-08-08.
+- **TUSD**: mcap $494.04M; 7d −0.0% / 30d −0.0% (supply frozen — last-7d daily deltas all $0); 9 chains, top Ethereum $313.4M; transfers 50, largest in page $1,916; most recent depeg −51.73 bps 2026-08-01.
+- **USDD**: mcap $1.50B (TronScan token mcap $1,154,687,304, vol24h $6,519,468); 7d −0.77% / 30d −5.26%; 4 chains, top Tron $1.154B; holders via TronScan (50/page, `?start=` pagination verified to page 2, next_start 100); transfers via TronScan (50, largest in page $211,673); most recent depeg +80 bps 2025-02-05; supply90 returns only 39 points — see limits.
+- Every app: `/docs` 11 endpoints; `/chains` correct count; `/reserves`
+  `reserve_figures: null` with attestation links (1–3 per coin);
+  `/search?q=zzzznotreal` → 404 with a clear message; `/`, `/app.js`
+  (33,992 B dashboard SPA), `/config.js`, `/styles.css` all 200.
+- `node --check` passes on all 15 vendored `static/app.js` files;
+  `python3 scripts/sync-common.py check` → "in sync: 15 apps match
+  canonical common/ + frontend/".
+- EVM regression: ethscope `/stats` 200 (height 26,351,551) after the
+  factory.py edit.
+
+### Bugs found & fixed
+
+1. `/tokens/{addr}/transfers?page_size=5` returns 422 from Blockscout —
+   the transfers/holders endpoints are called with default pagination
+   (50/page) and the returned `next_page_params` instead.
+2. TronScan transfers with `contract=` silently returns the wrong
+   coin's transfers (USDT) — fixed to `contract_address=` (holders
+   400s with `contract=`). Both endpoints use `contract_address=`.
+3. Frontend Load-more rank renumbering used a regex over row HTML that
+   could also rewrite a numeric balance cell — replaced with an
+   explicit `startIdx` parameter.
+
+### Honest limits
+
+- **Holders/transfers cover the primary chain only** (Ethereum for
+  7 coins, Tron for USDD). Cross-chain holders are not aggregated:
+  USDT's Ethereum holders (17.1M) exclude its larger Tron base; FDUSD
+  (4,343 Ethereum holders) and TUSD (346,905) are majority non-Ethereum
+  coins — their READMEs say so.
+- **Transfers are latest-first (50/page), not size-filtered.** The
+  largest transfer in the latest page is reported per coin above, but
+  the list is not a "largest transfers" ranking.
+- **Reserves: no reserve numbers anywhere.** No keyless API exposes
+  live reserve/collateral figures; the reserves page is attestation
+  links + market figures labelled as market figures. DAI collateral
+  composition and USDe backing are link-outs only.
+- **USDD holder total is capped at 10,000** by TronScan (shown with an
+  explicit note in the API + UI); the true holder count is unknown.
+- **USDD supply history has an 83-day DeFiLlama data gap**
+  (2026-07-07 → 2026-09-28, no daily points) — the supply chart draws
+  a straight line across it; `/supply?days=90` returns 39 points.
+- **Depeg history is daily closes only** (DeFiLlama `/stablecoinprices`);
+  intraday depegs larger than the daily close are not shown.
+- **Peg health is a labelling choice:** ≤5 bps pegged, ≤50 bps watch,
+  >50 bps depegged. USDT at −14.7 bps and USDD at −26.95 bps read as
+  "watch" — normal wobble for those coins, not distress.
+- `/stablecoinprices` is a ~6.4 MB download, cached 10 minutes per app
+  process; the first `/peg` or `/depegs` call per app is slow (~seconds).
+- Live browser rendering of the dashboard pages was not possible here —
+  JS is syntax-checked and logic-reviewed only.
+- Vercel `buildCommand` (sync) untested live — deploy still blocked
+  (403 team scope); the committed vendored copies are the fallback.

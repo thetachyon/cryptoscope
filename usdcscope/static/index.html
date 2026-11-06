@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USDC Scope — Stablecoin Dashboard</title>
+<meta name="description" content="USDC Scope: live peg status, supply, holders, transfers, depeg history and reserves. Data by DeFiLlama, CoinGecko, Blockscout / TronScan.">
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230784c3'/%3E%3Ctext x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EC%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#/">
+      <span class="brand-badge" id="brand-badge">C</span>
+      <span class="brand-name" id="brand-name">USDC Scope</span>
+    </a>
+    <form id="search-form" class="search" autocomplete="off">
+      <input id="search-input" type="text" placeholder="Search by holder address / tx hash" aria-label="Search">
+      <button type="submit" title="Search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </button>
+    </form>
+    <nav class="navlinks">
+      <a href="#/" data-nav>Home</a>
+      <a href="#/holders" data-nav>Holders</a>
+      <a href="#/transfers" data-nav>Transfers</a>
+      <a href="#/depegs" data-nav>Depegs</a>
+      <a href="#/reserves" data-nav>Reserves</a>
+      <a href="#/api-docs">API</a>
+      <select id="scope-select" class="chainselect" aria-label="Other scopes" title="Other scopes"></select>
+      <span class="netpill" id="netpill" title=""><span class="dot"></span><span id="netpill-text">Stablecoin</span></span>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="error-banner" class="error-banner hidden"></div>
+  <div id="view"></div>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <span><span id="footer-brand">USDC Scope</span> · <a href="#/holders">Holders</a> · <a href="#/transfers">Transfers</a> · <a href="#/depegs">Depegs</a> · <a href="#/reserves">Reserves</a> · <a href="#/api-docs">API Docs</a></span>
+    <span class="muted">Data: DeFiLlama · CoinGecko · Blockscout / TronScan · No API keys</span>
+  </div>
+</footer>
+
+<script src="/config.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
