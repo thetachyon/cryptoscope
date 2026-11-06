@@ -527,3 +527,268 @@ existing apps link back to it via `SIBLINGS` (first entry, "Cryptoscope").
 - Live browser rendering of the landing page was not possible here —
   JS is syntax-checked (`node --check` passes) and logic-reviewed only.
 - `scripts/sync-common.py check` passes for all 16 apps.
+
+## Feature 1 — Risk scores on addresses (2026-11-05)
+
+Port of the Cryptanalysis forensics scoring into Cryptoscope as a
+self-contained keyless module (`common/risk.py` — no live
+Cryptanalysis call, no API key). No local Cryptanalysis copy existed
+under `~/workspace/`, so the label set was rebuilt from the primary
+source: OFAC SDN `sdn.csv`, downloaded 2026-11-05 from
+treasury.gov/ofac/downloads/sdn.csv (521 "Digital Currency Address"
+mentions → 514 unique addresses; 94 EVM-format, 260 Bitcoin, 2
+Solana; program names repaired only for the CSV's dropped leading
+bracket). Verified live against uvicorn (ports 8051/8052/8053); nothing
+pushed.
+
+### Endpoint verification (all 200, reasons present)
+
+| Check | Result |
+|---|---|
+| EVM sanctioned address (OFAC-listed ETH address from the set) `GET /api/ethscope/address/<addr>/risk` | 100 / critical — "on the OFAC SDN list as MESRI, Behzad ([HRIT-IR] [CYBER2]; ETH address). Direct sanctions match." Walk skipped (max score already set). |
+| vitalik.eth (`0xd8dA…96045`) `GET /api/ethscope/address/…/risk` | 0 / low — 401 counterparties checked, 3 hops, 626 txs scanned, ~16s. |
+| Solana sanctioned address (OFAC-listed SOL address from the set) `GET /api/solscope/address/…/risk` | 100 / critical — "on the OFAC SDN list as SOKOLOVSKI, Rolan ([ILLICIT-DRUGS-EO14059]; SOL address)." |
+| Solana clean address (`vines1vzr…`) `GET /api/solscope/address/…/risk` | 0 / low — 26 counterparties, 1 hop, 10 txs scanned, ~5s. |
+| Bitcoin sanctioned address (OFAC-listed BTC address from the set) `GET /api/bitscope/address/…/risk` | 100 / critical — "on the OFAC SDN list as MESRI, Behzad ([HRIT-IR] [CYBER2]; XBT address)." |
+| Bitcoin genesis address (`1A1zP1…DivfNa`) `GET /api/bitscope/address/…/risk` | 0 / low — 7,602 counterparties checked, 3 hops, 531 txs scanned, ~10s. |
+| Scoring unit checks (`common.risk.assess`) | 1-hop sanctioned non-mixer = 80/high; 1-hop sanctioned mixer (Blender.io) = 70/elevated; 3-hop sanctioned = 40/elevated. |
+| Docs | Risk endpoint listed: ethscope `/docs` 33 entries, solscope 13, bitscope 13. |
+| EVM regression | ethscope home 200, `/api/ethscope/stats` 200 (latest block 26,353,148). SolScope/BitScope home 200. |
+| UI | Playwright screenshot (desktop 1280×900) of vitalik.eth's address page shows the Risk card: "0 / 100 · low", LOW badge, both reasons, family + coverage + method notes — `~/workspace/cryptoscope-snapshots/risk-address-eth.png`. |
+| Sync | `scripts/sync-common.py check` → "in sync: 16 apps match canonical common/ + frontend/". Risk route registered in all six explorer apps (eth/sepolia/optimism/gnosis/sol/btc). |
+
+### Honest limits
+
+- The walk only covers the transactions the address page loads (first
+  page; EVM ≤50 txs, BTC 25 txs, SOL 10 txs) with 10/5 hop budgets —
+  a low score is not proof an address is clean. Stated in the API
+  `coverage.note` and the UI.
+- Solana is 1 hop only and the SDN list holds just 2 Solana addresses;
+  the 1-hop walk can only match those same 2 addresses. Stated in the
+  `family_note` and the UI.
+- Tornado Cash is NOT in the vendored set (OFAC delisted it March
+  2025); mixer detection covers Blender.io / Sinbad only (13
+  addresses).
+- Full-walk latency on busy addresses is 5–16s (server-side, cached
+  10 min per address); the frontend fetches risk with a 60s timeout so
+  the card never hangs the page, and a failure renders as "Risk score
+  unavailable" instead of blocking the address page.
+- One SDN BTC entry is truncated in OFAC's own CSV
+  (`3F6bbvS1krsc1qR8FsbTDfYQyvkMm`) and can never match a real
+  address; kept verbatim.
+
+## Feature 2 — Security scanner on tokens (2026-11-05)
+
+Token/contract risk verdicts, EVM first (`common/security.py`,
+zero new dependencies, all keyless). Verified live against uvicorn
+(ethscope 8051, optimismscope 8052, solscope 8053); nothing pushed.
+Feature 1 untouched — its risk endpoint re-verified 200 below.
+
+### Endpoint verification (all 200, per-check results real)
+
+| Check | Result |
+|---|---|
+| USDC on Ethereum `GET /api/ethscope/token/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/security` | **low** (1 point, ~17s). Owner warn — live owner `0xfcb19e6a322b27c06842a71e8c725399f049ae3a` (real `owner()` eth_call via public RPC) with mint/pause/blacklist/updatePauser/updateBlacklister/updateMasterMinter/configureMinter/upgradeTo/transferOwnership from the merged proxy+implementation ABI, `paused: false`. Concentration pass — top-10 24.7%, top-1 7.35% (Blockscout holders, 9,561,901 holders). Tax unknown — no standard tax function in the ABI ("not detectable"). Liquidity pass — $10,704,538 DexScreener-tracked across 2 pairs, V2 pair `0xB4e16d…` reserves readable, LP burned 0.0%. Honeypot pass — buy simulation (0.01 ETH → USDC via V2 router, from vitalik.eth as the read-only eth_call sender) AND sell simulation (transfer of 1 USDC from the largest holder to the pair) both succeeded. |
+| USDC.e on Optimism `GET /api/optimismscope/token/0x7F5c764cBc14f9669B88837ca1490cCa17c31607/security` | **elevated** (2 points, ~10s). Owner warn (live owner `0x9028967b…`, mint/pause/blacklist powers). Concentration pass — top-10 27.0%, top-1 5.9%. Tax unknown. Liquidity warn — $594,122 DexScreener-tracked across 30 pairs, thin. Honeypot pass — sell transfer succeeded; buy leg honestly unavailable (no V2 pair for the token on Optimism; top DEX pair is a V3 pool). |
+| USDC on Solana `GET /api/solscope/token/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/security` | **elevated** (2 points, ~13s). Mint authority warn — live (`BJE5MMbqXjVwjAF7oxwPYXnTXDyspzZyt4vwenNw5ruG`); freeze authority warn — live (`7dGbd2QZcCKcTndnHcTL8q7SMVXAkp688NTQYwrRCrar`). Holder concentration unknown — public RPC 403 on `getTokenLargestAccounts` (stated, not faked). Owner powers / tax / honeypot / liquidity all `na` — labelled EVM-only. |
+| Docs | Security endpoint listed: ethscope `/docs` 34 entries, solscope 14. |
+| EVM regression | ethscope home 200, `/api/ethscope/stats` 200; Feature 1 `GET /api/ethscope/address/0xd8dA…96045/risk` → 200, 0/low. |
+| UI | Playwright screenshot (desktop 1280 wide, full page) of the USDC token page shows the Security card: LOW RISK badge, all five checks with pass/warn/not-detectable badges, method + limits footnotes — `~/workspace/cryptoscope-snapshots/security-token-usdc.png`. Security card also loads on token-contract address pages (same endpoint). |
+
+### Bugs found live and fixed during verification
+
+- **False honeypot on Optimism (first run: USDC.e scored high).**
+  The buy leg ran the V2 router against the DexScreener top pair,
+  which on Optimism is a V3 pool — the router call reverted for
+  plumbing reasons, not because the token blocks buys. Fixed: the
+  router buy leg only runs when the V2 factory itself returns a pair
+  for the token (`pair_via == "uniswap-v2-factory"`); otherwise the
+  buy leg is "unavailable" and the sell-transfer leg still decides.
+  Re-verified: USDC.e is elevated (owner warn + thin liquidity), not
+  high.
+- **Transient Blockscout holders failure degraded two checks at
+  once.** One run returned concentration unknown + honeypot unknown
+  because a single holders fetch failed (no top holder → no sell
+  simulation). Fixed: the holders fetch is retried once after 2s.
+  Re-verified: full USDC/Ethereum result (all five checks resolved)
+  on the next run.
+
+### Honest limits
+
+- Tax is only detectable when the ABI exposes a standard tax
+  function; a tax hidden in transfer logic reports "not detectable".
+- DexScreener's `/latest/dex/tokens` list is capped/truncated (for
+  USDC on Ethereum it returned 2 pairs totalling $10.7M while the
+  WETH/USDC V2 pair alone holds ~$19.2M) — liquidity totals are a
+  lower bound over DexScreener-tracked pairs, stated as such.
+- The V2 buy simulation needs a V2 pair; tokens whose liquidity is
+  V3-only (or on chains without a V2 deployment, e.g. Sepolia's
+  DexScreener gap) get the buy leg as "unavailable", never a faked
+  pass/fail. Sepolia was not live-tested (no suitable token pair);
+  the endpoint is registered identically in all four EVM scopes.
+- The sell simulation transfers from the largest holder to the pair
+  via read-only eth_call — it proves the token's transfer does not
+  revert for a holder, not that a real router swap succeeds
+  (slippage, MEV, approvals). Stated in the API `limits` and the UI.
+- Solana holder concentration depends on the public RPC answering
+  `getTokenLargestAccounts` — it 403'd during verification and the
+  check degraded to unknown honestly.
+- Scan latency is 10–20s server-side (many upstream calls,
+  sequential); results are cached 300s per token and the frontend
+  fetches with a 60s timeout, rendering "Security scan unavailable"
+  on failure instead of blocking the page.
+
+## Feature 3 — Plain-English transactions (2026-11-06)
+
+"What happened" card on every transaction page (`common/explain.py`,
+zero new dependencies, all keyless). Verified live against uvicorn
+(ethscope 8123, optimismscope 8124, solscope 8125, bitscope 8126);
+nothing pushed. Features 1 and 2 untouched — both endpoints
+re-verified 200 below.
+
+### Endpoint verification (all 200, amounts spot-checked against raw tx data)
+
+| Check | Result |
+|---|---|
+| Plain ETH transfer `GET /api/ethscope/tx/0xeff2196a…682e83/explain` | **native_transfer** — "Sent 1.12048333168995778 ETH from 0xc22C449B...AA69a6C3 to 0xb3bDe58d...648a45c7." Raw tx confirms value 1.12048333168995778 ETH, input `0x`. |
+| ERC-20 transfer `GET /api/ethscope/tx/0xb5b6fcab…52d801/explain` | **erc20_transfer** — "Sent 1035 USDC from 0x7Ea36276...d5EC325f to 0x3DAA55A8...038c39Ee." Method `transfer(address,uint256)` (local). Flow amount 1035 USDC matches the token transfer. |
+| Uniswap swap `GET /api/ethscope/tx/0xf992b18e…954d1f37/explain` | **swap** — "Swapped 0.03 ETH for 60460.570297 Gato via 0x7a250d56...59F2488D." Method `swapExactETHForTokensSupportingFeeOnTransferTokens(...)` (local). Raw tx value 0.03 ETH; Gato transfer 60460.570297 matches the token transfer from the pair. |
+| Approval `GET /api/ethscope/tx/0x0d27868c…ee803f5/explain` | **approval** — "Approved 0x88888881...ebb4e3ce to spend 59995 USDC on behalf of 0x5731d049...2F6Cf314." Raw calldata decodes to 59,995,000,000 units = 59,995 USDC (6 decimals). |
+| Unknown method `GET /api/ethscope/tx/0x82f64f06…e01e13/explain` (selector `0x99e1d016`) and `0x5c2718de…e4ec/explain` (`0x518702b2`) | **unknown** — "Contract interaction with 0xF43fF2DA...D7f82C22 — method 0x99e1d016 is not in the signature database, so what it does cannot be described here." No invented description. 4byte lookup returns no curated name for either selector. |
+| 4byte fallback (unit-level, live) | `claim()` selector `0x4e71d92d` resolves via 4byte.directory to `claim()`; junk selector `0x99e1d016` resolves to None. Colliding junk (e.g. `workMyDirefulOwner` for `0xa9059cbb`) is never accepted — the local map wins for known selectors. |
+| Optimism (2nd EVM chain) `GET /api/optimismscope/tx/0xc7d9e3e9…e622d2/explain` | **unknown** — honest "not in the signature database" wording for method `0xcbce98b0`. |
+| Solana Jupiter swap `GET /api/solscope/tx/U6qz6ejW…ctrDuJ/explain` | **swap** — "Swapped tokens via Jupiter Aggregator (token changes are listed in the flows below)." 11 flows (SPL + SOL balance changes). |
+| Solana SPL transfer `GET /api/solscope/tx/2hW8Bd6E…LejSoX/explain` | **spl_transfer** — "Sent 10.0 tokens (mint EPjF…Dt1v) from 6VHz…HhT4 to 7R91…2k4r." (USDC mint, 10 USDC.) |
+| Solana unknown program `GET /api/solscope/tx/2JZj7F17…2EbaDp7/explain` | **contract_call** — "Called unknown program hydH…L1yAJ." with the program id shown, not a bare "Unknown Program". |
+| Bitcoin coinbase `GET /api/bitscope/tx/5c9d44f4…3232932/explain` | **coinbase** — "Miner reward: created 3.13865652 BTC (block subsidy + fees) paid to 3K9KZZPB8NRwZVP5wNKX4VYhnswrJxpgZ4." 2 value-bearing output flows. |
+| Deployment + NFT transfer (synthetic, mocked tx detail) | Deployment — "Deployed a new contract at 0x22222222...22222222 from 0x11111111...11111111, sending 0.5 ETH to it." NFT — "Transferred BAYC token #1234 from 0x11111111...11111111 to 0x44444444...44444444." No live deployment or NFT transfer surfaced in ~300 scanned latest-feed txs, so these two branches are verified by unit test, not live. |
+| Docs | Explain endpoint listed in ethscope, solscope and bitscope `/docs`. |
+| EVM regression | ethscope home 200, `/api/ethscope/stats` 200; Feature 1 `GET /api/ethscope/address/0xd8dA…96045/risk` → 200, 0/low; Feature 2 `GET /api/ethscope/token/0xA0b8…6eB48/security` → 200, low (owner warn, concentration pass, tax unknown, liquidity pass, honeypot pass). |
+| UI | Playwright screenshots (desktop 1280×900) of tx pages showing the "What happened" card at the top: `~/workspace/cryptoscope-snapshots/explain-tx-swap.png` (swap sentence + method + 4-row flow table), `explain-tx-transfer.png` (USDC transfer), `explain-tx-eth.png` (plain ETH), `explain-tx-sol-swap.png` (Jupiter swap), `explain-tx-btc.png` (coinbase). |
+| Sync | `scripts/sync-common.py check` → "in sync: 16 apps match canonical common/ + frontend/". Explain route registered in all six explorer apps (eth/sepolia/optimism/gnosis/sol/btc). |
+
+### Bugs found live and fixed during verification
+
+- **Blockscout 422s on some tx-detail lookups.** Two txs from the
+  live feed (`0xc7ea0b13…` plain transfer, `0xe9633ecd…` Gato token
+  creation) return HTTP 422 from Blockscout on the plain `/tx/`
+  endpoint too — upstream, not the explain code. Replaced both test
+  txs with live ones whose detail endpoint answers.
+- **SOL amounts in scientific notation.** Tiny SOL changes rendered
+  as `4.2721e-05` / `8.603e-06` (raw float formatting). Fixed: SOL
+  and SPL amounts are formatted fixed-point (9 decimals, trailing
+  zeros stripped).
+- **Bitcoin zero-value outputs in the flow table.** OP_RETURN outputs
+  (value 0, no address) appeared as `BTC 0 — —` rows. Fixed:
+  zero-value outputs are excluded from flows (the sentence still
+  counts all outputs).
+
+### Honest limits
+
+- Multicall inner calls are named, not decoded — the token flows
+  still show what moved. Proxy / meta-transaction internals are not
+  decoded either.
+- V3 swap amounts come from the transfer logs; a swap whose output
+  is an internal ETH transfer states the output amount is not
+  visible there. Token→ETH swaps state the exact ETH amount is an
+  internal transfer, not shown.
+- Solana token symbols are not resolved — SPL mints are shown
+  shortened; SOL balance-change flows include the fee payer's fee.
+- Bitcoin change outputs cannot be identified from chain data alone;
+  every output is listed, including any change back to the sender.
+- Deployment and NFT-transfer sentences are verified by unit test
+  only (no live instance surfaced in the scanned feed); the code
+  paths are the same ones the live-tested branches use.
+- The 4byte.directory lookup accepts only curated function names;
+  a real method whose name is outside the curated set reports as
+  unknown rather than risking a colliding junk signature.
+- Explain latency is one Blockscout tx-detail fetch (+ one
+  4byte lookup only for unknown selectors, cached 1h); the frontend
+  fetches with a 30s timeout and renders "Explanation unavailable"
+  on failure instead of blocking the tx page.
+
+## Feature 4 — Cross-chain identity (2026-11-05)
+
+"Cross-chain identity" card on every address page (`common/crosschain.py`,
+zero new dependencies, all keyless). Verified live against uvicorn
+(ethscope 8041, optimismscope 8043, solscope 8046, bitscope 8047,
+overview 8048); nothing pushed. Features 1–3 untouched — all three
+endpoints re-verified 200 below.
+
+### Endpoint verification (all 200, balances/activity spot-checked against raw upstream data)
+
+| Check | Result |
+|---|---|
+| vitalik.eth `GET /api/ethscope/address/0xd8dA…96045/crosschain` | 200. EVM presence, all four chains **active**: Ethereum 5.780441042197210512 ETH, latest Nov 4, 2026; Sepolia 61.723263527250847231 ETH, latest Nov 5, 2026; Optimism 0.181079591875347535 ETH, latest Oct 19, 2026; Gnosis 8.709546191240796693 xDAI, latest May 19, 2026. Balances match raw Blockscout `/addresses/` responses to the wei. 3 Wormhole transfers (below). Honest-limits `note` present verbatim; `walletscope_url` present. |
+| Wormhole transfers for vitalik.eth | 3, all direction **in**: Feb 23, 2026 Optimism → Base (MAYAN_SWIFT, amount not reported — Wormholescan standardizes none for it); Dec 20, 2025 BNB Chain → Ethereum, 1.53970797 (MAYAN_SWIFT); Apr 16, 2025 Polygon → Ethereum, 1 (GENERIC_RELAYER, NATIVE_TOKEN_TRANSFER). Amounts match raw Wormholescan `standardizedProperties.amount` + `normalizedDecimals` (8). |
+| 2nd EVM chain `GET /api/optimismscope/address/0xd8dA…96045/crosschain` | 200, same presence + bridge payload (scope_chain `optimism`). |
+| Solana `GET /api/solscope/address/EnxFkSMoJkEzYUkWHubEXYKw2y9HQVUEHGmXrMyQniKu/crosschain` | 200. `kind: solana`, `evm_presence: null` (not applicable), `walletscope_url` present. 50 Wormhole transfers (Mayan driver address), direction **out**, first three Solana → Unknown chain (no destination chain in the record — rendered honestly, never guessed). |
+| Bitcoin `GET /api/bitscope/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/crosschain` | 200. `kind: bitcoin`, `evm_presence: null`, `walletscope_url: null` (WalletScope has no Bitcoin), 0 bridge transfers, no error. |
+| Overview search routing | `GET /api/overview/search?q=0xd8dA…96045` → `{"type":"address","chain":"ethereum","url":"https://ethscope.vercel.app/#/address/0xd8dA…96045"}`; `?q=vitalik.eth` → same pattern with the ENS name. The address page it lands on carries the Cross-chain section (screenshot below). |
+| Docs | Crosschain endpoint listed in ethscope (36 endpoints total), solscope and bitscope `/docs`. |
+| Regressions | ethscope home 200, `/api/ethscope/stats` 200; Feature 1 `GET /api/ethscope/address/0xd8dA…96045/risk` → 200; Feature 2 `GET /api/ethscope/token/0xA0b8…6eB48/security` (USDC) → 200; Feature 3 `GET /api/ethscope/tx/0xf992b18e…954d1f37/explain` (swap) → 200. |
+| UI | Playwright screenshot (desktop 1280×900) of vitalik.eth's address page showing the Cross-chain section with all four chain rows, the three bridge transfers, the honest-limits note and the WalletScope button: `~/workspace/cryptoscope-snapshots/crosschain-vitalik.png`. |
+| Sync | `scripts/sync-common.py check` → "in sync: 16 apps match canonical common/ + frontend/". Crosschain route registered in all six explorer apps (eth/sepolia/optimism/gnosis/sol/btc). |
+
+### Bugs found live and fixed during verification
+
+- **Blockscout 422 on `page_size` for address transactions.** The
+  `/addresses/{addr}/transactions` endpoint rejects `page_size`
+  ("Unexpected field: page_size"), which sank every presence row to
+  "unavailable" (the gather propagated the failure). Fixed: the
+  latest-activity fetch uses the default first page, and its failure
+  is best-effort — it can only null `latest_tx`, never the row.
+- **Blockscout `transactions_count` is null for some addresses.**
+  vitalik.eth's raw address response has `"transactions_count": null`
+  on all four chains (the address page shows "—" for the same reason).
+  An early version coerced null to 0, which would have displayed a
+  false "0 txs". Fixed: the count is reported only when upstream
+  provides it; latest activity is the primary activity signal.
+- **Pending tx with null timestamp as "latest".** Sepolia's first tx
+  row is pending (`block_number` and `timestamp` null). Fixed: the
+  latest-tx picker takes the first *timestamped* row, falling back
+  to the first row only if none is timestamped.
+- **Mayan Swift sender misattribution.** The first version fell back
+  to `originTx.from` for the displayed sender, which is a Mayan
+  driver address on the emitter chain (Solana), not the user — shown
+  next to a "BNB Chain" route it would have been misleading. Fixed:
+  the displayed sender comes only from Wormholescan's standardized
+  `fromAddress` (null for Mayan Swift); direction detection still
+  uses `originTx.from` internally.
+- **Stale-server trap during verification.** `kill $(cat pidfile)`
+  killed the nohup wrapper, not the uvicorn child, so the old code
+  kept serving port 8041 and the new process died on bind. Fixed by
+  killing the actual uvicorn pid (from `ss -ltnp`) and re-verifying
+  the served code changed. (Process hygiene note for future sessions,
+  not a product bug.)
+
+### Honest limits
+
+- EVM ↔ Solana ↔ Bitcoin linkage is shown ONLY when an actual bridge
+  transfer is observed; the section carries that wording visibly, and
+  the API response carries it in the `note` field. There is no keyless
+  way to prove two different-format addresses belong to the same
+  person.
+- Same-EOA rows are one account by construction (the same address
+  string on every EVM chain), not an identity claim. The "Contract"
+  badge on a row is Blockscout's own `is_contract` flag (it reports
+  vitalik.eth as a contract on Ethereum and Optimism — upstream data,
+  repeated verbatim, same as the address page).
+- Wormhole only — no all-bridge total exists keyless (DeFiLlama
+  bridges is paywalled, probed 2026-11-06). The Wormholescan lookup
+  matches the origin-tx sender and the destination address; it does
+  NOT match an address that merely appears as a token sender inside a
+  contract-initiated transfer (probed: the Polygon sender of a
+  transfer to vitalik.eth returns 0 results for its own lookup).
+- Mayan Swift transfers standardize no sender and sometimes no
+  amount; batch transfers can carry no destination chain in the
+  record — all three render as absent/unknown, never invented or
+  guessed. Chain labels for unmapped Wormhole chain ids render as
+  "Chain {id}".
+- Wormhole does not bridge native Bitcoin, so BitScope bridge sections
+  are expected to be empty unless the address appears as a bridge
+  destination.
+- Presence latency is 8 parallel Blockscout calls (2 per chain, 6s
+  timeout each) + one Wormholescan call, cached 120s; the frontend
+  fetches with a 30s timeout and renders "Cross-chain identity
+  unavailable" on failure instead of blocking the address page.

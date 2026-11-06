@@ -849,6 +849,7 @@ async function txPage(h, retried) {
     : (t.created_contract ? `Contract created: <a class="mono" href="#/address/${esc(t.created_contract)}">${esc(shortH(t.created_contract))}</a> · ${linkContract(t.created_contract)}` : '<span class="muted">—</span>');
   render(`
     <div class="pagehead"><h2>Transaction Details</h2> ${statusBadge(t.status)}</div>
+    <div id="explain-card"><div class="card"><div style="padding:12px 16px" class="muted">Explaining transaction…</div></div></div>
     <div class="card">
       ${detailRow("Transaction Hash", `<span class="mono">${esc(t.hash)}</span> ${copyBtn(t.hash)}`)}
       ${detailRow("Status", statusBadge(t.status))}
@@ -881,6 +882,10 @@ async function txPage(h, retried) {
       <table class="tbl"><thead><tr><th>Parent Txn</th><th>Age</th><th>From</th><th>To</th><th class="r">Value</th><th>Status</th></tr></thead><tbody id="inx"></tbody></table>
     </div>`);
 
+  // "What happened" card (Feature 3) — loads independently so a slow
+  // explain never blocks the page.
+  loadExplainCard(h);
+
   // token transfers (embedded in detail + overflow note)
   const ttBody = $("#ttx");
   if (t.token_transfers && t.token_transfers.length) {
@@ -903,6 +908,179 @@ async function txPage(h, retried) {
     $("#in-count").textContent = ix.items.length;
     $("#inx").innerHTML = ix.items.length ? ix.items.map(internalRow).join("") : '<tr><td colspan="6"><div class="empty">No internal transactions</div></td></tr>';
   } catch (e) { banner("Failed to load logs/internal txs: " + e.message); }
+}
+
+/* ---------------- explain card (Feature 3, tx pages) ---------------- */
+function explainCardHtml(e) {
+  const kindLabel = {
+    native_transfer: "Native transfer", erc20_transfer: "Token transfer",
+    approval: "Approval", swap: "Swap", nft_transfer: "NFT transfer",
+    nft_approval: "NFT approval", deployment: "Contract deployment",
+    mint: "Mint", burn: "Burn", wrap: "Wrap", unwrap: "Unwrap",
+    add_liquidity: "Add liquidity", remove_liquidity: "Remove liquidity",
+    multicall: "Multicall", contract_call: "Contract call", unknown: "Unknown",
+  }[e.kind] || e.kind || "Transaction";
+  const flowRows = (e.flows || []).map((f) => {
+    const tok = f.kind === "native"
+      ? nativeSym()
+      : f.kind === "nft"
+        ? (f.token && (f.token.symbol || f.token.name)) || "NFT"
+        : (f.token && (f.token.symbol || f.token.name || (f.token.address ? shortH(f.token.address) : "—"))) || "—";
+    const fromCell = f.from ? linkAddr(f.from) : '<span class="muted">—</span>';
+    const toCell = f.to ? linkAddr(f.to) : '<span class="muted">—</span>';
+    return `<tr><td>${esc(tok)}</td><td class="r mono">${esc(String(f.amount ?? "—"))}</td><td>${fromCell}</td><td>${toCell}</td></tr>`;
+  }).join("");
+  return `<div class="card">
+    <div class="card-head">What happened <span class="spacer"></span><span class="badge info">${esc(kindLabel)}</span></div>
+    <div style="padding:14px 16px">
+      <div style="font-size:15px;line-height:1.5">${esc(e.sentence || "This transaction could not be explained.")}</div>
+      ${e.method ? `<div class="muted" style="font-size:12px;margin-top:8px">Method: <span class="mono">${esc(e.method)}</span>${e.method_source ? ` <span class="muted">(via ${esc(e.method_source)})</span>` : ""}</div>` : ""}
+      ${flowRows ? `<table class="tbl" style="margin-top:12px"><thead><tr><th>Token</th><th class="r">Amount</th><th>From</th><th>To</th></tr></thead><tbody>${flowRows}</tbody></table>` : ""}
+      ${e.note ? `<div class="muted" style="font-size:12px;margin-top:10px">${esc(e.note)}</div>` : ""}
+    </div>
+  </div>`;
+}
+
+function loadExplainCard(h) {
+  fetchJson(API + "/tx/" + h + "/explain", null, 30000).then((e) => {
+    const el = document.getElementById("explain-card");
+    if (el) el.innerHTML = explainCardHtml(e);
+  }).catch((err) => {
+    const el = document.getElementById("explain-card");
+    if (el) el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">Explanation unavailable: ${esc(err.message)}</div></div>`;
+  });
+}
+
+/* ---------------- risk card (shared by all address pages) ---------------- */
+function riskCardHtml(r) {
+  const lvl = String(r.level || "low").toLowerCase();
+  const badgeCls = { low: "ok", elevated: "warn", high: "fail", critical: "fail" }[lvl] || "grey";
+  const reasons = (r.reasons || []).map((x) => `<li>${esc(x)}</li>`).join("");
+  const cov = r.coverage || {};
+  return `<div class="card risk-card risk-${esc(lvl)}">
+    <div class="card-head">Risk Score <span class="spacer"></span><span class="badge ${badgeCls}">${esc(lvl)}</span></div>
+    <div style="padding:14px 16px">
+      <div style="display:flex;align-items:baseline;gap:10px"><span class="risk-score">${esc(String(r.score))}</span><span class="muted">/ 100 · ${esc(lvl)}</span></div>
+      <ul class="risk-reasons">${reasons}</ul>
+      <div class="muted" style="font-size:12px;margin-top:10px">${esc(r.family_note || "")}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(cov.note || "")}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(r.method || "")} Source: OFAC SDN list (${esc((r.sdn && r.sdn.date) || "")}, ${esc(String((r.sdn && r.sdn.labels_total) || ""))} addresses).</div>
+    </div>
+  </div>`;
+}
+
+function loadRiskCard(addr) {
+  // 60s client timeout: the funder walk fans out to upstream pages.
+  fetchJson(API + "/address/" + addr + "/risk", null, 60000).then((r) => {
+    const el = document.getElementById("risk-card");
+    if (el) el.innerHTML = riskCardHtml(r);
+  }).catch((e) => {
+    const el = document.getElementById("risk-card");
+    if (el) el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">Risk score unavailable: ${esc(e.message)}</div></div>`;
+  });
+}
+
+/* ---------------- cross-chain card (all address pages) ---------------- */
+function crosschainCardHtml(c) {
+  const note = `<div class="muted" style="font-size:12.5px;margin-top:2px">${esc(c.note || "")}</div>`;
+  let presence = "";
+  if (Array.isArray(c.evm_presence)) {
+    const rows = c.evm_presence.map((p) => {
+      const link = p.chain === CHAIN
+        ? `<a href="#/address/${esc(c.address)}">View on ${esc(p.label)} →</a>`
+        : (p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">View on ${esc(p.label)} →</a>` : esc(p.label));
+      let bal, act;
+      if (p.status === "active") {
+        bal = `<b class="mono">${esc(p.balance || "0")} ${esc(p.native || "")}</b>${p.is_contract ? ' <span class="badge grey">Contract</span>' : ""}`;
+        const parts = [];
+        if (p.transactions_count != null) parts.push(`<span class="mono">${num(p.transactions_count)}</span> txs`);
+        if (p.latest_tx && p.latest_tx.timestamp) parts.push(`latest ${esc(new Date(p.latest_tx.timestamp).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }))}`);
+        act = parts.length ? parts.join(" · ") : `<span class="muted">Active</span>`;
+      } else if (p.status === "no_activity") {
+        bal = `<span class="muted">0 ${esc(p.native || "")}</span>`;
+        act = `<span class="muted">No activity</span>`;
+      } else {
+        bal = `<span class="muted">—</span>`;
+        act = `<span class="muted">Unavailable${p.note ? " — " + esc(p.note) : ""}</span>`;
+      }
+      return `<tr><td><b>${esc(p.label)}</b>${p.chain === CHAIN ? ' <span class="badge info">this chain</span>' : ""}</td><td class="r">${bal}</td><td class="r">${act}</td><td class="r">${link}</td></tr>`;
+    }).join("");
+    presence = `<div style="margin-top:12px"><b>Same address on every EVM chain</b></div>
+      <table class="tbl"><thead><tr><th>Chain</th><th class="r">Native balance</th><th class="r">Activity</th><th class="r"></th></tr></thead><tbody>${rows}</tbody></table>`;
+  } else {
+    presence = `<div class="muted" style="margin-top:12px">Same-address presence does not apply here — this address format exists on one chain only. Cross-chain linkage below comes from observed bridge transfers only.</div>`;
+  }
+  const b = c.bridges || {};
+  let bridges;
+  if (b.error) {
+    bridges = `<div class="muted" style="margin-top:12px">Bridge transfers unavailable: ${esc(b.error)}</div>`;
+  } else if (!(b.transfers || []).length) {
+    bridges = `<div class="muted" style="margin-top:12px">No ${esc(b.provider || "Wormhole")} bridge transfers observed for this address.</div>`;
+  } else {
+    const rows = (b.transfers || []).map((t) => {
+      const when = t.timestamp ? esc(new Date(t.timestamp).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })) : "—";
+      const dir = t.direction === "in" ? '<span class="badge ok">In</span>' : t.direction === "out" ? '<span class="badge warn">Out</span>' : '<span class="badge grey">Involving</span>';
+      const amt = t.amount_reported ? `<span class="mono">${esc(t.amount)}</span>` : `<span class="muted">amount not reported</span>`;
+      const tok = t.token_address ? `<span class="mono muted">${esc(shortH(t.token_address))}</span>` : "";
+      return `<tr><td style="white-space:nowrap">${when}</td><td>${dir}</td><td>${esc(t.from_chain || "?")} → ${esc(t.to_chain || "?")}</td><td class="r">${amt} ${tok}</td><td><span class="muted">${esc(t.app || "")}</span></td></tr>`;
+    }).join("");
+    bridges = `<div style="margin-top:12px"><b>Bridge transfers (${esc(b.provider || "Wormhole")})</b> <span class="muted" style="font-size:12px">${esc(b.note || "")}</span></div>
+      <table class="tbl"><thead><tr><th>Date</th><th>Direction</th><th>Route</th><th class="r">Amount</th><th>Via</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  const wallet = c.walletscope_url
+    ? `<div style="margin-top:14px"><a class="btn" href="${esc(c.walletscope_url)}" target="_blank" rel="noopener">💼 Open full portfolio in WalletScope →</a></div>`
+    : `<div class="muted" style="font-size:12.5px;margin-top:14px">WalletScope covers EVM + Solana only — no portfolio view for this address.</div>`;
+  return `<div class="card">
+    <div class="card-head">Cross-chain identity</div>
+    <div style="padding:14px 16px">
+      ${note}
+      ${presence}
+      ${bridges}
+      ${wallet}
+    </div>
+  </div>`;
+}
+
+function loadCrosschainCard(addr) {
+  // 30s client timeout: presence fans out to four Blockscout hosts.
+  fetchJson(API + "/address/" + addr + "/crosschain", null, 30000).then((c) => {
+    const el = document.getElementById("crosschain-card");
+    if (el) el.innerHTML = crosschainCardHtml(c);
+  }).catch((e) => {
+    const el = document.getElementById("crosschain-card");
+    if (el) el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">Cross-chain identity unavailable: ${esc(e.message)}</div></div>`;
+  });
+}
+
+/* ---------------- security card (token pages + token-contract address pages) ---------------- */
+function securityCardHtml(s) {
+  const lvl = String(s.level || "low").toLowerCase();
+  const badgeCls = { low: "ok", elevated: "warn", high: "fail" }[lvl] || "grey";
+  const stBadge = { pass: "ok", warn: "warn", fail: "fail", unknown: "grey", na: "grey" };
+  const stLabel = { pass: "pass", warn: "warn", fail: "fail", unknown: "not detectable", na: "EVM-only" };
+  const rows = (s.checks || []).map((c) => {
+    const st = String(c.status || "unknown").toLowerCase();
+    return `<tr><td><b>${esc(c.label || c.id)}</b><div class="muted" style="font-size:12.5px;margin-top:2px">${esc(c.detail || "")}</div></td><td style="white-space:nowrap"><span class="badge ${stBadge[st] || "grey"}">${esc(stLabel[st] || st)}</span></td></tr>`;
+  }).join("");
+  return `<div class="card risk-card risk-${esc(lvl)}">
+    <div class="card-head">Security <span class="spacer"></span><span class="badge ${badgeCls}">${esc(lvl)} risk</span></div>
+    <div style="padding:14px 16px">
+      <table class="tbl"><tbody>${rows}</tbody></table>
+      <div class="muted" style="font-size:12px;margin-top:10px">${esc(s.method || "")}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(s.limits || "")}</div>
+    </div>
+  </div>`;
+}
+
+function loadSecurityCard(addr) {
+  // 60s client timeout: the scan fans out to Blockscout, the public RPC and DexScreener.
+  fetchJson(API + "/token/" + addr + "/security", null, 60000).then((s) => {
+    const el = document.getElementById("security-card");
+    if (el) el.innerHTML = securityCardHtml(s);
+  }).catch((e) => {
+    const el = document.getElementById("security-card");
+    if (el) el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">Security scan unavailable: ${esc(e.message)}</div></div>`;
+  });
 }
 
 /* ---------------- address page ---------------- */
@@ -948,6 +1126,9 @@ async function addressPage(h) {
       ${a.creation_tx ? detailRow("Creation Txn", linkTx(a.creation_tx)) : ""}
     </div>
     ${tokenBanner}
+    <div id="risk-card"><div class="card"><div style="padding:12px 16px" class="muted">Loading risk score…</div></div></div>
+    <div id="crosschain-card"><div class="card"><div style="padding:12px 16px" class="muted">Loading cross-chain identity…</div></div></div>
+    ${a.token ? `<div id="security-card"><div class="card"><div style="padding:12px 16px" class="muted">Loading security scan…</div></div></div>` : ""}
     <div class="card">
       <div class="tabs">
         <button class="tab active" data-tab="txs">Transactions</button>
@@ -967,6 +1148,9 @@ async function addressPage(h) {
     };
   });
   renderAddrTab(h);
+  loadRiskCard(h);
+  loadCrosschainCard(h);
+  if (a.token) loadSecurityCard(h);
 }
 
 function renderAddrTab(h) {
@@ -1028,12 +1212,14 @@ async function tokenPage(h) {
       ${t.circulating_supply ? detailRow("Circulating Supply", `<span class="mono">${num(t.circulating_supply)} ${esc(t.symbol || "")}</span>`) : ""}
       ${t.volume_24h_usd ? detailRow("Volume (24h)", `<span class="mono">$${num(t.volume_24h_usd)}</span>`) : ""}
     </div>
+    <div id="security-card"><div class="card"><div style="padding:12px 16px" class="muted">Loading security scan…</div></div></div>
     ${isNft ? `<div class="card"><div class="card-head">Instances <span class="spacer"></span><span class="badge grey" id="nft-count">…</span></div><div id="nft-grid"><div class="spinner">Loading…</div></div></div>` : ""}
     <div class="card">
       <div class="card-head">Transfers</div>
       <table class="tbl"><thead><tr><th>Txn Hash</th><th>Age</th><th>From</th><th>To</th><th class="r">Amount</th><th>Token</th></tr></thead><tbody id="ttk"></tbody></table>
       <button class="loadmore" id="ttk-more">Load more</button>
     </div>`);
+  loadSecurityCard(h);
   mountPager("#ttk", "#ttk-more", `/token/${h}/transfers`, ttRow, "No transfers");
   if (isNft) {
     try {

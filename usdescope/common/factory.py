@@ -64,6 +64,10 @@ from common.wallet import (
     _wallet_pnl,
     _wallet_tokens,
 )
+from common.risk import bitcoin_risk, evm_risk, solana_risk
+from common.crosschain import bitcoin_crosschain, evm_crosschain, solana_crosschain
+from common.explain import btc_tx_explain, evm_tx_explain, sol_tx_explain
+from common.security import evm_token_security, solana_token_security
 from common.solana_explorer import (
     sol_address,
     sol_address_signatures,
@@ -181,6 +185,10 @@ def create_scope_app(*, chain: str, scope: str, title: str, static_dir: str) -> 
     async def api_tx(h: str):
         return await _tx(chain, h)
 
+    @app.get(api + "/tx/{h}/explain")
+    async def api_tx_explain(h: str):
+        return await evm_tx_explain(chain, h)
+
     @app.get(api + "/tx/{h}/token-transfers")
     async def api_tx_token_transfers(h: str):
         return await _tx_token_transfers(chain, h)
@@ -217,6 +225,14 @@ def create_scope_app(*, chain: str, scope: str, title: str, static_dir: str) -> 
     async def api_address_txcount(h: str):
         return await _txcount(chain, h)
 
+    @app.get(api + "/address/{h}/risk")
+    async def api_address_risk(h: str):
+        return await evm_risk(chain, h)
+
+    @app.get(api + "/address/{h}/crosschain")
+    async def api_address_crosschain(h: str):
+        return await evm_crosschain(chain, h)
+
     @app.get(api + "/token/{h}")
     async def api_token(h: str):
         return await _token(chain, h)
@@ -224,6 +240,10 @@ def create_scope_app(*, chain: str, scope: str, title: str, static_dir: str) -> 
     @app.get(api + "/token/{h}/transfers")
     async def api_token_transfers(h: str, request: Request):
         return await _token_transfers(chain, h, dict(request.query_params))
+
+    @app.get(api + "/token/{h}/security")
+    async def api_token_security(h: str):
+        return await evm_token_security(chain, h)
 
     @app.get(api + "/token/{h}/instances")
     async def api_token_instances(h: str, request: Request):
@@ -422,6 +442,10 @@ def create_solana_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     async def api_tx(sig: str):
         return await sol_tx(sig)
 
+    @app.get(api + "/tx/{sig}/explain")
+    async def api_tx_explain(sig: str):
+        return await sol_tx_explain(sig)
+
     @app.get(api + "/address/{addr}")
     async def api_address(addr: str):
         return await sol_address(addr)
@@ -430,6 +454,14 @@ def create_solana_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     async def api_address_signatures(addr: str, before: str | None = None):
         return await sol_address_signatures(addr, before=before)
 
+    @app.get(api + "/address/{addr}/risk")
+    async def api_address_risk(addr: str):
+        return await solana_risk(addr)
+
+    @app.get(api + "/address/{addr}/crosschain")
+    async def api_address_crosschain(addr: str):
+        return await solana_crosschain(addr)
+
     @app.get(api + "/token/{mint}")
     async def api_token(mint: str):
         return await sol_token(mint)
@@ -437,6 +469,10 @@ def create_solana_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     @app.get(api + "/token/{mint}/transfers")
     async def api_token_transfers(mint: str, before: str | None = None):
         return await sol_token_transfers(mint, before=before)
+
+    @app.get(api + "/token/{mint}/security")
+    async def api_token_security(mint: str):
+        return await solana_token_security(mint)
 
     @app.get(api + "/program/{addr}")
     async def api_program(addr: str):
@@ -487,6 +523,10 @@ def create_bitcoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     async def api_tx(txid: str):
         return await btc_tx(txid)
 
+    @app.get(api + "/tx/{txid}/explain")
+    async def api_tx_explain(txid: str):
+        return await btc_tx_explain(txid)
+
     @app.get(api + "/address/{addr}")
     async def api_address(addr: str):
         return await btc_address(addr)
@@ -498,6 +538,14 @@ def create_bitcoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     @app.get(api + "/address/{addr}/utxo")
     async def api_address_utxo(addr: str):
         return await btc_address_utxo(addr)
+
+    @app.get(api + "/address/{addr}/risk")
+    async def api_address_risk(addr: str):
+        return await bitcoin_risk(addr)
+
+    @app.get(api + "/address/{addr}/crosschain")
+    async def api_address_crosschain(addr: str):
+        return await bitcoin_crosschain(addr)
 
     @app.get(api + "/mempool")
     async def api_mempool():
