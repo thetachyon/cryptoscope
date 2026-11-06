@@ -11,6 +11,11 @@ window.SCOPE_CONFIG = {
   "netpill": null,
   "siblings": [
     {
+      "chain": null,
+      "name": "Cryptoscope",
+      "url": "https://overview.vercel.app"
+    },
+    {
       "chain": "sepolia",
       "name": "SepoliaScope",
       "url": "https://sepoliascope.vercel.app"

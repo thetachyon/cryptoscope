@@ -6,6 +6,7 @@ Home for Tejas's crypto tooling — explorers, forensics, and analytics, each in
 
 | App | What it is | Vercel root directory |
 |---|---|---|
+| [overview](./overview) | **Cross-chain analytics landing page** — global market, per-chain comparison, stablecoin peg table, Wormhole bridge flows, top movers, and one search box that routes to the right Scope. Every Scope links back here. | `overview` |
 | [ethscope](./ethscope) | Etherscan-style Ethereum mainnet explorer (search, blocks, transactions, addresses, tokens, contracts, NFTs, charts, gas). | `ethscope` |
 | [sepoliascope](./sepoliascope) | Same explorer for Sepolia. | `sepoliascope` |
 | [optimismscope](./optimismscope) | Same explorer for Optimism. | `optimismscope` |

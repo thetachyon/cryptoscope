@@ -13,6 +13,11 @@ WALLET_URL = "https://walletscope.vercel.app"
 NETPILL = None
 SIBLINGS = [
     {
+        "chain": None,
+        "name": "Cryptoscope",
+        "url": "https://overview.vercel.app"
+    },
+    {
         "chain": "sepolia",
         "name": "SepoliaScope",
         "url": "https://sepoliascope.vercel.app"

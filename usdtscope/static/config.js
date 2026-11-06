@@ -11,6 +11,11 @@ window.SCOPE_CONFIG = {
   "netpill": "USDT \u00b7 Ethereum",
   "siblings": [
     {
+      "chain": null,
+      "name": "Cryptoscope",
+      "url": "https://overview.vercel.app"
+    },
+    {
       "chain": "ethereum",
       "name": "EthScope",
       "url": "https://ethscope.vercel.app"

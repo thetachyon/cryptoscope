@@ -454,3 +454,76 @@ Per-coin detail (all live):
   JS is syntax-checked and logic-reviewed only.
 - Vercel `buildCommand` (sync) untested live — deploy still blocked
   (403 team scope); the committed vendored copies are the fallback.
+
+## Overview app (2026-11-06)
+
+Cross-chain analytics landing page (`overview/`): global market cards,
+chain comparison table, stablecoin peg table, Wormhole bridge flows,
+top movers, and a search box that routes to the right Scope. All 15
+existing apps link back to it via `SIBLINGS` (first entry, "Cryptoscope").
+
+### API probing (curl, before building)
+
+- CoinGecko `/global` works (total mcap ~$2.58T at probe time).
+- CoinGecko `/coins/markets` works (BTC $76,279, −5.41% 24h).
+- **DeFiLlama bridges API is PAYWALLED** — `bridges.llama.fi` and
+  `api.llama.fi/bridges` both answer "Upgrade to the paid API plan".
+  Bridge flows therefore come from **Wormholescan** `/api/v1/scorecards`
+  (works: 24h volume $52.4M, 7d $329M, 30d $1.25B, total $77.6B,
+  TVL $1.33B) + `/api/v1/last-txs` (hourly counts), labelled
+  Wormhole-only — never all-bridge totals.
+
+### What was built
+
+- `common/overview.py` — `ov_global`, `ov_chains`, `ov_stablecoins`,
+  `ov_bridges`, `ov_movers`, `ov_overview` (aggregate), `ov_search`,
+  `ov_docs_payload`. Per-section independent degradation: a failed
+  upstream blanks its section with a note, never the whole page.
+  Caching: aggregate 120s, sections 300s, chains 60s.
+- `common/factory.py` — `create_overview_app` (mounts `/api/overview/*`,
+  serves `static/`, SPA fallback to `index.html`).
+- `overview/` — thin app: `config.py` (SIBLINGS = all 15 scopes +
+  WalletScope), `app.py`, `api/index.py`, `vercel.json`, `requirements.txt`,
+  `frontend/index.html` + `frontend/app.js` (hero + search, market cards,
+  chain table, stablecoin peg table, bridge section, top movers, footer
+  nav to all scopes), `README.md`.
+- Search check order: stablecoin name/symbol → `.eth` → `0x`
+  address/tx → BTC address → plain number → 64-hex → Solana signature
+  (87–88 base58) → Solana address → 404. Plain numbers and bare 64-hex
+  return `ambiguous` with candidates instead of guessing.
+
+### Verified live (uvicorn :8043, 2026-11-06)
+
+| Endpoint | Result |
+|---|---|
+| `GET /` | 200 (landing SPA) |
+| `GET /api/overview/docs` | 200, 8 endpoints |
+| `GET /api/overview/stats` | 200 — total mcap $2.58T, BTC dominance 59.2%, 24h −7.13%, stablecoin supply $262.6B |
+| `GET /api/overview/chains` | 200 — ETH $2,244.26 (−7.46%), block 26,352,162, 0.37 gwei; SOL $90.21 (−6.03%), slot 465,913,840, 1,670.5 TPS; BTC $75,989 (−5.52%), height 974,740, 3 sat/vB, mempool 53,043; Optimism block 159,160,366; Gnosis 49,130,905; Sepolia 12,073,027 |
+| `GET /api/overview/stablecoins` | 200 — all 8 rows live, matching the scopes' pegs: USDC $0.99981 (−1.92 bps, pegged), DAI $1.00020 (+2.04, pegged), PYUSD $0.99953 (−4.71, pegged), USDT $0.99846 (−15.4, watch), USDe $0.99886 (−11.35, watch), TUSD $0.99824 (−17.59, watch), USDD $0.99731 (−26.95, watch), FDUSD $0.99613 (−38.66, watch); total $262.6B |
+| `GET /api/overview/bridges` | 200 — Wormhole 24h $52.49M, 7d $329.2M, 30d $1.25B, total $77.6B, TVL $1.33B, 19,047 messages/24h |
+| `GET /api/overview/movers` | 200 — gainers RAIN +6.02%, ZEC +1.52%; losers ENA −9.86%, UNI −9.02% |
+| `GET /api/overview/overview` | 200 — all 6 sections present, no section errors |
+| `GET /api/overview/search` | USDC → usdcscope; `0xd8dA…` → EthScope address; `bc1q…` → BitScope; `26352162` → ambiguous (ETH block / SOL slot / BTC block); `0x`+64hex → EthScope tx; bare 64-hex → ambiguous (ETH tx / BTC tx); `vitalik.eth` → EthScope; Solana address → SolScope; unknown → honest "No match" error |
+| EVM regression | ethscope `:8044` `/api/ethscope/stats` 200, home 200, latest block 26,352,163 |
+
+### Honest limits
+
+- **Bridge flows are Wormhole-only.** DeFiLlama's bridges API is
+  paywalled; no keyless all-bridge total exists. Labelled as such in
+  the API note and the UI.
+- **Optimism 24h change is Ethereum's CoinGecko change** (native ETH);
+  Blockscout stats for Optimism carries no change field. Gnosis change
+  (−0.02%) comes from Blockscout stats; Sepolia has no price (testnet)
+  and shows "—".
+- **Solana fee is blank** — no fee field is exposed by the public RPC
+  path used; TPS comes from `getRecentPerformanceSamples`.
+- **Movers are the top 50 coins by market cap only** (CoinGecko
+  `/coins/markets`, one page); small-cap movers are not shown.
+- **Search does not validate existence** — a well-formed hash routes to
+  the Scope's tx page even if the tx doesn't exist there (the Scope
+  shows its own not-found state). Ambiguous queries show candidates
+  rather than guessing.
+- Live browser rendering of the landing page was not possible here —
+  JS is syntax-checked (`node --check` passes) and logic-reviewed only.
+- `scripts/sync-common.py check` passes for all 16 apps.
