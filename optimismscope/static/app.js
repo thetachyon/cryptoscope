@@ -769,11 +769,11 @@ async function home() {
     <div class="cols2">
       <div class="card">
         <div class="card-head">Latest Blocks <span class="spacer"></span><span class="badge info">live</span></div>
-        <table class="tbl"><thead><tr><th>Block</th><th>Age</th><th>Miner</th><th class="r">Txns</th><th class="r">Gas Used</th></tr></thead><tbody id="lb"><tr><td colspan="5"><div class="spinner">Loading…</div></td></tr></tbody></table>
+        <div class="tbl-wrap"><table class="tbl tbl-home"><colgroup><col style="width:20%"><col style="width:18%"><col style="width:29%"><col style="width:11%"><col style="width:22%"></colgroup><thead><tr><th>Block</th><th>Age</th><th>Miner</th><th class="r">Txns</th><th class="r">Gas Used</th></tr></thead><tbody id="lb"><tr><td colspan="5"><div class="spinner">Loading…</div></td></tr></tbody></table></div>
       </div>
       <div class="card">
         <div class="card-head">Latest Transactions <span class="spacer"></span><span class="badge info">live</span></div>
-        <table class="tbl"><thead><tr><th>Txn Hash</th><th>From</th><th>To</th><th class="r">Value</th></tr></thead><tbody id="lt"><tr><td colspan="4"><div class="spinner">Loading…</div></td></tr></tbody></table>
+        <div class="tbl-wrap"><table class="tbl tbl-home"><colgroup><col style="width:28%"><col style="width:24%"><col style="width:28%"><col style="width:20%"></colgroup><thead><tr><th>Txn Hash</th><th>From</th><th>To</th><th class="r">Value</th></tr></thead><tbody id="lt"><tr><td colspan="4"><div class="spinner">Loading…</div></td></tr></tbody></table></div>
       </div>
     </div>`);
   wireSearch($("#hero-search"), $("#hero-input"), $("#hero-suggest"));
@@ -783,9 +783,9 @@ async function home() {
       renderStats(s);
       const lb = $("#lb"), lt = $("#lt");
       if (lb) lb.innerHTML = bl.items.slice(0, 10).map((b) =>
-        `<tr><td>${linkBlock(b.height)}</td><td class="muted" style="white-space:nowrap">${esc(b.age || "")}</td><td>${linkAddr(b.miner)}</td><td class="r">${num(b.tx_count)}</td><td class="r">${b.gas_used_pct}%</td></tr>`).join("");
+        `<tr><td><span class="cell-clip">${linkBlock(b.height)}</span></td><td class="muted" style="white-space:nowrap">${esc(b.age || "")}</td><td><span class="addr-cell">${linkAddr(b.miner)}</span></td><td class="r">${num(b.tx_count)}</td><td class="r">${b.gas_used_pct}%</td></tr>`).join("");
       if (lt) lt.innerHTML = tx.items.slice(0, 10).map((t) =>
-        `<tr><td>${linkTx(t.hash)}</td><td>${linkAddr(t.from)}</td><td>${linkAddr(t.to)}</td><td class="r mono">${ethFmt(t.value_eth)}</td></tr>`).join("");
+        `<tr><td><span class="cell-clip">${linkTx(t.hash)}</span></td><td><span class="addr-cell">${linkAddr(t.from)}</span></td><td><span class="addr-cell">${linkAddr(t.to)}</span></td><td class="r mono">${ethFmt(t.value_eth)}</td></tr>`).join("");
     } catch (e) { banner("Live update failed on " + chainLabel() + ": " + e.message); }
   }
   await refresh();
@@ -1860,7 +1860,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const badge = document.getElementById("brand-badge");
   if (badge) badge.textContent = CFG.brandLetter || "E";
   const bname = document.getElementById("brand-name");
-  if (bname) bname.innerHTML = esc(TITLE.replace(/Scope$/, "")) + '<span class="brand-accent">Scope</span>';
+  if (bname) { const _bm = TITLE.match(/^(.*)(scope)$/i); bname.innerHTML = _bm ? esc(_bm[1]) + '<span class="brand-accent">' + esc(_bm[2]) + '</span>' : esc(TITLE) + '<span class="brand-accent">Scope</span>'; }
   const fbrand = document.getElementById("footer-brand");
   if (fbrand) fbrand.textContent = TITLE;
   const fav = document.querySelector('link[rel="icon"]');

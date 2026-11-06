@@ -45,11 +45,39 @@ from common.pricing import enrich_token_balances
 # ---------------------------------------------------------------- core logic (chain-parameterized)
 # Legacy /api/ethscope/* routes are mainnet aliases that call these with
 # chain="ethereum"; chain-prefixed routes pass their {chain} through.
-async def _resolve_height(chain, n: str) -> str:
-    if n == "latest":
+async def _chain_head(chain):
+    """Live chain-head height, from the /blocks list.
+
+    Blockscout's /stats `total_blocks` lags the live head by hundreds of
+    blocks (verified 2026-11-05: /stats said 26352163 while /blocks was
+    already at 26352724 — and the /stats value barely moves), so the head
+    must come from /blocks itself. Falls back to /stats total_blocks if
+    /blocks is unavailable.
+    """
+    try:
+        # No params: Blockscout's /blocks rejects page_size ("Unexpected
+        # field: page_size") — the default first page already starts at
+        # the live head.
+        d = await bs(chain, "/blocks")
+        items = (d or {}).get("items") or []
+        if items and items[0].get("height") is not None:
+            return int(items[0]["height"])
+    except Exception:
+        pass
+    try:
         d = await bs(chain, "/stats")
         if d and d.get("total_blocks"):
-            return str(d["total_blocks"])
+            return int(d["total_blocks"])
+    except Exception:
+        pass
+    return None
+
+
+async def _resolve_height(chain, n: str) -> str:
+    if n == "latest":
+        head = await _chain_head(chain)
+        if head is not None:
+            return str(head)
     return n
 
 
@@ -62,14 +90,18 @@ async def _stats(chain):
     if d is None:
         raise UpstreamError("Stats not available")
     gp = d.get("gas_prices") or {}
+    # Head from /blocks, not /stats total_blocks (stale by hundreds of
+    # blocks — see _chain_head). Falls back to /stats when /blocks fails.
+    head = await _chain_head(chain)
+    live = head if head is not None else d.get("total_blocks")
     out = {
         "chain": chain,
         "native": CHAINS[chain]["native"],
         "eth_price_usd": d.get("coin_price"),
         "eth_price_change_24h_pct": d.get("coin_price_change_percentage"),
         "market_cap_usd": d.get("market_cap"),
-        "latest_block": d.get("total_blocks"),
-        "total_blocks": d.get("total_blocks"),
+        "latest_block": live,
+        "total_blocks": live,
         "total_transactions": d.get("total_transactions"),
         "total_addresses": d.get("total_addresses"),
         "avg_block_time_s": round(float(d.get("average_block_time") or 0) / 1000, 1),
