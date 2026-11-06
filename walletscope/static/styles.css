@@ -32,7 +32,15 @@ a:hover{text-decoration:underline}
 .suggest .stype{font-size:10px;font-weight:700;text-transform:uppercase;color:#fff;background:var(--blue);border-radius:4px;padding:2px 6px;flex-shrink:0}
 .suggest .stype.block{background:#5b6b7c}.suggest .stype.token{background:#7c4dc4}.suggest .stype.transaction{background:#0d9d58}
 .navlinks{margin-left:auto;display:flex;align-items:center;gap:14px}
-.navlinks a{font-weight:600;color:var(--ink)}
+.navlinks a{font-weight:600;color:var(--ink);white-space:nowrap}
+/* WalletScope only (frontend overlay — canonical styles.css is untouched):
+   9 nav links + search + scope select + net pill cannot fit one 1140px
+   row, so the header is two rows at every width: brand + nav on row 1,
+   full-width search on row 2. Labels never split (nowrap above) and the
+   pill never gets cut. The <=860px / <=560px rules below still apply. */
+.topbar-inner{flex-wrap:wrap;height:auto;padding:10px 16px}
+.topbar-inner .search{order:3;flex-basis:100%;max-width:none}
+.navlinks{flex-wrap:wrap}
 .netpill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--green);background:#e6f6ec;border:1px solid #bfe6cd;border-radius:999px;padding:4px 10px;white-space:nowrap;flex-shrink:0}
 .netpill .dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
