@@ -110,9 +110,14 @@ def addr_info(a) -> dict | None:
 
 
 def tx_short(t: dict) -> dict:
+    # Blockscout v2 transaction objects carry `block_number`, not `block`.
+    # Reading `block` returned None for every confirmed tx, so the frontend
+    # rendered "pending" in the BLOCK column of every txRow table
+    # (address page, block page, wallet activity). Fall back to `block`
+    # for any caller that already passes it.
     return {
         "hash": t.get("hash"),
-        "block": t.get("block"),
+        "block": t.get("block_number") if t.get("block_number") is not None else t.get("block"),
         "timestamp": t.get("timestamp"),
         "age": age(t.get("timestamp")),
         "from": addr_info(t.get("from")),
