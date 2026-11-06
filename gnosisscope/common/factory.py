@@ -96,26 +96,45 @@ from common.bitcoin import (
 )
 from common.stablecoin import (
     STABLECOINS,
+    sc_activity,
     sc_chains,
+    sc_defi,
     sc_depegs,
     sc_docs_payload,
     sc_holders,
+    sc_mint_burn,
     sc_peg,
+    sc_peg_leaderboard,
     sc_reserves,
     sc_search,
     sc_stats,
     sc_supply,
+    sc_supply_map,
     sc_transfers,
+    sc_whales,
 )
+from common.freeze import sc_freeze
+from common.issuer_risk import sc_issuer_risk
+from common.payments_readiness import sc_payments_readiness
+from common.stablecoin_score import sc_depeg_score
 from common.overview import (
+    ov_activity,
     ov_bridges,
     ov_chains,
+    ov_defi,
     ov_docs_payload,
+    ov_freeze,
     ov_global,
+    ov_issuer_risk,
+    ov_mint_burn,
     ov_movers,
     ov_overview,
+    ov_payments_readiness,
+    ov_peg_leaderboard,
     ov_search,
     ov_stablecoins,
+    ov_supply_map,
+    ov_whales,
 )
 
 
@@ -576,6 +595,10 @@ def create_stablecoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI
     async def api_chains():
         return await sc_chains(scope)
 
+    @app.get(api + "/supply-map")
+    async def api_supply_map():
+        return await sc_supply_map(scope)
+
     @app.get(api + "/docs")
     async def api_docs():
         return sc_docs_payload(api, scope)
@@ -608,9 +631,45 @@ def create_stablecoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI
     async def api_depegs():
         return await sc_depegs(scope)
 
+    @app.get(api + "/depeg-score")
+    async def api_depeg_score():
+        return await sc_depeg_score(scope)
+
+    @app.get(api + "/peg-leaderboard")
+    async def api_peg_leaderboard():
+        return await sc_peg_leaderboard(this_scope=scope)
+
     @app.get(api + "/reserves")
     async def api_reserves():
         return await sc_reserves(scope)
+
+    @app.get(api + "/mint-burn")
+    async def api_mint_burn():
+        return await sc_mint_burn(scope)
+
+    @app.get(api + "/whales")
+    async def api_whales():
+        return await sc_whales(scope)
+
+    @app.get(api + "/activity")
+    async def api_activity():
+        return await sc_activity(scope)
+
+    @app.get(api + "/payments-readiness")
+    async def api_payments_readiness():
+        return await sc_payments_readiness(scope)
+
+    @app.get(api + "/freeze")
+    async def api_freeze():
+        return await sc_freeze(scope)
+
+    @app.get(api + "/issuer-risk")
+    async def api_issuer_risk():
+        return await sc_issuer_risk(scope)
+
+    @app.get(api + "/defi")
+    async def api_defi():
+        return await sc_defi(scope)
 
     @app.get(api + "/search")
     async def api_search(q: str = ""):
@@ -645,6 +704,42 @@ def create_overview_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     @app.get(api + "/stablecoins")
     async def api_stablecoins():
         return await ov_stablecoins()
+
+    @app.get(api + "/stablecoin-leaderboard")
+    async def api_stablecoin_leaderboard():
+        return await ov_peg_leaderboard()
+
+    @app.get(api + "/mint-burn")
+    async def api_mint_burn_rollup():
+        return await ov_mint_burn()
+
+    @app.get(api + "/whales")
+    async def api_whales_rollup():
+        return await ov_whales()
+
+    @app.get(api + "/activity")
+    async def api_activity_rollup():
+        return await ov_activity()
+
+    @app.get(api + "/payments-readiness")
+    async def api_payments_readiness_rollup():
+        return await ov_payments_readiness()
+
+    @app.get(api + "/freeze")
+    async def api_freeze_rollup():
+        return await ov_freeze()
+
+    @app.get(api + "/issuer-risk")
+    async def api_issuer_risk_rollup():
+        return await ov_issuer_risk()
+
+    @app.get(api + "/defi")
+    async def api_defi_rollup():
+        return await ov_defi()
+
+    @app.get(api + "/supply-map")
+    async def api_supply_map_rollup():
+        return await ov_supply_map()
 
     @app.get(api + "/bridges")
     async def api_bridges():
