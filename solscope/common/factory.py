@@ -90,6 +90,19 @@ from common.bitcoin import (
     btc_stats,
     btc_tx,
 )
+from common.stablecoin import (
+    STABLECOINS,
+    sc_chains,
+    sc_depegs,
+    sc_docs_payload,
+    sc_holders,
+    sc_peg,
+    sc_reserves,
+    sc_search,
+    sc_stats,
+    sc_supply,
+    sc_transfers,
+)
 
 
 def _add_handlers(app: FastAPI) -> None:
@@ -483,6 +496,67 @@ def create_bitcoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     @app.get(api + "/search")
     async def api_search(q: str = ""):
         return await btc_search(q)
+
+    # Static frontend, mounted last so /api/* routes win.
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+    return app
+
+
+def create_stablecoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
+    """Stablecoin dashboard app (usdtscope, usdcscope, ...). One coin per
+    app; data is DeFiLlama (peg/supply) + CoinGecko (market fallback) +
+    Blockscout (Ethereum holders/transfers) or TronScan (USDD on Tron),
+    all keyless. `scope` is the URL/API prefix and the key into
+    common.stablecoin.STABLECOINS."""
+    if scope not in STABLECOINS:
+        raise ValueError(f"Unknown stablecoin scope: {scope!r}")
+    api = f"/api/{scope}"
+    app = FastAPI(title=title, version="2.0.0")
+    _add_handlers(app)
+
+    @app.get(api + "/chains")
+    async def api_chains():
+        return await sc_chains(scope)
+
+    @app.get(api + "/docs")
+    async def api_docs():
+        return sc_docs_payload(api, scope)
+
+    @app.get(api + "/stats")
+    async def api_stats():
+        return await sc_stats(scope)
+
+    @app.get(api + "/peg")
+    async def api_peg(days: int = 30):
+        if days < 1 or days > 365:
+            return JSONResponse({"error": "days must be between 1 and 365"}, status_code=400)
+        return await sc_peg(scope, days)
+
+    @app.get(api + "/supply")
+    async def api_supply(days: int = 90):
+        if days < 1 or days > 365:
+            return JSONResponse({"error": "days must be between 1 and 365"}, status_code=400)
+        return await sc_supply(scope, days)
+
+    @app.get(api + "/holders")
+    async def api_holders(request: Request):
+        return await sc_holders(scope, dict(request.query_params))
+
+    @app.get(api + "/transfers")
+    async def api_transfers(request: Request):
+        return await sc_transfers(scope, dict(request.query_params))
+
+    @app.get(api + "/depegs")
+    async def api_depegs():
+        return await sc_depegs(scope)
+
+    @app.get(api + "/reserves")
+    async def api_reserves():
+        return await sc_reserves(scope)
+
+    @app.get(api + "/search")
+    async def api_search(q: str = ""):
+        return await sc_search(scope, q)
 
     # Static frontend, mounted last so /api/* routes win.
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

@@ -39,6 +39,46 @@ window.SCOPE_CONFIG = {
       "chain": null,
       "name": "WalletScope",
       "url": "https://walletscope.vercel.app"
+    },
+    {
+      "chain": null,
+      "name": "USDT Scope",
+      "url": "https://usdtscope.vercel.app"
+    },
+    {
+      "chain": null,
+      "name": "USDC Scope",
+      "url": "https://usdcscope.vercel.app"
+    },
+    {
+      "chain": null,
+      "name": "DAI Scope",
+      "url": "https://daiscope.vercel.app"
+    },
+    {
+      "chain": null,
+      "name": "USDe Scope",
+      "url": "https://usdescope.vercel.app"
+    },
+    {
+      "chain": null,
+      "name": "FDUSD Scope",
+      "url": "https://fdusdsscope.vercel.app"
+    },
+    {
+      "chain": null,
+      "name": "PYUSD Scope",
+      "url": "https://pyusdsscope.vercel.app"
+    },
+    {
+      "chain": null,
+      "name": "TUSD Scope",
+      "url": "https://tusdscope.vercel.app"
+    },
+    {
+      "chain": null,
+      "name": "USDD Scope",
+      "url": "https://usddscope.vercel.app"
     }
   ]
 };

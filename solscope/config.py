@@ -43,5 +43,45 @@ SIBLINGS = [
         "chain": "bitcoin",
         "name": "BitScope",
         "url": "https://bitscope.vercel.app"
+    },
+    {
+        "chain": None,
+        "name": "USDT Scope",
+        "url": "https://usdtscope.vercel.app"
+    },
+    {
+        "chain": None,
+        "name": "USDC Scope",
+        "url": "https://usdcscope.vercel.app"
+    },
+    {
+        "chain": None,
+        "name": "DAI Scope",
+        "url": "https://daiscope.vercel.app"
+    },
+    {
+        "chain": None,
+        "name": "USDe Scope",
+        "url": "https://usdescope.vercel.app"
+    },
+    {
+        "chain": None,
+        "name": "FDUSD Scope",
+        "url": "https://fdusdsscope.vercel.app"
+    },
+    {
+        "chain": None,
+        "name": "PYUSD Scope",
+        "url": "https://pyusdsscope.vercel.app"
+    },
+    {
+        "chain": None,
+        "name": "TUSD Scope",
+        "url": "https://tusdscope.vercel.app"
+    },
+    {
+        "chain": None,
+        "name": "USDD Scope",
+        "url": "https://usddscope.vercel.app"
     }
 ]
