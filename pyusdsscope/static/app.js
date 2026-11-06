@@ -237,6 +237,47 @@ function depegScoreCard(d) {
   </div>`;
 }
 
+/* Peg guard at quote time (phase 2, P3) — the same guard the
+   walletscope quote screen runs (GET /api/walletscope/quote/guard),
+   here for this coin as "paying an invoice in this coin". Verdict
+   ok / warn / block / unknown with thresholds stated, never hidden.
+   Block: |deviation| > 50 bps or depeg-risk score >= 75. Warn:
+   |deviation| > 10 bps or score >= 50. On warn/block the lowest-
+   depeg-score coin among the other 7 scopes is suggested, with its
+   own peg state. d may be null (endpoint failed). */
+function quoteGuardCard(g) {
+  if (!g) return `<div class="card"><div class="card-head">Peg guard — paying in ${esc(TITLE)}</div><div class="empty">Guard unavailable right now (endpoint failed).</div></div>`;
+  const v = String(g.verdict || "unknown").toLowerCase();
+  const badgeCls = { ok: "ok", warn: "warn", block: "fail", unknown: "grey" }[v] || "grey";
+  const vLabel = {
+    ok: "OK — safe to pay in this coin",
+    warn: "WARN — review before paying in this coin",
+    block: "BLOCK — do not pay in this coin",
+    unknown: "UNKNOWN — peg could not be verified",
+  }[v] || v;
+  const ds = g.depeg_score || {};
+  const peg = g.peg || {};
+  const alt = g.alternative;
+  let altHtml = "";
+  if (alt) {
+    const sib = SIBLINGS.find((s) => s.name === alt.symbol + " Scope");
+    altHtml = `<div style="margin-top:8px">Nearest stable alternative: <b>${esc(alt.symbol)}</b> — depeg-risk score ${alt.score != null ? Number(alt.score).toFixed(1) : "—"} (${esc(alt.band || "—")}), price ${priceFmt(alt.price_usd)} (${bpsFmt(alt.deviation_bps)})${sib ? ` · <a href="${esc(sib.url)}" target="_blank" rel="noopener">${esc(alt.symbol)} Scope →</a>` : ""}<br><span class="muted" style="font-size:12px">${esc(alt.note || "")}</span></div>`;
+  } else if (g.alternative_note) {
+    altHtml = `<div class="muted" style="margin-top:8px;font-size:12px">${esc(g.alternative_note)}</div>`;
+  }
+  const th = g.thresholds || {};
+  return `<div class="card" style="border-left:4px solid ${v === "ok" ? "var(--green)" : v === "warn" ? "var(--amber)" : v === "block" ? "var(--red)" : "var(--muted)"}">
+    <div class="card-head">🛡️ Peg guard — paying in ${esc(g.symbol || "")} <span class="spacer"></span><span class="badge ${badgeCls}">${esc(vLabel)}</span></div>
+    <div style="padding:12px 16px">
+      <div style="margin:3px 0">Price <b>${priceFmt(peg.price_usd)}</b> (${bpsFmt(peg.deviation_bps)} from $1.00 · ${esc(peg.peg_health || "—")})${peg.price_source ? ` · source: ${esc(peg.price_source)}` : ""}${ds.score != null ? ` · depeg-risk score <b>${Number(ds.score).toFixed(1)}</b> / 100 (${esc(ds.band || "—")})` : " · depeg-risk score unavailable"}</div>
+      ${(g.verdict_reasons || []).map((r) => `<div style="margin:3px 0">${esc(r)}</div>`).join("")}
+      ${altHtml}
+      <div class="muted" style="margin-top:8px;font-size:12px">Thresholds — block: ${esc(th.block || "—")} · warn: ${esc(th.warn || "—")} · ok: ${esc(th.ok || "—")}</div>
+      <div class="muted" style="margin-top:4px;font-size:12px">Guard is a screening signal at quote time, not investment advice. Peg score: Par v0 provisional weights (UNCONFIRMED) — full score and evidence in the Depeg risk card above.</div>
+    </div>
+  </div>`;
+}
+
 /* Issuer risk card (feature 11) — one composite 0-100 score per coin
    (higher = riskier), built ONLY by reusing features 1, 3, 4, 6, 8
    and 10, with the six input sub-scores and their values always
@@ -645,6 +686,13 @@ function freezeCard(f) {
       </tbody></table></div>`
       : `<div class="empty">${evs.status === "not_applicable" ? "No freeze function — no freeze events exist to list." : `No freeze/blacklist events in the scanned window${win.window_days ? ` (${num(win.window_days)} days)` : ""}.`}</div>`}
     <div class="muted" style="margin-top:8px">${dst.note ? esc(dst.note) : ""}</div>
+    <div class="card-head" style="margin-top:16px">Check an address <span class="muted">(is this address frozen for ${esc(f.symbol || "")}?)</span></div>
+    <form id="freeze-watch-form" class="search" autocomplete="off" style="max-width:640px;margin-top:10px">
+      <input id="freeze-watch-input" type="text" placeholder="0x… Ethereum address" aria-label="Address to check for a freeze">
+      <button type="submit" title="Check freeze status">Check</button>
+    </form>
+    <div id="freeze-watch-result" style="margin-top:10px"></div>
+    <div class="muted" style="margin-top:6px">Live read probe + freeze events naming the address in the scanned window above. The issuer blacklist is not enumerable on-chain — “not frozen” cannot prove the address was never frozen before the window. For other coins, or a Solana address, use the <a href="https://walletscope.vercel.app/#/freeze-watch" target="_blank" rel="noopener">freeze watch in WalletScope →</a></div>
     <div class="card-head" style="margin-top:16px">Sanctions exposure <span class="muted">(OFAC SDN list, ${esc((san.sdn || {}).date || "")} · ${(san.sdn || {}).labels_total != null ? num(san.sdn.labels_total) + " labels" : ""})</span></div>
     <div style="margin-top:6px">${esc(san.summary || "")}</div>
     ${matches.length ? `<div style="overflow-x:auto"><table class="tbl" style="margin-top:10px"><thead><tr><th>Address</th><th>Name (OFAC)</th><th>Program</th><th>Found as</th></tr></thead><tbody>
@@ -653,6 +701,77 @@ function freezeCard(f) {
     ${san.coverage ? `<div class="muted" style="margin-top:8px">Checked: ${num(san.coverage.frozen_addresses_checked)} frozen address(es) · ${num(san.coverage.top_holders_checked)} top holders · ${num(san.coverage.transfers_scanned)} recent transfers (${num(san.coverage.counterparties_checked)} counterparties)${san.coverage.transfer_window_earliest ? ` · transfers ${dateStr(san.coverage.transfer_window_earliest)} → ${dateStr(san.coverage.transfer_window_latest)}` : ""}. ${esc(san.coverage.transfer_note || "")}</div>` : ""}
     <div class="notice" style="margin-top:12px">${esc(f.methodology || "")}</div>
   </div>`;
+}
+
+/* Freeze watch result (phase 2, Q6) — one address checked against
+   this coin: GET /api/<scope>/freeze/watch?address=. w is the watch
+   payload (never null here — bindFreezeWatch only renders on a
+   successful fetch). The verdict badge is the headline; the read
+   probe, the events naming the address, and the balance are always
+   shown with it — never a bare verdict. */
+function freezeWatchHtml(w) {
+  const v = String(w.verdict || "unknown").toLowerCase();
+  const badgeCls = { frozen: "fail", not_frozen: "ok", unknown: "grey", not_freezable: "grey", not_applicable: "grey" }[v] || "grey";
+  const vLabel = {
+    frozen: "FROZEN — blacklisted",
+    not_frozen: "Not frozen",
+    unknown: "UNKNOWN — could not be verified",
+    not_freezable: "Cannot be frozen",
+    not_applicable: "Not applicable",
+  }[v] || v;
+  const rp = w.read_probe || {};
+  const evs = w.events || {};
+  const evList = evs.events || [];
+  const bal = w.balance || {};
+  const kindLabel = (k) => ({
+    blacklisted: "Blacklisted", unblacklisted: "Unblacklisted",
+    frozen: "Frozen", unfrozen: "Unfrozen",
+    blacklist_set: "Blacklist set", destroyed: "Black funds destroyed",
+    wiped: "Frozen funds wiped", paused: "Paused (all transfers)",
+    unpaused: "Unpaused",
+  }[k] || k);
+  const kindBadge = (k) => (k === "blacklisted" || k === "frozen" || k === "blacklist_set" || k === "paused")
+    ? '<span class="badge fail">' + esc(kindLabel(k)) + "</span>"
+    : (k === "destroyed" || k === "wiped")
+      ? '<span class="badge warn">' + esc(kindLabel(k)) + "</span>"
+      : '<span class="badge ok">' + esc(kindLabel(k)) + "</span>";
+  return `<div class="card" style="border-left:4px solid ${v === "frozen" ? "var(--red)" : v === "not_frozen" ? "var(--green)" : "var(--muted)"}">
+    <div class="card-head">Freeze watch — ${esc(w.symbol || "")} <span class="spacer"></span><span class="badge ${badgeCls}">${esc(vLabel)}</span></div>
+    <div style="padding:12px 16px">
+      <div class="mono" style="word-break:break-all">${esc(w.address || "")}</div>
+      <div style="margin-top:6px">${esc(w.summary || "")}</div>
+      <div class="detail" style="margin-top:10px">
+        <div class="dk">Live read probe</div><div class="dv">${rp.function ? `${esc(rp.function)}() → <b>${rp.frozen == null ? "unknown" : rp.frozen ? "frozen" : "not frozen"}</b>` : "No read function"}${rp.note ? `<br><span class="muted">${esc(rp.note)}</span>` : ""}</div>
+        <div class="dk">Balance in ${esc(w.symbol || "")}</div><div class="dv">${bal.known ? `${tokenAmt(bal.amount)} ${esc(w.symbol || "")}${bal.amount_usd != null ? ` (${usd(bal.amount_usd)})` : ""}` : "Unknown (balance lookup failed)"}</div>
+        <div class="dk">Freeze events naming it</div><div class="dv">${num(evs.total_events_naming_address)} event(s)${evs.window && evs.window.window_days ? ` in the ${num(evs.window.window_days)}d window` : ""}${evs.in_currently_frozen_set ? " · in the currently-frozen set" : ""}${evs.status_note ? `<br><span class="muted">${esc(evs.status_note)}</span>` : ""}</div>
+      </div>
+      ${evList.length ? `<div style="overflow-x:auto"><table class="tbl" style="margin-top:10px"><thead><tr><th>Time (UTC)</th><th>Event</th><th style="text-align:right">Amount</th><th>Tx</th></tr></thead><tbody>
+      ${evList.map((e) => `<tr><td>${dateTimeStr(e.timestamp)}</td><td>${kindBadge(e.kind)}</td><td style="text-align:right">${e.amount != null ? `${tokenAmt(e.amount)} ${esc(w.symbol || "")} (${usd(e.amount_usd)})` : "—"}</td><td>${extTxLink(e.tx_hash, w.primary_chain)}</td></tr>`).join("")}
+      </tbody></table></div>` : ""}
+      ${(w.limits || []).length ? `<div class="notice" style="margin-top:12px">${(w.limits || []).map((n) => esc(n)).join("<br>")}</div>` : ""}
+    </div>
+  </div>`;
+}
+
+/* Wire the freeze-watch form inside the rendered freeze card. Called
+   by homePage after /freeze fills the card in; no-op when the card
+   has not rendered (still loading / failed). */
+function bindFreezeWatch() {
+  const form = $("#freeze-watch-form");
+  if (!form) return;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const addr = $("#freeze-watch-input").value.trim();
+    const out = $("#freeze-watch-result");
+    if (!addr) { if (out) out.innerHTML = '<div class="empty">Enter an address to check.</div>'; return; }
+    if (out) out.innerHTML = '<div class="empty"><span class="spinner"></span> Checking freeze status…</div>';
+    try {
+      const w = await fetchJson(API + "/freeze/watch?address=" + encodeURIComponent(addr), null, 120000);
+      if (out) out.innerHTML = freezeWatchHtml(w);
+    } catch (err) {
+      if (out) out.innerHTML = `<div class="empty">Freeze check failed: ${esc(err.message)}</div>`;
+    }
+  });
 }
 
 /* Cross-chain supply map card (feature 5) — per-chain supply with
@@ -697,9 +816,10 @@ function bridgesCard(sm) {
 async function homePage() {
   render(`<div class="card" style="margin-top:22px"><div class="empty"><span class="spinner"></span> Loading ${esc(TITLE)}…</div></div>`);
   try {
-    const [s, peg, sup, dep, dscore, lb, mb, sm] = await Promise.all([
+    const [s, peg, sup, dep, dscore, guard, lb, mb, sm] = await Promise.all([
       loadStats(), get("/peg?days=" + PEG_DAYS), get("/supply?days=" + SUPPLY_DAYS), get("/depegs"),
       get("/depeg-score").catch(() => null),
+      get("/quote-guard").catch(() => null),
       get("/peg-leaderboard").catch(() => null),
       get("/mint-burn").catch(() => null),
       get("/supply-map").catch(() => null),
@@ -719,6 +839,8 @@ async function homePage() {
     </div>
 
     ${depegScoreCard(dscore)}
+
+    ${quoteGuardCard(guard)}
 
     <div id="issuer-risk-card">${issuerRiskCard(null)}</div>
 
@@ -820,9 +942,10 @@ async function homePage() {
     // Freeze & blacklist (feature 10): fetched separately — its
     // log scan + Multicall3 balance batch are slow — and filled in
     // without blocking the rest of the page. Same guard as above.
+    // The Q6 watch form inside the card is wired once it renders.
     fetchJson(API + "/freeze", null, 120000).then((fz) => {
       const el = document.getElementById("freeze-card");
-      if (el) el.innerHTML = freezeCard(fz);
+      if (el) { el.innerHTML = freezeCard(fz); bindFreezeWatch(); }
     }).catch(() => {
       const el = document.getElementById("freeze-card");
       if (el) el.innerHTML = freezeCard({ error: true });

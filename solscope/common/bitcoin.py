@@ -538,12 +538,17 @@ async def btc_address(addr):
 
 async def btc_address_txs(addr, after=None):
     """Address transactions, newest first (50/page). `after` is the last
-    seen txid cursor (mempool.space /txs/:last_seen_txid)."""
+    seen txid cursor. The paged route is /txs/chain/:last_seen_txid
+    (confirmed txs) — the plain /txs/:txid form does NOT exist on
+    mempool.space or Esplora (both 404 "endpoint does not exist"),
+    which is why address-page load-more and any multi-page scan
+    failed before this fix (found 2026-11-06 while building the
+    pre-flight check)."""
     if not is_bitcoin_address(addr or ""):
         raise UpstreamError("Invalid Bitcoin address", status=400)
     path = f"/address/{addr}/txs"
     if after:
-        path += f"/{after}"
+        path += f"/chain/{after}"
     d = await _api(path)
     if not isinstance(d, list):
         raise UpstreamError("Address not found", status=404)
