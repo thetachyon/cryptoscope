@@ -225,3 +225,86 @@ ids. `/config.js` and `/app.js` serve 200 in every app.
   JS is syntax-checked and logic-reviewed only.
 - Vercel `buildCommand` (sync) untested live — deploy still blocked
   (403 team scope); the committed vendored copies are the fallback.
+
+## BitScope (2026-11-05)
+
+Bitcoin explorer in its own directory (`bitscope/`), mempool.space primary
++ Blockstream Esplora fallback, keyless. All checks run locally against
+live mainnet data (uvicorn :8042). Nothing pushed or deployed in this pass.
+
+### API probing (curl, before building)
+
+- mempool.space `/blocks/tip/height` → 974732; `/blocks` → 10 blocks;
+  `/v1/fees/recommended` → all 1 sat/vB; `/mempool` → count/vsize/total_fee
+  + fee_histogram; `/v1/difficulty-adjustment` → progress 49.8%, change
+  −2.98%; `/v1/mining/hashrate/3d` → 1.02 EH/s; `/v1/historical-price`
+  → hourly USD prices; `/mempool/recent` → 10 recent txids with fee/vsize.
+- Esplora `/blocks/tip/height` → same 974732; `/tx/:txid`,
+  `/address/:addr` work identically.
+- CoinGecko BTC price works (fallback for the price endpoint).
+
+### Per-endpoint verification (all 200 unless noted)
+
+- `GET /api/bitscope/stats` → height 974732 (int), difficulty
+  1.4836e14, hashrate 1.0255e21 H/s, mempool 52,159 txs / 19,453,167
+  vBytes, fees fastest/half-hour/hour/economy/minimum all 1 sat/vB,
+  difficulty change −3.03%, next retarget 975,744.
+- `GET /api/bitscope/blocks` → 10 items, first height 974732,
+  next_height 974722.
+- `GET /api/bitscope/block/latest` → height 974732, 1,026 txs, pool
+  SECPOOL, total fees 769,747 sat, reward 313,269,747 sat.
+- `GET /api/bitscope/block/974732` → same block by height.
+- `GET /api/bitscope/block/latest/txs` → 25 items, first is the coinbase
+  `557e04f9…`, next_start 25.
+- `GET /api/bitscope/tx/642ea37c…` → fee 27,467 sat, 249.7 sat/vB,
+  vsize 110, weight 437, 1 confirmation, in 0.29378782 BTC,
+  out 0.29351315 BTC, 1 input (bc1q9vftx…), 1 output (bc1q9wz5n…).
+- `GET /api/bitscope/tx/<unconfirmed mempool txid>` →
+  confirmed false, 0 confirmations, fee 1,068 sat, RBF fields present
+  (nulls — not an RBF replacement).
+- `GET /api/bitscope/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa` →
+  balance 57.70614572 BTC, tx_count 67,330, unconfirmed 0.
+- `GET …/address/…/txs` → 50 items, next_after cursor present.
+- `GET …/address/…/utxo` → honest note, not data:
+  "Too many unspent transaction outputs (>500). Contact support to
+  raise limits." (upstream refuses the set; shown as a note in the UI).
+- `GET /api/bitscope/mempool` → count 52,294, fees all 1 sat/vB,
+  7 fee-rate bands, 10 recent txs.
+- `GET /api/bitscope/search?q=974732` → block; `?q=<txid>` →
+  transaction; `?q=1A1zP1…` → address; `?q=zzzznotreal` → 404.
+- `GET /api/bitscope/docs` → 12 endpoints; `/chains` → bitcoin only.
+- Invalid address → 400; bad txid → 400.
+- Frontend: `node --check` passes on `bitscope/frontend/app.js`;
+  `/`, `/app.js`, `/styles.css`, `/config.js` all 200.
+- `scripts/sync-common.py check` → "in sync: 7 apps".
+- EVM regression: ethscope `/stats` 200 (ETH $2,233.77), `/docs`
+  32 entries — factory.py edit did not disturb the EVM apps.
+
+### Bugs found & fixed this session
+
+1. `/stats` and `/block/latest` returned `{"error": "974732"}`:
+   mempool.space returns tip height and block-height lookups as bare
+   text, not JSON, and the client treated any plain-text body as an
+   error. Fixed with a `text_ok` flag on the two text endpoints
+   (`common/bitcoin.py`); stats height also coerced to int.
+
+### Honest limits
+
+- UTXO lists are refused by mempool.space for very large sets (>500
+  UTXOs) — the address page shows the upstream's note, never invented
+  UTXOs. Normal addresses list up to 100 UTXOs.
+- `/mempool/recent` returns only the 10 most recent unconfirmed txs
+  (upstream limit), not 25.
+- Miner names come from mempool.space v1 block extras (`pool.name`);
+  if that call fails, the block page says "pool unknown" rather than
+  guessing. Esplora fallback has no pool data.
+- The v1-only endpoints (fees, difficulty adjustment, hashrate, pool
+  extras, RBF, historical price) are mempool.space-only; if
+  mempool.space is down they degrade to nulls instead of failing the
+  page (Esplora cannot serve them).
+- Fee-rate bands are a coarse bucketing of the mempool fee histogram,
+  not per-transaction data.
+- Live browser rendering of the BitScope pages was not possible here —
+  JS is syntax-checked and logic-reviewed only.
+- Vercel `buildCommand` (sync) untested live — deploy still blocked
+  (403 team scope); the committed vendored copies are the fallback.

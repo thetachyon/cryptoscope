@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "python3 ../scripts/sync-common.py sync",
+  "rewrites": [
+    {
+      "destination": "/api/index",
+      "source": "/(.*)"
+    }
+  ]
+}

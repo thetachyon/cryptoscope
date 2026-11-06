@@ -11,8 +11,10 @@ Home for Tejas's crypto tooling — explorers, forensics, and analytics, each in
 | [optimismscope](./optimismscope) | Same explorer for Optimism. | `optimismscope` |
 | [gnosisscope](./gnosisscope) | Same explorer for Gnosis. | `gnosisscope` |
 | [walletscope](./walletscope) | Cross-chain wallet dashboard (portfolio, history, PnL estimate, NFTs, activity) across all four chains. | `walletscope` |
+| [solscope](./solscope) | Full Solana explorer (slots, transactions, accounts, SPL tokens, programs). | `solscope` |
+| [bitscope](./bitscope) | Bitcoin explorer (blocks, transactions, addresses, mempool, fees). | `bitscope` |
 
-Every app is keyless — data via the public Blockscout v2 API, public JSON-RPC endpoints, and CoinGecko's keyless tier. No API keys anywhere.
+Every app is keyless — data via the public Blockscout v2 API, public JSON-RPC endpoints, the public Solana RPC, mempool.space / Blockstream Esplora, and CoinGecko's keyless tier. No API keys anywhere.
 
 ## Layout
 
@@ -33,6 +35,8 @@ ethscope/           Ethereum-only explorer (thin: config.py + app.py)
 sepoliascope/       Sepolia explorer (thin)
 optimismscope/      Optimism explorer (thin)
 gnosisscope/        Gnosis explorer (thin)
+solscope/           Solana explorer (thin + frontend/ overlay)
+bitscope/           Bitcoin explorer (thin + frontend/ overlay)
 walletscope/        Cross-chain wallet dashboard (thin)
 VERIFY.md           Split verification log (per-app smoke tests)
 ```
@@ -69,7 +73,7 @@ Dropped chains (do not re-add without re-probing): Arbitrum (`arbitrum.blockscou
 
 ## Queue
 
-Solana holdings into the wallet dashboard ✓ (SOL + SPL, keyless — see `walletscope/README.md`) → **SolScope** ✓ (full Solana explorer, own directory — see `solscope/README.md`) → **BitScope** (Bitcoin explorer via keyless mempool.space / Blockstream Esplora) → stablecoin Scopes (Top 8: USDT, USDC, DAI, USDe, FDUSD, PYUSD, TUSD, USDD — peg status, supply, holders, transfers, depeg history, reserves).
+Solana holdings into the wallet dashboard ✓ (SOL + SPL, keyless — see `walletscope/README.md`) → **SolScope** ✓ (full Solana explorer, own directory — see `solscope/README.md`) → **BitScope** ✓ (Bitcoin explorer via keyless mempool.space / Blockstream Esplora — see `bitscope/README.md`) → stablecoin Scopes (Top 8: USDT, USDC, DAI, USDe, FDUSD, PYUSD, TUSD, USDD — peg status, supply, holders, transfers, depeg history, reserves).
 
 ## Deploy status
 

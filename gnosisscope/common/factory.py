@@ -77,6 +77,19 @@ from common.solana_explorer import (
     sol_token_transfers,
     sol_tx,
 )
+from common.bitcoin import (
+    btc_address,
+    btc_address_txs,
+    btc_address_utxo,
+    btc_block,
+    btc_block_txs,
+    btc_blocks,
+    btc_docs_payload,
+    btc_mempool,
+    btc_search,
+    btc_stats,
+    btc_tx,
+)
 
 
 def _add_handlers(app: FastAPI) -> None:
@@ -409,6 +422,67 @@ def create_solana_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     @app.get(api + "/search")
     async def api_search(q: str = ""):
         return await sol_search(q)
+
+    # Static frontend, mounted last so /api/* routes win.
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+    return app
+
+
+def create_bitcoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
+    """Bitcoin explorer app (bitscope). Data is mempool.space (primary)
+    with Blockstream Esplora as fallback (keyless); no EVM, no Blockscout.
+    `scope` is the URL/API prefix (e.g. "bitscope")."""
+    api = f"/api/{scope}"
+    app = FastAPI(title=title, version="2.0.0")
+    _add_handlers(app)
+
+    @app.get(api + "/chains")
+    async def api_chains():
+        return {"chains": [{"id": "bitcoin", "label": "Bitcoin", "api": "https://mempool.space/api", "native": "BTC", "coingecko_platform": "bitcoin"}]}
+
+    @app.get(api + "/docs")
+    async def api_docs():
+        return btc_docs_payload(api)
+
+    @app.get(api + "/stats")
+    async def api_stats():
+        return await btc_stats()
+
+    @app.get(api + "/blocks")
+    async def api_blocks(before: int | None = None):
+        return await btc_blocks(before=before)
+
+    @app.get(api + "/block/{n}")
+    async def api_block(n: str):
+        return await btc_block(n)
+
+    @app.get(api + "/block/{n}/txs")
+    async def api_block_txs(n: str, start: int = 0):
+        return await btc_block_txs(n, start=start)
+
+    @app.get(api + "/tx/{txid}")
+    async def api_tx(txid: str):
+        return await btc_tx(txid)
+
+    @app.get(api + "/address/{addr}")
+    async def api_address(addr: str):
+        return await btc_address(addr)
+
+    @app.get(api + "/address/{addr}/txs")
+    async def api_address_txs(addr: str, after: str | None = None):
+        return await btc_address_txs(addr, after=after)
+
+    @app.get(api + "/address/{addr}/utxo")
+    async def api_address_utxo(addr: str):
+        return await btc_address_utxo(addr)
+
+    @app.get(api + "/mempool")
+    async def api_mempool():
+        return await btc_mempool()
+
+    @app.get(api + "/search")
+    async def api_search(q: str = ""):
+        return await btc_search(q)
 
     # Static frontend, mounted last so /api/* routes win.
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

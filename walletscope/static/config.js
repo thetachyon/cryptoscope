@@ -34,6 +34,11 @@ window.SCOPE_CONFIG = {
       "chain": "solana",
       "name": "SolScope",
       "url": "https://solscope.vercel.app"
+    },
+    {
+      "chain": "bitcoin",
+      "name": "BitScope",
+      "url": "https://bitscope.vercel.app"
     }
   ]
 };

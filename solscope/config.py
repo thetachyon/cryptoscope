@@ -38,5 +38,10 @@ SIBLINGS = [
         "chain": None,
         "name": "WalletScope",
         "url": "https://walletscope.vercel.app"
+    },
+    {
+        "chain": "bitcoin",
+        "name": "BitScope",
+        "url": "https://bitscope.vercel.app"
     }
 ]
