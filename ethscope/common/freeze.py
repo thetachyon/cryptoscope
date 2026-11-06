@@ -62,6 +62,7 @@ Honest limits (stated in every response, never hidden):
   not merely frozen. They are reported separately and never added
   to frozen supply (those balances are gone).
 """
+import re
 import time
 
 import httpx
@@ -81,6 +82,13 @@ from common.clients import (
     rpc,
 )
 from common.payments_readiness import _freeze_input
+from common.preflight import (
+    FREEZE_READ_FN,
+    _classify,
+    _frozen_check_solana,
+    _probe_token_frozen,
+    _resolve_coin,
+)
 from common.risk import (
     FAMILY_COUNTS,
     OFAC_SDN_COUNT,
@@ -249,6 +257,61 @@ FREEZE_METHODOLOGY_SHORT = (
     "scanned window's freeze events show as currently frozen; "
     "addresses frozen before the window are missed."
 )
+
+_EVM_ADDR_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+# Solana mints for the two freezable stablecoin majors (same
+# canonical mints as common/quotes.py's token registry — verified
+# live 2026-11-06: both mints exist and carry a freeze authority).
+SOL_STABLE_MINTS = {
+    "USDC": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "USDT": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+}
+
+# Holder-state event kinds (the kinds that set an address frozen /
+# not-frozen). Used to decide the extended 5y lookback.
+HOLDER_EVENT_KINDS = (
+    "blacklisted", "unblacklisted", "frozen", "unfrozen", "blacklist_set",
+)
+
+WATCH_METHODOLOGY = (
+    "Freeze / blacklist watch (phase 2, Q6). Current frozen state "
+    "comes from the coin's on-chain freeze/blacklist READ function "
+    "via a live eth_call (USDC isBlacklisted, USDT isBlackListed, "
+    "PYUSD isFrozen, FDUSD frozen — same probes as the pre-flight "
+    "check, reused). Freeze/blacklist EVENTS naming the address come "
+    "from Blockscout's Etherscan-compatible getLogs over the same "
+    "window as /freeze (365 days, extended to 5 years only when the "
+    "coin has freeze signatures but zero holder-state events in "
+    "365d — TUSD). TUSD has a WRITE-only blacklist "
+    "(setBlacklisted) with no on-chain read function, so its current "
+    "state is derived from its last freeze event, labelled "
+    "event-derived, never presented as live-verified. DAI/USDe have "
+    "no freeze function, so an address cannot be frozen for them. "
+    "USDD is Tron-native: no EVM freeze check applies. On Solana, "
+    "the check is the SPL mint's freeze authority plus the token "
+    "account's current state (frozen / initialized) via the public "
+    "Solana RPC — Solana has no freeze-event scan here, so the "
+    "answer is current-state only. The issuer blacklist is NOT "
+    "enumerable on-chain: a 'not frozen' answer means the live read "
+    "probe says not frozen AND no freeze event in the scanned window "
+    "names the address — it cannot prove the address was never "
+    "frozen before the window."
+)
+
+WATCH_LIMITS = [
+    "The issuer blacklist is not enumerable on-chain — 'not frozen' "
+    "means the live read probe says not frozen and no freeze event "
+    "in the scanned window names the address; it cannot prove the "
+    "address was never frozen before the window.",
+    "TUSD's frozen state is event-derived (no on-chain read "
+    "function exists), not live-verified.",
+    "Solana freeze status is current-state only — there is no "
+    "freeze-event scan on Solana.",
+    "A frozen verdict is a screening signal, not a legal "
+    "determination; it does not say why the issuer froze the "
+    "address.",
+]
 
 
 def _topic(sig):
@@ -725,6 +788,65 @@ async def _sanctions_scan(cfg, frozen_addresses):
     }
 
 
+# ---------------------------------------------------------------- window scan
+async def _scan_window(cfg):
+    """Shared window scan for sc_freeze and the Q6 watch check:
+    freeze/blacklist/pause events over the 365d window (extended to
+    5 years ONLY when the coin has freeze signatures but zero
+    holder-state events in 365d — TUSD). Returns (events_desc,
+    counts, ev_status, ev_note, frozen_state, window). Tron /
+    no-freeze-function coins return empty events with a
+    not_applicable status and an empty window."""
+    specs = FREEZE_EVENT_CONFIG.get(cfg["_scope"], [])
+    if cfg["primary"] == "ethereum" and specs:
+        latest_block = await _latest_block()
+        window_days = WINDOW_DAYS
+        from_block = max(0, latest_block - window_days * BLOCKS_PER_DAY)
+        events, counts, ev_status, ev_note, frozen_state = await _scan_freeze_events(
+            cfg, from_block, latest_block
+        )
+        holder_events = sum(
+            counts.get(k, 0) for k in HOLDER_EVENT_KINDS
+        )
+        extended = False
+        if holder_events == 0:
+            from_block_5y = max(0, latest_block - EXTENDED_WINDOW_DAYS * BLOCKS_PER_DAY)
+            events, counts, ev_status, ev_note, frozen_state = await _scan_freeze_events(
+                cfg, from_block_5y, latest_block
+            )
+            window_days = EXTENDED_WINDOW_DAYS
+            extended = True
+        window = {
+            "window_days": window_days,
+            "window_start_block": from_block if not extended else from_block_5y,
+            "window_end_block": latest_block,
+            "extended_lookback": extended,
+            "extended_reason": (
+                "No freeze/blacklist events in the 365d window, so the "
+                "scan was extended to 5 years to find the last use."
+                if extended else None
+            ),
+        }
+        return events, counts, ev_status, ev_note, frozen_state, window
+    if cfg["primary"] == "tron":
+        return [], {}, "not_applicable", (
+            "USDD is Tron-native: no freeze/blacklist function appears "
+            "in TronScan's published method map (11 observed functions, "
+            "partial list), so there are no freeze events to scan. "
+            "TronScan exposes no keyless per-contract event feed for "
+            "this check."
+        ), {}, {"window_days": None, "window_start_block": None,
+                "window_end_block": None, "extended_lookback": False,
+                "extended_reason": None}
+    return [], {}, "not_applicable", (
+        "This coin has no freeze/blacklist/pause function in its "
+        "token ABI, so there are no freeze events to scan — "
+        "reported as not applicable, not as zero."
+    ), {}, {"window_days": None, "window_start_block": None,
+            "window_end_block": None, "extended_lookback": False,
+            "extended_reason": None}
+
+
 # ---------------------------------------------------------------- entry
 async def sc_freeze(scope):
     """GET /api/<scope>/freeze — feature 10: freeze capability
@@ -733,6 +855,7 @@ async def sc_freeze(scope):
     exposure. Cached 300s."""
     cfg = dict(_cfg(scope))
     cfg["_scope"] = scope
+    specs = FREEZE_EVENT_CONFIG.get(scope, [])
     cache_key = f"scFreeze:{scope}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -788,65 +911,9 @@ async def sc_freeze(scope):
         "functions_probed": freeze_ev.get("probed_functions"),
     }
 
-    # --- events + currently-frozen set ---
-    specs = FREEZE_EVENT_CONFIG.get(scope, [])
-    if cfg["primary"] == "ethereum" and specs:
-        latest_block = await _latest_block()
-        window_days = WINDOW_DAYS
-        from_block = max(0, latest_block - window_days * BLOCKS_PER_DAY)
-        events, counts, ev_status, ev_note, frozen_state = await _scan_freeze_events(
-            cfg, from_block, latest_block
-        )
-        # Extended 5y lookback when the coin HAS freeze signatures
-        # but produced zero holder-state events in 365d (TUSD:
-        # blacklist used 2023-24, silent since).
-        holder_events = sum(
-            counts.get(k, 0) for k in
-            ("blacklisted", "unblacklisted", "frozen", "unfrozen", "blacklist_set")
-        )
-        extended = False
-        if holder_events == 0:
-            from_block_5y = max(0, latest_block - EXTENDED_WINDOW_DAYS * BLOCKS_PER_DAY)
-            events, counts, ev_status, ev_note, frozen_state = await _scan_freeze_events(
-                cfg, from_block_5y, latest_block
-            )
-            window_days = EXTENDED_WINDOW_DAYS
-            extended = True
-        window = {
-            "window_days": window_days,
-            "window_start_block": from_block if not extended else from_block_5y,
-            "window_end_block": latest_block,
-            "extended_lookback": extended,
-            "extended_reason": (
-                "No freeze/blacklist events in the 365d window, so the "
-                "scan was extended to 5 years to find the last use."
-                if extended else None
-            ),
-        }
-    elif cfg["primary"] == "tron":
-        events, counts = [], {}
-        ev_status, ev_note = "not_applicable", (
-            "USDD is Tron-native: no freeze/blacklist function appears "
-            "in TronScan's published method map (11 observed functions, "
-            "partial list), so there are no freeze events to scan. "
-            "TronScan exposes no keyless per-contract event feed for "
-            "this check."
-        )
-        frozen_state = {}
-        window = {"window_days": None, "window_start_block": None,
-                  "window_end_block": None, "extended_lookback": False,
-                  "extended_reason": None}
-    else:
-        events, counts = [], {}
-        ev_status, ev_note = "not_applicable", (
-            "This coin has no freeze/blacklist/pause function in its "
-            "token ABI, so there are no freeze events to scan — "
-            "reported as not applicable, not as zero."
-        )
-        frozen_state = {}
-        window = {"window_days": None, "window_start_block": None,
-                  "window_end_block": None, "extended_lookback": False,
-                  "extended_reason": None}
+    # --- events + currently-frozen set (shared window scan) ---
+    (events, counts, ev_status, ev_note, frozen_state,
+     window) = await _scan_window(cfg)
 
     # --- frozen supply (lower-bound estimate) ---
     frozen_addrs = sorted(frozen_state.keys())
@@ -1042,3 +1109,501 @@ async def sc_freeze(scope):
     }
     _cache_set(cache_key, out, ttl=CACHE_TTL)
     return out
+
+# ---------------------------------------------------------------- Q6 watch
+# Freeze / blacklist watch (phase 2, Q6): is THIS address frozen for
+# THIS coin, and does any freeze event name it? The read probe is the
+# live truth for "currently frozen"; the event scan dates it and
+# catches coins with no read function (TUSD). The window scan is the
+# same one /freeze uses (365d, 5y extended lookback for silent
+# coins), so a watch answer and the /freeze page never disagree
+# about the window.
+
+
+def _watch_event_row(e, cfg, price):
+    """One freeze event naming the watched address, shaped like the
+    /freeze events table."""
+    return {
+        "timestamp": e["timestamp"],
+        "kind": e["kind"],
+        "event": e["event"],
+        "address": e["address"],
+        "amount": (
+            float(_amount(e["amount_raw"], cfg["decimals"] or 0) or 0)
+            if e["amount_raw"] is not None else None
+        ),
+        "amount_usd": (
+            round(float(_amount(e["amount_raw"], cfg["decimals"] or 0) or 0) * price, 2)
+            if e["amount_raw"] is not None and price else None
+        ),
+        "tx_hash": e["tx_hash"],
+        "block": e["block"],
+    }
+
+
+async def _evm_watch_one(cfg, address):
+    """Watch check for one EVM stablecoin scope. `cfg` carries
+    `_scope`. Returns the per-coin watch block (no caching here —
+    the callers cache)."""
+    scope = cfg["_scope"]
+    symbol = cfg["symbol"]
+    addr = address.lower()
+    detail = await _coin_detail(cfg)
+    price, _ = await _current_price(cfg, detail)
+
+    # Current balance (how much would be frozen, if frozen).
+    balance_raw = await _single_balance(cfg["contract"], address)
+    balance = (
+        float(_amount(balance_raw, cfg["decimals"] or 0) or 0)
+        if balance_raw is not None else None
+    )
+    balance_block = {
+        "amount": balance,
+        "amount_usd": round(balance * price, 2) if balance is not None and price else None,
+        "known": balance_raw is not None,
+    }
+
+    # DAI / USDe: no freeze function at all — cannot be frozen.
+    if not FREEZE_EVENT_CONFIG.get(scope):
+        return {
+            "scope": scope,
+            "symbol": symbol,
+            "name": cfg["name"],
+            "issuer": cfg["issuer"],
+            "primary_chain": cfg["primary"],
+            "contract": cfg["contract"],
+            "chain": "ethereum",
+            "frozen": False,
+            "verdict": "not_freezable",
+            "summary": (
+                f"{symbol} has no freeze/blacklist function in its "
+                "token ABI — the issuer cannot freeze holder balances, "
+                "so this address cannot be frozen for "
+                f"{symbol}."
+            ),
+            "read_probe": {"function": None, "frozen": None,
+                           "note": "No freeze read function exists for this coin."},
+            "events": {"window": None, "status": "not_applicable",
+                       "status_note": "No freeze function — no freeze events exist to scan.",
+                       "total_events_naming_address": 0, "events": []},
+            "balance": balance_block,
+            "methodology": WATCH_METHODOLOGY,
+            "limits": WATCH_LIMITS,
+            "as_of": int(time.time()),
+        }
+
+    # Live read probe (reused from preflight) + window event scan.
+    token = {"symbol": symbol, "contract": cfg["contract"],
+             "read_fn": FREEZE_READ_FN.get(scope), "scope": scope}
+    probe_frozen, probe_note = await _probe_token_frozen("ethereum", token, address)
+    (events, _counts, ev_status, ev_note, frozen_state,
+     window) = await _scan_window(cfg)
+    mine = [e for e in events if (e.get("address") or "").lower() == addr]
+    holder_mine = [e for e in mine if e["kind"] in HOLDER_EVENT_KINDS]
+    last_holder = holder_mine[-1] if holder_mine else None
+    in_frozen_state = addr in frozen_state
+
+    # Verdict: the live read probe is the truth when it answers.
+    # TUSD has no read function — fall back to the last holder-state
+    # event, labelled event-derived, never live-verified.
+    if probe_frozen is True:
+        frozen, verdict = True, "frozen"
+        basis = f"Live read probe {token['read_fn']}() returns true."
+    elif probe_frozen is False:
+        frozen, verdict = False, "not_frozen"
+        basis = f"Live read probe {token['read_fn']}() returns false."
+    elif scope == "tusdscope" and last_holder is not None:
+        frozen = bool(last_holder.get("state"))
+        verdict = "frozen" if frozen else "not_frozen"
+        basis = (
+            "No on-chain read function exists for TUSD — state is "
+            "derived from its last freeze event in the scanned "
+            f"window ({last_holder['kind']} at block "
+            f"{last_holder.get('block')}), labelled event-derived, "
+            "not live-verified."
+        )
+    elif scope == "tusdscope":
+        frozen, verdict = None, "unknown"
+        basis = (
+            "No on-chain read function exists for TUSD and no freeze "
+            "event in the scanned window names this address — its "
+            "blacklist status cannot be verified."
+        )
+    else:
+        frozen, verdict = None, "unknown"
+        basis = f"Freeze probe failed or is undecodable ({probe_note})"
+
+    if verdict == "frozen":
+        summary = (
+            f"{address} IS frozen/blacklisted for {symbol}. {basis}"
+            + (f" {len(mine)} freeze event(s) in the scanned window name "
+               "this address." if mine else
+               " No freeze event in the scanned window names this "
+               "address — it was frozen before the window, or the "
+               "freeze is not visible as an event.")
+            + (f" Frozen balance: {balance} {symbol}"
+               + (f" (${balance_block['amount_usd']:,.2f})"
+                  if balance_block["amount_usd"] is not None else "")
+               if balance is not None else "")
+        )
+    elif verdict == "not_frozen":
+        summary = (
+            f"{address} is NOT frozen/blacklisted for {symbol}. {basis}"
+            + (f" {len(mine)} past freeze event(s) name this address "
+               "(latest: "
+               f"{last_holder['kind'] if last_holder else '—'}"
+               + (f" at block {last_holder.get('block')}" if last_holder else "")
+               + ") — the latest event leaves it unfrozen."
+               if mine else
+               " No freeze event in the scanned window names this address.")
+        )
+    elif verdict == "not_freezable":
+        summary = f"{symbol} has no freeze function — this address cannot be frozen for it."
+    else:
+        summary = (
+            f"Frozen status for {symbol} could not be verified for "
+            f"{address}. {basis}"
+            + (f" {len(mine)} freeze event(s) in the scanned window name "
+               "this address — see the events below." if mine else "")
+        )
+
+    return {
+        "scope": scope,
+        "symbol": symbol,
+        "name": cfg["name"],
+        "issuer": cfg["issuer"],
+        "primary_chain": cfg["primary"],
+        "contract": cfg["contract"],
+        "chain": "ethereum",
+        "frozen": frozen,
+        "verdict": verdict,
+        "summary": summary,
+        "read_probe": {
+            "function": token["read_fn"],
+            "frozen": probe_frozen,
+            "note": probe_note,
+        },
+        "events": {
+            "window": window,
+            "status": ev_status,
+            "status_note": ev_note,
+            "total_events_naming_address": len(mine),
+            "in_currently_frozen_set": in_frozen_state,
+            "events": [_watch_event_row(e, cfg, price) for e in mine],
+        },
+        "balance": balance_block,
+        "methodology": WATCH_METHODOLOGY,
+        "limits": WATCH_LIMITS,
+        "as_of": int(time.time()),
+    }
+
+
+async def freeze_watch(scope, address):
+    """GET /api/<scope>/freeze/watch?address= — per-scope watch
+    check. Raises UpstreamError(400) for a bad address. Cached
+    300s per (scope, address)."""
+    if not address or not _EVM_ADDR_RE.fullmatch(str(address).strip()):
+        raise UpstreamError(
+            "Invalid address (expected 0x + 40 hex chars)", status=400
+        )
+    address = str(address).strip()
+    cfg = dict(_cfg(scope))
+    cfg["_scope"] = scope
+    if cfg["primary"] == "tron":
+        return {
+            "scope": scope,
+            "symbol": cfg["symbol"],
+            "name": cfg["name"],
+            "issuer": cfg["issuer"],
+            "primary_chain": "tron",
+            "contract": cfg["contract"],
+            "chain": "tron",
+            "frozen": None,
+            "verdict": "not_applicable",
+            "summary": (
+                f"{cfg['symbol']} is Tron-native: no freeze/blacklist "
+                "function appears in TronScan's published method map "
+                "(11 observed functions, partial list), so there is no "
+                "EVM freeze check to run for this address. TronScan "
+                "exposes no keyless per-contract event feed for this "
+                "check."
+            ),
+            "read_probe": {"function": None, "frozen": None,
+                           "note": "Not applicable on Tron."},
+            "events": {"window": None, "status": "not_applicable",
+                       "status_note": "No freeze events to scan on Tron.",
+                       "total_events_naming_address": 0, "events": []},
+            "balance": {"amount": None, "amount_usd": None, "known": False},
+            "methodology": WATCH_METHODOLOGY,
+            "limits": WATCH_LIMITS,
+            "as_of": int(time.time()),
+        }
+    cache_key = f"freezeWatch:{scope}:{address.lower()}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    out = await _evm_watch_one(cfg, address)
+    _cache_set(cache_key, out, ttl=CACHE_TTL)
+    return out
+
+
+async def freeze_watch_solana(address, mint, symbol=None):
+    """Watch check for one SPL mint on Solana: the mint's freeze
+    authority + the address's token-account state, via the public
+    Solana RPC (same check as the pre-flight frozen check, reused,
+    plus the token-account address and balance). No freeze-event
+    scan exists on Solana — the answer is current-state only.
+    Raises UpstreamError(400) for a bad mint/address."""
+    from common.solana import SOL_ACCOUNTS_RPC, _sol_rpc, is_solana_address
+
+    if not is_solana_address(address):
+        raise UpstreamError(
+            "Invalid address (expected a Solana base58 address)",
+            status=400,
+        )
+    if not is_solana_address(mint):
+        raise UpstreamError(
+            "Invalid mint (expected an SPL mint base58 address)",
+            status=400,
+        )
+    cache_key = f"freezeWatchSol:{address}:{mint}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    chk = await _frozen_check_solana(
+        address, {"kind": "spl", "mint": mint}
+    )
+    status = chk.get("status")
+    freeze_auth = chk.get("freeze_authority")
+    # Token-account detail (address + balance + state) for the
+    # watched mint — the pre-flight check returns the verdict but
+    # not the account itself.
+    account = None
+    try:
+        accts = await _sol_rpc(
+            SOL_ACCOUNTS_RPC, "getTokenAccountsByOwner",
+            [address, {"mint": mint}, {"encoding": "jsonParsed"}])
+        vals = (accts or {}).get("value") if isinstance(accts, dict) else None
+        if vals:
+            a0 = vals[0]
+            info = ((a0.get("account") or {}).get("data") or {}).get("parsed", {}).get("info") or {}
+            account = {
+                "address": a0.get("pubkey"),
+                "state": info.get("state"),
+                "balance": info.get("tokenAmount", {}).get("uiAmount"),
+                "decimals": info.get("tokenAmount", {}).get("decimals"),
+            }
+    except UpstreamError:
+        account = None
+    if status == "block":
+        frozen, verdict = True, "frozen"
+    elif status == "pass":
+        frozen, verdict = False, "not_frozen"
+    else:
+        frozen, verdict = None, "unknown"
+    sym = symbol or mint[:8] + "…"
+    if freeze_auth is None:
+        summary = (
+            f"{address} cannot be frozen for {sym} on Solana: the "
+            "mint has NO freeze authority — the issuer cannot freeze "
+            "holder token accounts."
+        )
+        verdict = "not_freezable"
+        frozen = False
+    elif account is None:
+        summary = (
+            f"{address} holds no token account for {sym} on Solana, "
+            "so there is nothing frozen — but the mint DOES have a "
+            f"freeze authority, so a future freeze is possible."
+        )
+    else:
+        summary = chk.get("detail") or ""
+    out = {
+        "family": "solana",
+        "chain": "solana",
+        "address": address,
+        "mint": mint,
+        "symbol": sym,
+        "freeze_authority": freeze_auth,
+        "token_account": account,
+        "frozen": frozen,
+        "verdict": verdict,
+        "summary": summary,
+        "read_probe": {
+            "function": "getTokenAccountsByOwner state + mint freezeAuthority",
+            "frozen": frozen,
+            "note": chk.get("detail") or "",
+        },
+        "events": {
+            "window": None,
+            "status": "not_applicable",
+            "status_note": "Solana has no freeze-event scan in this monitor — the check is the token account's current state only.",
+            "total_events_naming_address": 0,
+            "events": [],
+        },
+        "methodology": WATCH_METHODOLOGY,
+        "limits": WATCH_LIMITS,
+        "as_of": int(time.time()),
+    }
+    _cache_set(cache_key, out, ttl=CACHE_TTL)
+    return out
+
+
+async def freeze_watch_any(address, coin=None, chain=None):
+    """GET /api/walletscope/freeze/watch?address=&coin=(&chain=) —
+    cross-chain watch check. `address` may be an EVM address, a
+    Solana address, or an ENS name (resolved on Ethereum mainnet).
+    `coin` may be a stablecoin symbol (USDT, USDC, DAI, USDe, FDUSD,
+    PYUSD, TUSD, USDD), an SPL mint address (Solana only), or empty
+    (checks the two freezable majors, USDC + USDT). `chain=solana`
+    with a stablecoin symbol checks that coin's Solana mint (USDC /
+    USDT only — the other stablecoins have no canonical Solana mint
+    in this app). Raises UpstreamError(400) for bad input."""
+    family, addr, resolved_from = await _classify(address)
+    if family == "bitcoin":
+        return {
+            "address": addr,
+            "resolved_from": resolved_from,
+            "family": "bitcoin",
+            "chain": "bitcoin",
+            "checks": [],
+            "frozen_any": False,
+            "verdict": "not_applicable",
+            "summary": (
+                "Bitcoin has no issuer freeze — no address can be "
+                "frozen or blacklisted on-chain."
+            ),
+            "methodology": WATCH_METHODOLOGY,
+            "limits": WATCH_LIMITS,
+            "as_of": int(time.time()),
+        }
+    if family == "solana":
+        if chain is not None and chain != "solana":
+            raise UpstreamError(
+                "chain must be 'solana' for a Solana address", status=400)
+        chain = "solana"
+        coin_s = (coin or "").strip()
+        if not coin_s:
+            # No coin: check the two freezable majors' Solana mints.
+            mints = [("USDC", SOL_STABLE_MINTS["USDC"]),
+                     ("USDT", SOL_STABLE_MINTS["USDT"])]
+        elif coin_s.upper() in SOL_STABLE_MINTS:
+            mints = [(coin_s.upper(), SOL_STABLE_MINTS[coin_s.upper()])]
+        else:
+            # A raw SPL mint address (validated inside
+            # freeze_watch_solana); anything else is a 400 from
+            # _resolve_coin below.
+            res = await _resolve_coin(coin_s, family, chain)
+            if res is None or res.get("kind") != "spl":
+                raise UpstreamError(
+                    "Unknown coin for a Solana address — use USDC, "
+                    "USDT, or an SPL mint address", status=400)
+            mints = [(res.get("symbol") or coin_s[:8] + "…", res["mint"])]
+        checks = [await freeze_watch_solana(addr, m, s) for s, m in mints]
+        frozen_any = any(c.get("frozen") is True for c in checks)
+        return {
+            "address": addr,
+            "resolved_from": resolved_from,
+            "family": "solana",
+            "chain": "solana",
+            "checks": checks,
+            "frozen_any": frozen_any,
+            "verdict": ("frozen" if frozen_any else
+                        "not_frozen" if all(c.get("verdict") in
+                                            ("not_frozen", "not_freezable")
+                                            for c in checks)
+                        else "unknown"),
+            "summary": (
+                f"{addr} is FROZEN for "
+                + ", ".join(c["symbol"] for c in checks if c.get("frozen") is True)
+                + " on Solana." if frozen_any else
+                f"{addr} is not frozen for any checked Solana mint "
+                f"({', '.join(c['symbol'] for c in checks)})."
+            ),
+            "methodology": WATCH_METHODOLOGY,
+            "limits": WATCH_LIMITS,
+            "as_of": int(time.time()),
+        }
+    # EVM.
+    chain = chain or "ethereum"
+    if chain != "ethereum":
+        raise UpstreamError(
+            f"{chain} is not an Ethereum stablecoin chain for this "
+            "check — stablecoin symbols resolve to their "
+            "Ethereum-mainnet contracts only", status=400)
+    coin_s = (coin or "").strip()
+    if not coin_s:
+        scopes = ["usdcscope", "usdtscope"]
+    else:
+        res = await _resolve_coin(coin_s, family, chain)
+        if res is None:
+            raise UpstreamError(
+                "Unknown coin — use a stablecoin symbol (USDT, USDC, "
+                "DAI, USDe, FDUSD, PYUSD, TUSD, USDD), or leave coin "
+                "empty to check USDC + USDT", status=400)
+        if res.get("kind") == "stablecoin_tron":
+            scope = res["scope"]
+            cfg = dict(_cfg(scope))
+            cfg["_scope"] = scope
+            one = await freeze_watch(scope, addr)
+            return {
+                "address": addr,
+                "resolved_from": resolved_from,
+                "family": "evm",
+                "chain": "ethereum",
+                "checks": [one],
+                "frozen_any": False,
+                "verdict": "not_applicable",
+                "summary": one["summary"],
+                "methodology": WATCH_METHODOLOGY,
+                "limits": WATCH_LIMITS,
+                "as_of": int(time.time()),
+            }
+        if res.get("kind") != "stablecoin":
+            raise UpstreamError(
+                "Only stablecoin symbols apply to this watch check "
+                "(native coins cannot be frozen; token contracts use "
+                "the per-scope /freeze/watch endpoint)", status=400)
+        scopes = [res["scope"]]
+    checks = [await freeze_watch(s, addr) for s in scopes]
+    frozen_any = any(c.get("frozen") is True for c in checks)
+    if frozen_any:
+        verdict = "frozen"
+        summary = (
+            f"{addr} is FROZEN for "
+            + ", ".join(c["symbol"] for c in checks if c.get("frozen") is True)
+            + "."
+        )
+    elif all(c.get("verdict") == "not_freezable" for c in checks):
+        verdict = "not_freezable"
+        summary = (
+            f"{addr} cannot be frozen for "
+            + ", ".join(c["symbol"] for c in checks)
+            + " — no freeze function."
+        )
+    elif all(c.get("verdict") == "not_frozen" for c in checks):
+        verdict = "not_frozen"
+        summary = (
+            f"{addr} is not frozen for "
+            + ", ".join(c["symbol"] for c in checks) + "."
+        )
+    else:
+        verdict = "unknown"
+        summary = (
+            f"Frozen status for {addr} could not be fully verified "
+            f"for {', '.join(c['symbol'] for c in checks)} — see the "
+            "per-coin checks."
+        )
+    return {
+        "address": addr,
+        "resolved_from": resolved_from,
+        "family": "evm",
+        "chain": "ethereum",
+        "checks": checks,
+        "frozen_any": frozen_any,
+        "verdict": verdict,
+        "summary": summary,
+        "methodology": WATCH_METHODOLOGY,
+        "limits": WATCH_LIMITS,
+        "as_of": int(time.time()),
+    }
