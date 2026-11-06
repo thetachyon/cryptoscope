@@ -16,6 +16,11 @@ WALLET_URL = "https://walletscope.vercel.app"
 NETPILL = "TUSD · Ethereum"
 SIBLINGS = [
     {
+        "chain": None,
+        "name": "Cryptoscope",
+        "url": "https://overview.vercel.app"
+    },
+    {
         "chain": "ethereum",
         "name": "EthScope",
         "url": "https://ethscope.vercel.app"
