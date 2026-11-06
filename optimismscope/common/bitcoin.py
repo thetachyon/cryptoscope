@@ -553,6 +553,32 @@ async def btc_address_txs(addr, after=None):
     }
 
 
+async def btc_counterparties(addr):
+    """Counterparties from an address's most recent transactions.
+
+    One mempool.space page (25 txs): inputs' prevout addresses plus
+    outputs' addresses, excluding the address itself. Used by the
+    risk funder walk (common/risk.py) — the address page loads the
+    same 25 transactions.
+    """
+    if not is_bitcoin_address(addr or ""):
+        raise UpstreamError("Invalid Bitcoin address", status=400)
+    d = await _api(f"/address/{addr}/txs")
+    if not isinstance(d, list):
+        raise UpstreamError("Address not found", status=404)
+    cps = set()
+    for t in d:
+        for vin in t.get("vin") or []:
+            a = (vin.get("prevout") or {}).get("scriptpubkey_address")
+            if a and a != addr:
+                cps.add(a)
+        for vout in t.get("vout") or []:
+            a = vout.get("scriptpubkey_address")
+            if a and a != addr:
+                cps.add(a)
+    return {"counterparties": sorted(cps), "txs_scanned": len(d)}
+
+
 async def btc_address_utxo(addr):
     """UTXOs for an address. mempool.space refuses very large sets with a
     plain-text error — surfaced as an honest note."""
@@ -685,9 +711,12 @@ BTC_DOCS = [
     {"method": "GET", "suffix": "/block/{height|hash}", "description": "Block detail: height, hash, timestamp, tx count, size/weight, difficulty, miner (pool), fees collected. 'latest' also works.", "params": [], "example": "/api/bitscope/block/latest"},
     {"method": "GET", "suffix": "/block/{height|hash}/txs", "description": "Transactions in a block, 25 per page (?start=<index>).", "params": ["start"], "example": "/api/bitscope/block/latest/txs"},
     {"method": "GET", "suffix": "/tx/{txid}", "description": "Transaction detail: fee + fee rate (sat/vB), inputs with prevout addresses/values, outputs, totals, confirmations, RBF status when unconfirmed.", "params": [], "example": "/api/bitscope/tx/642ea37c2570cdfba163cce0cce2e98f24022ebc7451e4c31c3145dd0f062e79"},
+    {"method": "GET", "suffix": "/tx/{txid}/explain", "description": "Plain-English explanation of a transaction: one sentence ('What happened') plus a per-output flow summary (address + amount). Coinbase transactions are reported as miner rewards. Change outputs cannot be identified from chain data alone, so every output is listed.", "params": [], "example": "/api/bitscope/tx/642ea37c2570cdfba163cce0cce2e98f24022ebc7451e4c31c3145dd0f062e79/explain"},
     {"method": "GET", "suffix": "/address/{addr}", "description": "Address overview: confirmed + unconfirmed balance, tx count.", "params": [], "example": "/api/bitscope/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"},
     {"method": "GET", "suffix": "/address/{addr}/txs", "description": "Address transactions, newest first (50/page; ?after=<last txid> for older pages).", "params": ["after"], "example": "/api/bitscope/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/txs"},
     {"method": "GET", "suffix": "/address/{addr}/utxo", "description": "UTXOs for an address (first 100 shown). Very large UTXO sets are refused by the upstream and reported as a note.", "params": [], "example": "/api/bitscope/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/utxo"},
+    {"method": "GET", "suffix": "/address/{addr}/risk", "description": "Address risk score 0-100 (low / elevated / high / critical) with human-readable reasons: direct OFAC SDN match (100/critical), N-hop proximity to a sanctioned address via a bounded funder walk over the address's 25 most recent transactions (3 hops max), and sanctioned-mixer interaction. Keyless; label set vendored from the OFAC SDN list (2026-11-05, 514 addresses, 260 Bitcoin). Heuristic screening signal, not a legal determination.", "params": [], "example": "/api/bitscope/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/risk"},
+    {"method": "GET", "suffix": "/address/{addr}/crosschain", "description": "Cross-chain identity: Wormhole bridge transfers involving the address (Wormholescan keyless API; Wormhole only — Wormhole does not bridge native Bitcoin, so transfers are expected to be absent unless the address appears as a bridge destination). EVM presence is not applicable — a Bitcoin address is a different format, and linkage to an EVM/Solana address is shown ONLY when an actual bridge transfer is observed; there is no keyless way to prove two different-format addresses belong to the same person.", "params": [], "example": "/api/bitscope/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/crosschain"},
     {"method": "GET", "suffix": "/mempool", "description": "Mempool: unconfirmed tx count + size, fee-rate bands, recent unconfirmed transactions, recommended fee rates.", "params": [], "example": "/api/bitscope/mempool"},
     {"method": "GET", "suffix": "/search", "description": "Universal search: block height, transaction id, block hash, or Bitcoin address (legacy/bech32/taproot).", "params": ["q"], "example": "/api/bitscope/search?q=1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"},
 ]
