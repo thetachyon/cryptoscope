@@ -103,6 +103,16 @@ from common.stablecoin import (
     sc_supply,
     sc_transfers,
 )
+from common.overview import (
+    ov_bridges,
+    ov_chains,
+    ov_docs_payload,
+    ov_global,
+    ov_movers,
+    ov_overview,
+    ov_search,
+    ov_stablecoins,
+)
 
 
 def _add_handlers(app: FastAPI) -> None:
@@ -557,6 +567,57 @@ def create_stablecoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI
     @app.get(api + "/search")
     async def api_search(q: str = ""):
         return await sc_search(scope, q)
+
+    # Static frontend, mounted last so /api/* routes win.
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+    return app
+
+
+def create_overview_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
+    """Cryptoscope overview app (overview). Cross-chain analytics
+    landing page: global market, per-chain comparison, stablecoin peg
+    table, Wormhole bridge flows, top movers, and search routing to
+    the right Scope. `scope` is the URL/API prefix (e.g. "overview")."""
+    api = f"/api/{scope}"
+    app = FastAPI(title=title, version="2.0.0")
+    _add_handlers(app)
+
+    @app.get(api + "/overview")
+    async def api_overview():
+        return await ov_overview()
+
+    @app.get(api + "/stats")
+    async def api_stats():
+        return await ov_global()
+
+    @app.get(api + "/chains")
+    async def api_chains():
+        return await ov_chains()
+
+    @app.get(api + "/stablecoins")
+    async def api_stablecoins():
+        return await ov_stablecoins()
+
+    @app.get(api + "/bridges")
+    async def api_bridges():
+        return await ov_bridges()
+
+    @app.get(api + "/movers")
+    async def api_movers():
+        return await ov_movers()
+
+    @app.get(api + "/docs")
+    async def api_docs():
+        return ov_docs_payload(api)
+
+    @app.get(api + "/search")
+    async def api_search(q: str = ""):
+        try:
+            return ov_search(q)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        except LookupError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
 
     # Static frontend, mounted last so /api/* routes win.
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

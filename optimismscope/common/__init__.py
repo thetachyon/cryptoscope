@@ -5,7 +5,8 @@ clients (`clients`), response formatting (`formatting`), USD pricing
 (`pricing`), the Keccak/ABI codec (`abi`), the chain-parameterized
 explorer core (`explorer`), cross-chain wallet aggregation (`wallet`),
 Solana data (`solana`, `solana_explorer`), Bitcoin data (`bitcoin`),
-and the thin-app factories (`factory`).
+stablecoin dashboards (`stablecoin`), the cross-chain overview
+(`overview`), and the thin-app factories (`factory`).
 
 Vendored into each app (`<app>/common/`) by `scripts/sync-common.py`.
 The vendored copies are GENERATED — never hand-edit them; edit here.

@@ -11,6 +11,11 @@ window.SCOPE_CONFIG = {
   "netpill": "Multi-chain wallet",
   "siblings": [
     {
+      "chain": null,
+      "name": "Cryptoscope",
+      "url": "https://overview.vercel.app"
+    },
+    {
       "chain": "ethereum",
       "name": "EthScope",
       "url": "https://ethscope.vercel.app"
