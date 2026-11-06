@@ -505,7 +505,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const badge = document.getElementById("brand-badge");
   if (badge) badge.textContent = CFG.brandLetter || "S";
   const bname = document.getElementById("brand-name");
-  if (bname) bname.innerHTML = esc(TITLE.replace(/Scope$/, "")) + '<span class="brand-accent">Scope</span>';
+  if (bname) { const _bm = TITLE.match(/^(.*)(scope)$/i); bname.innerHTML = _bm ? esc(_bm[1]) + '<span class="brand-accent">' + esc(_bm[2]) + '</span>' : esc(TITLE) + '<span class="brand-accent">Scope</span>'; }
   const fbrand = document.getElementById("footer-brand");
   if (fbrand) fbrand.textContent = TITLE;
   const fav = document.querySelector('link[rel="icon"]');

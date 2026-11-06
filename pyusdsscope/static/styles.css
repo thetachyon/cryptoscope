@@ -33,7 +33,7 @@ a:hover{text-decoration:underline}
 .suggest .stype.block{background:#5b6b7c}.suggest .stype.token{background:#7c4dc4}.suggest .stype.transaction{background:#0d9d58}
 .navlinks{margin-left:auto;display:flex;align-items:center;gap:14px}
 .navlinks a{font-weight:600;color:var(--ink)}
-.netpill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--green);background:#e6f6ec;border:1px solid #bfe6cd;border-radius:999px;padding:4px 10px}
+.netpill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--green);background:#e6f6ec;border:1px solid #bfe6cd;border-radius:999px;padding:4px 10px;white-space:nowrap;flex-shrink:0}
 .netpill .dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
@@ -57,7 +57,10 @@ a:hover{text-decoration:underline}
 .stat .sub{font-size:12px;color:var(--muted);margin-top:2px}
 
 .cols2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-@media(max-width:860px){.cols2{grid-template-columns:1fr}.topbar-inner{flex-wrap:wrap;height:auto;padding:10px 16px}.search{order:3;flex-basis:100%;max-width:none}}
+@media(max-width:860px){.cols2{grid-template-columns:1fr}.topbar-inner{flex-wrap:wrap;height:auto;padding:10px 16px}.search{order:3;flex-basis:100%;max-width:none}.navlinks{flex-wrap:wrap}.netpill{font-size:11px;padding:3px 8px}}
+/* phones: the pill keeps its dot (status) but drops its text so the nav
+   row fits on one line instead of wrapping to three */
+@media(max-width:560px){#netpill-text{display:none}.netpill{padding:4px 6px;gap:0}}
 
 /* tables */
 table.tbl{width:100%;border-collapse:collapse;font-size:13px}
@@ -66,6 +69,15 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl tr:last-child td{border-bottom:0}
 .tbl tr:hover td{background:#f8fbfe}
 .tbl .r{text-align:right}
+/* home half-width tables: fixed layout + clipped cells so long hashes and
+   contract names can't push columns (e.g. Value) off the card */
+.tbl-home{table-layout:fixed}
+.tbl-home td{overflow:hidden}
+.tbl-wrap{overflow-x:auto}
+.addr-cell{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-width:0}
+.addr-cell>a.mono{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.addr-cell .badge,.addr-cell .label-pill{flex-shrink:0}
+.cell-clip{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* detail grid */
 .detail{display:grid;grid-template-columns:200px 1fr;border-bottom:1px solid var(--line);font-size:13px}
