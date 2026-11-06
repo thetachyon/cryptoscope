@@ -21,6 +21,18 @@ function scopeUrl(chain) {
 function walletHref(addr) {
   return WALLET_ONLY ? "#/wallet/" + addr : WALLET_URL + "/#/wallet/" + addr;
 }
+function preflightHref(addr) {
+  return WALLET_ONLY ? "#/preflight/" + addr : WALLET_URL + "/#/preflight/" + addr;
+}
+function allowanceHref(owner) {
+  return WALLET_ONLY ? "#/allowance?owner=" + encodeURIComponent(owner || "") : WALLET_URL + "/#/allowance?owner=" + encodeURIComponent(owner || "");
+}
+function trackHref(chain, hash) {
+  return WALLET_ONLY ? "#/track/" + chain + "/" + hash : WALLET_URL + "/#/track/" + chain + "/" + hash;
+}
+function receiptHref(chain, hash) {
+  return WALLET_ONLY ? "#/receipt/" + chain + "/" + hash : WALLET_URL + "/#/receipt/" + chain + "/" + hash;
+}
 
 /* ---------------- chain state ---------------- */
 /* Single-chain apps fix CHAIN in /config.js — there is no chain switcher
@@ -854,6 +866,7 @@ async function txPage(h, retried) {
       ${detailRow("Transaction Hash", `<span class="mono">${esc(t.hash)}</span> ${copyBtn(t.hash)}`)}
       ${detailRow("Status", statusBadge(t.status))}
       ${detailRow("Block", t.block != null ? `${linkBlock(t.block)} <span class="muted">(${num(t.confirmations)} confirmations)</span>` : '<span class="badge info">Pending</span>')}
+      ${WALLET_URL ? detailRow("Settlement", `<a href="${esc(trackHref(CHAIN, t.hash))}">Track settlement &amp; receipt →</a> <span class="muted">timeline, confirmations, bridge leg</span>`) : ""}
       ${detailRow("Timestamp", `${esc(t.age || "")} <span class="muted">(${esc(utc(t.timestamp))})</span>`)}
       ${detailRow("From", `${linkAddr(t.from, true)} ${copyBtn(t.from ? t.from.hash : "")}`)}
       ${detailRow("To", toCell)}
@@ -1111,7 +1124,7 @@ async function addressPage(h) {
     : "";
   const tc = a._txcount;
   render(`
-    <div class="pagehead"><h2>Address</h2> <a class="btn" href="${walletHref(a.hash)}" title="Cross-chain portfolio: balances, holdings, history, PnL, NFTs, activity">💼 Wallet Dashboard</a></div>
+    <div class="pagehead"><h2>Address</h2> <a class="btn" href="${walletHref(a.hash)}" title="Cross-chain portfolio: balances, holdings, history, PnL, NFTs, activity">💼 Wallet Dashboard</a> <a class="btn" href="${preflightHref(a.hash)}" title="Pre-flight compliance check before sending to this address">🛡️ Pre-flight check</a></div>
     <div class="card">
       <div style="padding:14px 16px;border-bottom:1px solid var(--line)">
         <div class="addr-title"><span class="mono" style="font-size:15px">${esc(a.hash)}</span> ${copyBtn(a.hash)}${labelPill(a.hash)}</div>
@@ -1622,7 +1635,7 @@ function docsGroup(path) {
   if (p.startsWith("/block")) return "Blocks";
   if (p.startsWith("/tx")) return "Transactions";
   if (p.startsWith("/address")) return "Addresses";
-  if (p.startsWith("/wallet")) return "Wallet";
+  if (p.startsWith("/wallet") || p === "/recurring") return "Wallet";
   if (p.startsWith("/token")) return "Tokens";
   if (p.startsWith("/contract")) return "Contracts";
   if (p.startsWith("/charts")) return "Charts";
@@ -1696,18 +1709,1294 @@ function walletLanding() {
   render(`
     <div class="pagehead"><h2>💼 Wallet Dashboard</h2></div>
     <div class="card"><div style="padding:18px 16px">
-      <p class="muted" style="margin-top:0">One address, five chains — native balances, token holdings with USD values, portfolio history, estimated realized PnL, NFTs and activity. Solana included (SOL + SPL holdings). No API keys; data from Blockscout, the public Solana RPC, DexScreener + CoinGecko's keyless tier.</p>
+      <p class="muted" style="margin-top:0">One address, five chains — native balances, token holdings with USD values, portfolio history, estimated realized PnL, NFTs, activity, and a finance-grade accounting export (USD at time of transaction + FIFO cost basis). Solana included (SOL + SPL holdings). No API keys; data from Blockscout, the public Solana RPC, DexScreener + CoinGecko's keyless tier.</p>
       <form id="wallet-form" class="search" autocomplete="off" style="max-width:640px">
         <input id="wallet-input" type="text" placeholder="Address (0x… / Solana) or ENS name (vitalik.eth)">
         <button type="submit" title="Open wallet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
       </form>
       <p style="margin:14px 0 0">Try: <a href="#/wallet/vitalik.eth">vitalik.eth</a> · <a href="#/wallet/vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg">a Solana wallet</a></p>
+      <p style="margin:10px 0 0">Moving funds? Compare swap &amp; bridge routes first: <a href="#/quote">Quote →</a> · Sending to a new recipient? <a href="#/preflight">Pre-flight check →</a> · Is an address frozen? <a href="#/freeze-watch">Freeze watch →</a> · Getting paid? <a href="#/invoices">Reconcile invoices →</a> · <a href="#/watchlist">Receipt watchlist →</a> · Paying on a schedule? <a href="#/recurring">Recurring payments →</a> · Will a swap need an approval? <a href="#/allowance">Allowance check →</a></p>
     </div></div>`);
   $("#wallet-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const v = $("#wallet-input").value.trim();
     if (v) location.hash = "#/wallet/" + encodeURIComponent(v);
   });
+}
+
+/* ---------------- quote & route comparison (walletscope only) ---------------- */
+/* Backend: GET /api/walletscope/quote/tokens (token list) and
+   GET /api/walletscope/quote?from_chain=&from_token=&to_chain=&to_token=&amount=
+   (&from_address= optional). All figures are estimates: the quote is
+   cached 30s server-side and goes stale fast. */
+let quoteRun = 0;
+let QUOTE_TOKENS = null;
+
+async function loadQuoteTokens() {
+  if (QUOTE_TOKENS) return QUOTE_TOKENS;
+  QUOTE_TOKENS = await getGlobal("/quote/tokens");
+  return QUOTE_TOKENS;
+}
+
+function quoteChainOptions(selected) {
+  const chains = (QUOTE_TOKENS && QUOTE_TOKENS.chains) || {};
+  return Object.entries(chains).map(([id, c]) =>
+    `<option value="${esc(id)}"${id === selected ? " selected" : ""}>${esc(c.label)}</option>`).join("");
+}
+
+function quoteTokenOptions(chainId, selected) {
+  const toks = ((QUOTE_TOKENS && QUOTE_TOKENS.chains || {})[chainId] || {}).tokens || [];
+  return toks.map((t) =>
+    `<option value="${esc(t.symbol)}"${t.symbol === selected ? " selected" : ""}>${esc(t.symbol)}${t.native ? " (native)" : ""}</option>`).join("");
+}
+
+/* ---------------- peg guard at quote time (walletscope only) ---------------- */
+/* Backend: GET /api/walletscope/quote/guard?coin=&chain=&amount=
+   (&slippage_pct= optional, the best route's rate vs spot). One guard
+   component, two modes: peg mode for the 8 stablecoins (live deviation
+   + the phase-1 depeg early-warning score, reused) and volatility mode
+   for everything else (CoinGecko 24h/7d moves + the quote's own
+   slippage). Verdicts ok / warn / block / unknown, thresholds stated
+   in the response and shown under the banner. The guard is fetched
+   after the quote renders, so a slow guard never blocks the routes. */
+const GUARD_STABLECOINS = ["USDT", "USDC", "DAI", "USDe", "FDUSD", "PYUSD", "TUSD", "USDD"];
+
+function quoteGuardBanner(g, role) {
+  const v = String(g.verdict || "unknown").toLowerCase();
+  const badgeCls = { ok: "ok", warn: "warn", block: "fail", unknown: "grey" }[v] || "grey";
+  const vLabel = {
+    ok: "OK — safe to quote",
+    warn: "WARN — review before paying",
+    block: "BLOCK — do not pay in this coin",
+    unknown: "UNKNOWN — could not be verified",
+  }[v] || v;
+  const fmtBps = (b) => (b == null ? "—" : (Number(b) >= 0 ? "+" : "") + Number(b).toFixed(2) + " bps");
+  const fmtPct = (p) => (p == null ? "—" : (Number(p) >= 0 ? "+" : "") + Number(p).toFixed(2) + "%");
+  const lines = [];
+  if (g.mode === "peg" && g.peg) {
+    lines.push(`Price <b>${g.peg.price_usd != null ? "$" + Number(g.peg.price_usd).toFixed(4) : "—"}</b> (${fmtBps(g.peg.deviation_bps)} from $1.00 · ${esc(g.peg.peg_health || "—")})${g.peg.price_source ? ` · source: ${esc(g.peg.price_source)}` : ""}`);
+    const ds = g.depeg_score || {};
+    if (ds.score != null) {
+      const subs = Object.entries(ds.sub_scores || {}).map(([k, s]) => `${esc(k.replace(/_/g, " "))}: ${s != null ? Number(s).toFixed(1) : "—"}`).join(" · ");
+      lines.push(`Depeg-risk score <b>${Number(ds.score).toFixed(1)}</b> / 100 (${esc(ds.band || "—")})${subs ? ` — ${subs}` : ""}${ds.inputs_unknown && ds.inputs_unknown.length ? ` · unknown inputs (weight redistributed): ${esc(ds.inputs_unknown.join(", "))}` : ""}`);
+    } else {
+      lines.push(`Depeg-risk score unavailable${ds.error ? ` (${esc(ds.error)})` : ""} — verdict rests on the live deviation alone.`);
+    }
+  } else if (g.mode === "volatility" && g.volatility) {
+    lines.push(`24h change <b>${fmtPct(g.volatility.change_24h_pct)}</b> · 7d change <b>${fmtPct(g.volatility.change_7d_pct)}</b>${g.volatility.window_days != null ? ` (over ${esc(String(g.volatility.window_days))} daily closes)` : ""} · CoinGecko`);
+    lines.push(g.slippage && g.slippage.slippage_pct != null
+      ? `Quote slippage (best route vs spot): <b>${fmtPct(g.slippage.slippage_pct)}</b>`
+      : `Quote slippage: not supplied — the guard ran without the quote's own price-impact figure.`);
+  }
+  (g.verdict_reasons || []).forEach((r) => lines.push(esc(r)));
+  const alt = g.alternative;
+  let altHtml = "";
+  if (alt) {
+    const sib = SIBLINGS.find((s) => s.name === alt.symbol + " Scope");
+    altHtml = `<div style="margin-top:8px">Nearest stable alternative: <b>${esc(alt.symbol)}</b> — depeg-risk score ${alt.score != null ? Number(alt.score).toFixed(1) : "—"} (${esc(alt.band || "—")}), price ${alt.price_usd != null ? "$" + Number(alt.price_usd).toFixed(4) : "—"} (${fmtBps(alt.deviation_bps)})${sib ? ` · <a href="${esc(sib.url)}" target="_blank" rel="noopener">${esc(alt.symbol)} Scope →</a>` : ""}<br><span class="muted" style="font-size:12px">${esc(alt.note || "")}</span></div>`;
+  } else if (g.alternative_note) {
+    altHtml = `<div class="muted" style="margin-top:8px;font-size:12px">${esc(g.alternative_note)}</div>`;
+  }
+  const th = g.thresholds || {};
+  return `<div class="card" style="border-left:4px solid ${v === "ok" ? "var(--green)" : v === "warn" ? "var(--amber)" : v === "block" ? "var(--red)" : "var(--muted)"}">
+    <div class="card-head">🛡️ Peg guard — ${esc(role)} ${esc(g.symbol)}${g.chain_label ? ` (${esc(g.chain_label)})` : ""}${g.amount ? ` · ${esc(g.amount)} ${esc(g.symbol)}` : ""} <span class="spacer"></span><span class="badge ${badgeCls}">${esc(vLabel)}</span></div>
+    <div style="padding:12px 16px">
+      ${lines.map((l) => `<div style="margin:3px 0">${l}</div>`).join("")}
+      ${altHtml}
+      <div class="muted" style="margin-top:8px;font-size:12px">Thresholds — block: ${esc(th.block || "—")} · warn: ${esc(th.warn || "—")} · ok: ${esc(th.ok || "—")}</div>
+      <div class="muted" style="margin-top:4px;font-size:12px">Guard is a screening signal at quote time, not investment advice. Peg score: Par v0 provisional weights (UNCONFIRMED).</div>
+    </div>
+  </div>`;
+}
+
+async function loadQuoteGuards(fc, ft, tc, tt, amount, slippage) {
+  const el = document.getElementById("quote-guard");
+  if (!el) return;
+  // One guard per distinct coin: stablecoins dedupe by symbol (the peg
+  // is chain-independent), everything else by symbol + chain.
+  const legs = [
+    { coin: ft, chain: fc, role: "You pay" },
+    { coin: tt, chain: tc, role: "You receive" },
+  ];
+  const seen = new Set();
+  const uniq = legs.filter((l) => {
+    const key = GUARD_STABLECOINS.includes(String(l.coin).toUpperCase())
+      ? "stable:" + String(l.coin).toUpperCase()
+      : "vol:" + String(l.coin).toUpperCase() + "|" + l.chain;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted"><span class="spinner"></span> Checking peg / volatility guard…</div></div>`;
+  const results = await Promise.all(uniq.map(async (l) => {
+    try {
+      const qs = new URLSearchParams({ coin: l.coin, chain: l.chain, amount });
+      if (slippage != null) qs.set("slippage_pct", String(slippage));
+      return { leg: l, g: await fetchJson(API + "/quote/guard?" + qs.toString(), null, 90000) };
+    } catch (e) {
+      return { leg: l, err: e.message };
+    }
+  }));
+  const ok = results.filter((r) => r.g);
+  const failed = results.filter((r) => r.err);
+  el.innerHTML = ok.map((r) => quoteGuardBanner(r.g, r.leg.role)).join("")
+    + (failed.length ? `<div class="card"><div style="padding:12px 16px" class="muted">Guard unavailable for ${failed.map((r) => esc(r.leg.coin)).join(", ")}: ${esc(failed[0].err)} — quote shown without guard.</div></div>` : "");
+}
+
+async function quotePage() {
+  clearPoll();
+  const run = ++quoteRun;
+  const alive = () => run === quoteRun && document.getElementById("quote-root");
+  document.title = `Quote — ${TITLE}`;
+  render(`
+    <div id="quote-root">
+    <div class="pagehead"><h2>🔀 Quote &amp; Route Comparison</h2><span class="sample-badge">ESTIMATE</span></div>
+    <div class="card"><div style="padding:16px">
+      <p class="muted" style="margin-top:0">Ranked swap &amp; bridge routes for one transfer — expected amount out, all-in fees, time to finality, and minimum received. Sources: LI.FI (EVM chains) plus a computed Circle CCTP estimate for USDC → USDC. Quotes are cached 30 seconds and go stale fast; nothing here creates or signs a transaction.</p>
+      <div id="quote-form-wrap"><div class="spinner">Loading token list…</div></div>
+    </div></div>
+    <div id="quote-guard"></div>
+    <div id="quote-results"></div>
+    <div id="quote-allowance"></div>
+    </div>`);
+  let tok;
+  try { tok = await loadQuoteTokens(); }
+  catch (e) {
+    if (!alive()) return;
+    $("#quote-form-wrap").innerHTML = `<div class="empty">Token list unavailable: ${esc(e.message)}</div>`;
+    return;
+  }
+  if (!alive()) return;
+  const chainIds = Object.keys(tok.chains || {});
+  const defFrom = chainIds.includes("ethereum") ? "ethereum" : chainIds[0];
+  const defTo = chainIds.includes("optimism") ? "optimism" : chainIds[1] || chainIds[0];
+  $("#quote-form-wrap").innerHTML = `
+    <form id="quote-form" autocomplete="off">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+        <label class="field">Amount<input type="text" id="q-amount" value="100" inputmode="decimal"></label>
+        <label class="field">From chain<select id="q-from-chain">${quoteChainOptions(defFrom)}</select></label>
+        <label class="field">From token<select id="q-from-token">${quoteTokenOptions(defFrom, "USDC")}</select></label>
+        <label class="field">To chain<select id="q-to-chain">${quoteChainOptions(defTo)}</select></label>
+        <label class="field">To token<select id="q-to-token">${quoteTokenOptions(defTo, "USDC")}</select></label>
+        <label class="field">Your address (optional)<input type="text" id="q-from-addr" placeholder="0x… (for the quote only)"></label>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+        <button class="btn" type="submit">Get quote</button>
+        <button class="btn" type="button" id="q-swap-dir" title="Swap direction">⇄ Swap direction</button>
+        <span class="muted" style="font-size:12px">Solana / Bitcoin: no keyless quote source — expect zero routes.</span>
+      </div>
+    </form>`;
+  const refill = (chainSel, tokenSel) => {
+    tokenSel.innerHTML = quoteTokenOptions(chainSel.value, tokenSel.value);
+  };
+  $("#q-from-chain").addEventListener("change", () => refill($("#q-from-chain"), $("#q-from-token")));
+  $("#q-to-chain").addEventListener("change", () => refill($("#q-to-chain"), $("#q-to-token")));
+  $("#q-swap-dir").addEventListener("click", () => {
+    const fc = $("#q-from-chain"), ft = $("#q-from-token"), tc = $("#q-to-chain"), tt = $("#q-to-token");
+    [fc.value, tc.value] = [tc.value, fc.value];
+    refill(fc, ft); refill(tc, tt);
+    // Keep the token the user had if it exists on the new chain, else first.
+    const pick = (sel, want) => { const toks = ((QUOTE_TOKENS.chains || {})[sel.value] || {}).tokens || []; sel.value = toks.some((t) => t.symbol === want) ? want : (toks[0] || {}).symbol; };
+    const oldFrom = ft.value, oldTo = tt.value;
+    pick(ft, oldTo); pick(tt, oldFrom);
+  });
+  $("#quote-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const amount = $("#q-amount").value.trim();
+    const fc = $("#q-from-chain").value, ft = $("#q-from-token").value;
+    const tc = $("#q-to-chain").value, tt = $("#q-to-token").value;
+    const addr = $("#q-from-addr").value.trim();
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      $("#quote-results").innerHTML = `<div class="card"><div class="empty">Enter an amount greater than 0.</div></div>`;
+      return;
+    }
+    $("#quote-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Fetching routes…</div></div></div>`;
+    let d;
+    try {
+      const qs = new URLSearchParams({ from_chain: fc, from_token: ft, to_chain: tc, to_token: tt, amount });
+      if (addr) qs.set("from_address", addr);
+      d = await fetchJson(API + "/quote?" + qs.toString(), null, 30000);
+    } catch (err) {
+      if (!alive()) return;
+      $("#quote-results").innerHTML = `<div class="card"><div class="empty">Quote failed: ${esc(err.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    const srcLine = Object.entries(d.sources || {}).map(([k, v]) =>
+      `<span class="badge ${v.status === "ok" ? "ok" : "grey"}">${esc(k)}: ${esc(v.status)}${v.routes != null ? ` (${v.routes})` : ""}${v.detail ? ` — ${esc(v.detail)}` : ""}</span>`).join(" ");
+    const rows = (d.routes || []).map((r) => `
+      <tr>
+        <td><b>#${r.rank}</b></td>
+        <td>${esc(r.source)}<br><span class="muted">${esc(r.via || "")}</span><br><span class="badge grey">${esc(r.kind || "")}</span></td>
+        <td><b>${esc(ethFmt(r.amount_out))} ${esc(tt)}</b><br><span class="muted">${r.amount_out_usd != null ? usd(r.amount_out_usd) : "—"}</span></td>
+        <td>${esc(ethFmt(r.amount_out_min))} ${esc(tt)}</td>
+        <td>Gas ${usd(r.fees && r.fees.gas_usd)}<br>Output fee ${usd(r.fees && r.fees.output_fee_usd)}<br><span class="muted" style="font-size:11px">${esc((r.fees && r.fees.note) || "")}</span></td>
+        <td><b>${r.net_usd != null ? usd(r.net_usd) : "—"}</b></td>
+        <td>${esc(r.time_label || "—")}</td>
+        <td>${r.vs_spot_pct != null ? pctHtml(r.vs_spot_pct) : '<span class="muted">—</span>'}</td>
+      </tr>
+      <tr><td></td><td colspan="7" class="muted" style="font-size:12px">${(r.steps || []).map((s) => esc(s)).join(" → ")}</td></tr>`).join("");
+    $("#quote-results").innerHTML = `
+      <div class="card"><div class="card-head">${esc(amount)} ${esc(ft)} (${esc((tok.chains[fc] || {}).label || fc)}) → ${esc(tt)} (${esc((tok.chains[tc] || {}).label || tc)}) <span class="spacer"></span><span class="muted" style="font-weight:400;font-size:12px">Quoted ${esc(d.quoted_at || "")} · cached ${esc(String(d.cache_ttl_seconds || 30))}s</span></div>
+      <div style="padding:12px 16px">${srcLine}</div>
+      ${(d.routes || []).length ? `
+      <div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>#</th><th>Route</th><th>Amount out (est.)</th><th>Min. received</th><th>Fees (est.)</th><th>Net USD</th><th>Time</th><th>vs spot</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>` : `<div style="padding:16px"><div class="empty">No routes returned for this pair.</div></div>`}
+      ${(d.notes || []).length ? `<div class="notice">${d.notes.map((n) => esc(n)).join("<br>")}</div>` : ""}
+      <div style="padding:0 16px 14px" class="muted"><span style="font-size:12px">${esc(d.disclaimer || "")}</span></div>
+      </div>`;
+    // Peg / volatility guard (P3): runs after the routes render, so a
+    // slow guard never blocks the quote. Best route's rate-vs-spot is
+    // the slippage input for volatility-mode guards.
+    const best = (d.routes || [])[0];
+    loadQuoteGuards(fc, ft, tc, tt, amount, best ? best.vs_spot_pct : null);
+    // Allowance badges (P4): one live allowance read per distinct
+    // route spender, never blocking the quote.
+    loadQuoteAllowances(fc, ft, amount, addr, d.routes || []);
+  });
+  // Auto-run the default quote (100 USDC Ethereum → USDC Optimism).
+  $("#quote-form").dispatchEvent(new Event("submit", { cancelable: true }));
+}
+
+/* ---------------- allowance & approval checker (walletscope only, P4) ---------------- */
+/* Backend: GET /api/walletscope/allowance?owner=&token=&spender=&chain=
+   (&amount= optional). Read-only: the token allowance the spender
+   currently has, the spender's identity, whether an approval tx is
+   required for the amount, and the exact approval that would be
+   needed. Nothing here builds, signs, or sends a transaction — the
+   user approves in their own wallet. EVM: any ERC-20 (contract
+   address or a symbol from the quote token list). Solana: SPL token
+   accounts — the delegate + delegatedAmount for the mint. */
+let allowanceRun = 0;
+
+function allowanceBadge(d) {
+  const st = String(d.status || "unknown").toLowerCase();
+  if (st === "approved") return '<span class="badge ok">✅ Approved</span>';
+  if (st === "approval_needed") return '<span class="badge fail">⚠️ Approval needed</span>';
+  if (st === "not_checked") return '<span class="badge grey">No amount given</span>';
+  return '<span class="badge grey">Unknown</span>';
+}
+
+function allowanceResultHtml(d) {
+  const tok = d.token || {};
+  const sp = d.spender || {};
+  const lab = labelFor(sp.address, d.chain);
+  const tokLabel = tok.address ? `${esc(tok.symbol || tok.address)}${tok.name && tok.name !== tok.symbol ? ` (${esc(tok.name)})` : ""}` : esc(tok.symbol || "—");
+  const allowTxt = d.allowance != null
+    ? `<b>${esc(d.allowance)} ${esc(tok.symbol || "")}</b> <span class="muted">(${esc(d.allowance_raw || "")} raw units${d.allowance_is_unlimited ? " · UNLIMITED approval" : ""})</span>`
+    : `<b>${esc(d.allowance_raw || "—")}</b> <span class="muted">raw units (decimals unknown — see note)</span>`;
+  const balTxt = d.owner_balance != null
+    ? `${esc(d.owner_balance)} ${esc(tok.symbol || "")}`
+    : (d.owner_balance_raw != null ? `${esc(d.owner_balance_raw)} raw units` : "—");
+  const ap = d.approval || {};
+  const approvalBox = ap.required === true
+    ? `<div class="notice" style="margin-top:10px"><b>Approval needed before this transfer can execute.</b><br>Exact approval (recommended): <span class="mono">approve(${esc(ap.spender || "")}, ${esc(ap.amount_raw || "")})</span> — ${esc(ap.amount || "")} ${esc(tok.symbol || "")} to ${esc(sp.name || sp.address || "")}.<br><span class="muted" style="font-size:12.5px">${esc(ap.exact_note || "")}</span><br><span class="muted" style="font-size:12.5px">${esc((ap.unlimited && ap.unlimited.note) || "")}</span></div>`
+    : ap.required === false
+      ? `<div class="notice" style="margin-top:10px"><b>No approval needed</b> — the current allowance covers the amount${d.allowance_is_unlimited ? " (it is an unlimited approval)" : ""}. Nothing to sign for approval; the swap/transfer itself is still executed in your wallet.</div>`
+      : `<div class="muted" style="margin-top:10px;font-size:12.5px">No amount was given, so whether an approval is needed was not checked — enter an amount above to check.</div>`;
+  const solAccts = (d.token_accounts || []).map((a) =>
+    `<tr><td class="mono">${esc(shortH(a.address || ""))}</td><td>${esc(a.state || "—")}</td><td class="mono">${esc(a.delegate ? shortH(a.delegate) : "—")}</td><td class="r mono">${esc(a.delegated_amount_raw || "0")}</td></tr>`).join("");
+  const checkUrl = `#/allowance?owner=${encodeURIComponent(d.owner || "")}&token=${encodeURIComponent(tok.address || tok.symbol || "")}&spender=${encodeURIComponent(sp.address || "")}&chain=${encodeURIComponent(d.chain || "ethereum")}${d.amount ? `&amount=${encodeURIComponent(d.amount)}` : ""}`;
+  return `
+  <div class="card">
+    <div class="card-head">Allowance check <span class="spacer"></span>${allowanceBadge(d)}</div>
+    <div style="padding:14px 16px">
+      ${detailRow("Owner", `<span class="mono">${esc(d.owner || "")}</span> ${copyBtn(d.owner || "")}`)}
+      ${detailRow("Token", tok.address ? `<span class="mono">${esc(tok.address)}</span> ${copyBtn(tok.address)} — ${tokLabel}${tok.decimals != null ? ` · ${esc(String(tok.decimals))} decimals` : ""}${tok.metadata_source ? ` <span class="muted">(via ${esc(tok.metadata_source)})</span>` : ""}` : tokLabel)}
+      ${detailRow("Spender", `<span class="mono">${esc(sp.address || "")}</span> ${copyBtn(sp.address || "")}${sp.name ? ` — <b>${esc(sp.name)}</b>` : ""}${lab ? ` <span class="label-pill" title="Curated label (labels.json)">${esc(lab)}</span>` : ""}${sp.is_contract === true ? ` <span class="badge grey" title="Contract">contract</span>` : sp.is_contract === false ? ` <span class="badge grey">EOA</span>` : ""}${sp.is_verified ? ` <span class="badge ok">verified</span>` : ""}`)}
+      ${detailRow("Chain", esc(d.chain_label || d.chain || ""))}
+      ${detailRow("Current allowance", allowTxt)}
+      ${detailRow("Owner balance", balTxt)}
+      ${d.amount ? detailRow("Amount to spend", `<b>${esc(d.amount)} ${esc(tok.symbol || "")}</b>${d.amount_raw ? ` <span class="muted">(${esc(d.amount_raw)} raw units)</span>` : ""}`) : ""}
+      ${d.delegated_to_other ? detailRow("Delegated elsewhere", `<span class="mono">${esc(d.delegated_to_other)}</span> <span class="muted">— this token account's delegate is a different address, not the spender asked about.</span>`) : ""}
+      ${solAccts ? `<div style="margin-top:10px"><b>Token accounts (${esc(String(d.token_accounts_count))})</b><table class="tbl" style="margin-top:6px"><thead><tr><th>Account</th><th>State</th><th>Delegate</th><th class="r">Delegated (raw)</th></tr></thead><tbody>${solAccts}</tbody></table></div>` : ""}
+      ${approvalBox}
+      <p class="muted" style="font-size:12.5px;margin:12px 0 0">${esc(d.note || "")}</p>
+      <div class="muted" style="font-size:12px;margin-top:8px">${esc(d.method || "")}</div>
+      ${(d.limits || []).length ? `<ul class="risk-reasons muted" style="font-size:12px">${d.limits.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
+      <p style="font-size:12.5px;margin:10px 0 0"><a href="${checkUrl}">Shareable link to this check →</a> <span class="muted">(re-reads the allowance live when opened)</span></p>
+    </div>
+  </div>`;
+}
+
+async function loadQuoteAllowances(fc, ft, amount, addr, routes) {
+  const el = document.getElementById("quote-allowance");
+  if (!el) return;
+  const toks = ((QUOTE_TOKENS && QUOTE_TOKENS.chains || {})[fc] || {}).tokens || [];
+  const fromTok = toks.find((t) => t.symbol === ft);
+  if (!fromTok || !fromTok.address) {
+    el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">✅ ${esc(ft)} is the native coin on ${esc(fc)} — native transfers need no ERC-20 approval.</div></div>`;
+    return;
+  }
+  // One badge per distinct spender, labelled with the route(s) it serves.
+  const bySpender = new Map();
+  (routes || []).forEach((r) => {
+    if (!r.spender) return;
+    const key = r.spender.toLowerCase();
+    if (!bySpender.has(key)) bySpender.set(key, { spender: r.spender, ranks: [] });
+    bySpender.get(key).ranks.push(r.rank);
+  });
+  if (!bySpender.size) {
+    const cctp = (routes || []).some((r) => r.approval_note);
+    el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">No spender address in these routes${cctp ? " (the CCTP estimate route carries none — its burn approves Circle's TokenMessenger)" : ""}. Check ad-hoc: <a href="#/allowance?token=${encodeURIComponent(fromTok.address)}&chain=${encodeURIComponent(fc)}&amount=${encodeURIComponent(amount)}">Allowance check →</a></div></div>`;
+    return;
+  }
+  const entries = [...bySpender.values()];
+  const allowUrl = (s) => `#/allowance?owner=${encodeURIComponent(addr || "")}&token=${encodeURIComponent(fromTok.address)}&spender=${encodeURIComponent(s)}&chain=${encodeURIComponent(fc)}&amount=${encodeURIComponent(amount)}`;
+  if (!addr) {
+    el.innerHTML = `<div class="card"><div class="card-head">🔑 Approval <span class="spacer"></span><span class="badge grey">Add your address to check</span></div><div style="padding:12px 16px">
+      ${entries.map((e) => `<div style="margin:4px 0">Route${e.ranks.length > 1 ? "s" : ""} #${e.ranks.join(", #")} approve <span class="mono">${esc(e.spender)}</span>${labelFor(e.spender, fc) ? ` <span class="label-pill">${esc(labelFor(e.spender, fc))}</span>` : ""} — <a href="${allowUrl(e.spender)}">check your allowance →</a></div>`).join("")}
+      <div class="muted" style="font-size:12.5px;margin-top:8px">Enter your address in the quote form above and re-run the quote to see an approved / approval-needed badge per route.</div>
+    </div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted"><span class="spinner"></span> Checking allowance for ${esc(addr.slice(0, 10))}…</div></div>`;
+  const results = await Promise.all(entries.map(async (e) => {
+    try {
+      const qs = new URLSearchParams({ owner: addr, token: fromTok.address, spender: e.spender, chain: fc, amount });
+      return { e, d: await fetchJson(API + "/allowance?" + qs.toString(), null, 60000) };
+    } catch (err) {
+      return { e, err: err.message };
+    }
+  }));
+  el.innerHTML = `<div class="card"><div class="card-head">🔑 Approval — ${esc(addr.slice(0, 10))}… <span class="spacer"></span><span class="badge info">${esc(amount)} ${esc(ft)} on ${esc(fc)}</span></div><div style="padding:12px 16px">
+    ${results.map((r) => {
+      if (r.err) return `<div style="margin:6px 0">Route${r.e.ranks.length > 1 ? "s" : ""} #${r.e.ranks.join(", #")} · <span class="mono">${esc(r.e.spender)}</span> — <span class="badge grey">Unknown</span> <span class="muted">(${esc(r.err)} — <a href="${allowUrl(r.e.spender)}">check ad-hoc →</a>)</span></div>`;
+      const d = r.d;
+      const ok = d.status === "approved";
+      const txt = ok
+        ? `Approved — allowance ${esc(d.allowance || d.allowance_raw || "?")} ${esc((d.token || {}).symbol || "")} covers ${esc(amount)} ${esc(ft)}`
+        : d.status === "approval_needed"
+          ? `Approval needed — allowance ${esc(d.allowance || d.allowance_raw || "0")} ${esc((d.token || {}).symbol || "")} is below ${esc(amount)} ${esc(ft)}; approve ${esc(d.approval && d.approval.amount_raw ? d.approval.amount_raw + " raw units" : amount + " " + ft)} to <span class="mono">${esc(r.e.spender)}</span> first (in your wallet)`
+          : `Allowance could not be compared for ${esc(amount)} ${esc(ft)} (${esc(d.status || "unknown")})`;
+      return `<div style="margin:6px 0">Route${r.e.ranks.length > 1 ? "s" : ""} #${r.e.ranks.join(", #")} · <span class="mono">${esc(r.e.spender)}</span>${labelFor(r.e.spender, fc) ? ` <span class="label-pill">${esc(labelFor(r.e.spender, fc))}</span>` : ""} — <span class="badge ${ok ? "ok" : d.status === "approval_needed" ? "fail" : "grey"}">${ok ? "✅ Approved" : d.status === "approval_needed" ? "⚠️ Approval needed" : "Unknown"}</span> <span style="font-size:13px">${txt}</span> · <a href="${allowUrl(r.e.spender)}">details →</a></div>`;
+    }).join("")}
+    <div class="muted" style="font-size:12.5px;margin-top:8px">Read-only: nothing here approves or sends anything — any approval is signed in your own wallet. Allowance was read at the latest block; re-check before acting.</div>
+  </div></div>`;
+}
+
+async function allowancePage() {
+  clearPoll();
+  const run = ++allowanceRun;
+  const alive = () => run === allowanceRun && document.getElementById("allowance-root");
+  document.title = "Allowance check — " + TITLE;
+  const q = new URLSearchParams((location.hash.split("?")[1] || ""));
+  const pre = {
+    owner: q.get("owner") || "",
+    token: q.get("token") || "",
+    spender: q.get("spender") || "",
+    chain: q.get("chain") || "ethereum",
+    amount: q.get("amount") || "",
+  };
+  render(`
+    <div id="allowance-root">
+    <div class="pagehead"><h2>🔑 Allowance &amp; Approval Checker</h2></div>
+    <div class="card"><div style="padding:16px">
+      <p class="muted" style="margin-top:0">Has an owner already approved a spender contract to spend a token — and if not, what exact approval would be needed? Read-only: the allowance is read on-chain (EVM <span class="mono">allowance(owner, spender)</span> via the public RPC; Solana SPL delegate + delegated amount), the spender is identified from Blockscout plus the curated label list, and the exact <span class="mono">approve(spender, amount)</span> is stated. Nothing here builds, signs, or sends a transaction — any approval happens in your own wallet. Works for any ERC-20 on the EVM chains and any SPL token on Solana.</p>
+      <form id="allowance-form" autocomplete="off">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+          <label class="field" style="grid-column:1/-1">Owner address<input type="text" id="al-owner" placeholder="0x… (EVM) or Solana address" value="${esc(pre.owner)}"></label>
+          <label class="field" style="grid-column:1/-1">Token<input type="text" id="al-token" placeholder="Contract address 0x… / SPL mint / symbol (USDC, DAI…)" value="${esc(pre.token)}"></label>
+          <label class="field" style="grid-column:1/-1">Spender address<input type="text" id="al-spender" placeholder="0x… (EVM contract) or Solana delegate address" value="${esc(pre.spender)}"></label>
+          <label class="field">Chain<select id="al-chain"><option value="ethereum">Ethereum</option><option value="sepolia">Sepolia</option><option value="optimism">Optimism</option><option value="gnosis">Gnosis</option><option value="solana">Solana (SPL)</option></select></label>
+          <label class="field">Amount to spend (optional)<input type="text" id="al-amount" placeholder="e.g. 100" inputmode="decimal" value="${esc(pre.amount)}"></label>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" type="submit">Check allowance</button>
+          <span class="muted" style="font-size:12px">Try: vitalik.eth's USDC allowance to the Uniswap V2 Router — owner <span class="mono">0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045</span>, token <span class="mono">0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48</span>, spender <span class="mono">0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D</span>, amount 100.</span>
+        </div>
+      </form>
+    </div></div>
+    <div id="allowance-results"></div>
+    </div>`);
+  $("#al-chain").value = ["ethereum", "sepolia", "optimism", "gnosis", "solana"].includes(pre.chain) ? pre.chain : "ethereum";
+  const runCheck = async () => {
+    const owner = $("#al-owner").value.trim();
+    const token = $("#al-token").value.trim();
+    const spender = $("#al-spender").value.trim();
+    const chain = $("#al-chain").value;
+    const amount = $("#al-amount").value.trim();
+    if (!owner || !token || !spender) {
+      $("#allowance-results").innerHTML = `<div class="card"><div class="empty">Enter an owner, a token and a spender first.</div></div>`;
+      return;
+    }
+    $("#allowance-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Reading allowance on-chain…</div></div></div>`;
+    let d;
+    try {
+      const qs = new URLSearchParams({ owner, token, spender, chain });
+      if (amount) qs.set("amount", amount);
+      d = await fetchJson(API + "/allowance?" + qs.toString(), null, 60000);
+    } catch (err) {
+      if (!alive()) return;
+      $("#allowance-results").innerHTML = `<div class="card"><div class="empty">Allowance check failed: ${esc(err.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    $("#allowance-results").innerHTML = allowanceResultHtml(d);
+  };
+  $("#allowance-form").addEventListener("submit", (e) => { e.preventDefault(); runCheck(); });
+  if (pre.owner && pre.token && pre.spender) runCheck();
+}
+
+/* ---------------- recipient pre-flight check (walletscope only) ---------------- */
+/* Backend: GET /api/walletscope/preflight?address=&coin=&chain=&amount=
+   Pass / warn / block for one recipient BEFORE sending. The sanctions
+   walk fans out upstream, so the client timeout is 90s. Nothing here
+   creates or signs a transaction. */
+const PREFLIGHT_COINS = ["USDT", "USDC", "DAI", "USDe", "FDUSD", "PYUSD", "TUSD", "USDD", "ETH", "SOL", "BTC"];
+const PREFLIGHT_STABLECOINS = ["USDT", "USDC", "DAI", "USDe", "FDUSD", "PYUSD", "TUSD", "USDD"];
+let preflightRun = 0;
+
+function preflightCheckHtml(c) {
+  const st = String(c.status || "unknown").toLowerCase();
+  const badgeCls = { pass: "ok", warn: "warn", block: "fail", unknown: "grey", na: "grey" }[st] || "grey";
+  const stLabel = { pass: "pass", warn: "warn", block: "block", unknown: "unknown", na: "n/a" }[st] || st;
+  return `<tr><td><b>${esc(c.label || c.id)}</b><div class="muted" style="font-size:12.5px;margin-top:2px">${esc(c.detail || "")}</div></td><td style="white-space:nowrap"><span class="badge ${badgeCls}">${esc(stLabel)}</span></td></tr>`;
+}
+
+function preflightResultHtml(d) {
+  const v = String(d.verdict || "warn").toLowerCase();
+  const badgeCls = { pass: "ok", warn: "warn", block: "fail" }[v] || "grey";
+  const vLabel = { pass: "PASS — safe to send", warn: "WARN — review before sending", block: "BLOCK — do not send" }[v] || v;
+  const lab = labelFor(d.address, "ethereum");
+  const coin = d.coin || {};
+  const rows = (d.checks || []).map(preflightCheckHtml).join("");
+  const limits = (d.limits || []).map((l) => `<li>${esc(l)}</li>`).join("");
+  return `
+  <div class="card risk-card risk-${esc(v)}">
+    <div class="card-head">Verdict <span class="spacer"></span><span class="badge ${badgeCls}">${esc(vLabel)}</span></div>
+    <div style="padding:14px 16px">
+      <div class="addr-title"><span class="mono" style="font-size:15px">${esc(d.address)}</span> ${copyBtn(d.address)}${lab ? ` <span class="label-pill" title="Curated label (labels.json)">${esc(lab)}</span>` : ""}</div>
+      <div class="muted" style="margin-top:6px">${esc(d.resolved_from ? `Resolved from “${d.resolved_from}” · ` : "")}${esc(d.chain_label || d.chain || "")} · ${esc(d.family || "")}${coin.symbol ? ` · Coin: ${esc(coin.symbol)}` : ""}${d.amount ? ` · Amount: ${esc(d.amount)} ${esc(coin.symbol || "")}` : ""}</div>
+      <p style="margin:10px 0 0"><b>${esc(d.verdict_reason || "")}</b></p>
+      <table class="tbl" style="margin-top:12px"><tbody>${rows}</tbody></table>
+      <div class="muted" style="font-size:12px;margin-top:10px">${esc(d.method || "")}</div>
+      ${limits ? `<ul class="risk-reasons muted" style="font-size:12px">${limits}</ul>` : ""}
+    </div>
+  </div>
+  ${d.risk ? `<div id="preflight-risk">${riskCardHtml(d.risk)}</div>` : ""}
+  <div class="card"><div style="padding:12px 16px">
+    <span class="muted" style="font-size:12.5px">Checked the wrong address, or want the full picture? <a href="${walletHref(d.address)}">Open the wallet dashboard →</a></span>
+  </div></div>`;
+}
+
+async function preflightPage(param) {
+  clearPoll();
+  const run = ++preflightRun;
+  const alive = () => run === preflightRun && document.getElementById("preflight-root");
+  document.title = "Pre-flight check — " + TITLE;
+  render(`
+    <div id="preflight-root">
+    <div class="pagehead"><h2>🛡️ Recipient Pre-flight Check</h2></div>
+    <div class="card"><div style="padding:16px">
+      <p class="muted" style="margin-top:0">Check a recipient <b>before</b> sending: sanctions risk (OFAC SDN), EOA vs contract, whether it already holds the coin, whether it (or its recent counterparties) is frozen/blacklisted, and first-seen / activity recency. Works for EVM, Solana and Bitcoin addresses and ENS names. Nothing here creates or signs a transaction — a pass is a screening signal, not a clean bill (see the limits under every result).</p>
+      <form id="preflight-form" autocomplete="off">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+          <label class="field" style="grid-column:1/-1">Recipient address<input type="text" id="pf-address" placeholder="0x… / Solana / Bitcoin / vitalik.eth" value="${esc(param || "")}"></label>
+          <label class="field">Coin<select id="pf-coin"><option value="">No coin — check USDC + USDT freeze only</option>${PREFLIGHT_COINS.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select></label>
+          <label class="field">Or token contract / SPL mint<input type="text" id="pf-coin-custom" placeholder="0x… (EVM) or mint address (Solana)"></label>
+          <label class="field">EVM chain<select id="pf-chain"><option value="ethereum">Ethereum</option><option value="sepolia">Sepolia</option><option value="optimism">Optimism</option><option value="gnosis">Gnosis</option></select></label>
+          <label class="field">Amount (optional)<input type="text" id="pf-amount" placeholder="e.g. 100" inputmode="decimal"></label>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button class="btn" type="submit">Run pre-flight check</button>
+          <span class="muted" style="font-size:12px">Stablecoin symbols use their Ethereum-mainnet contracts — for another EVM chain, paste the token contract address instead.</span>
+        </div>
+      </form>
+    </div></div>
+    <div id="preflight-results"></div>
+    </div>`);
+  const runCheck = async () => {
+    const addr = $("#pf-address").value.trim();
+    if (!addr) {
+      $("#preflight-results").innerHTML = `<div class="card"><div class="empty">Enter a recipient address first.</div></div>`;
+      return;
+    }
+    const customCoin = $("#pf-coin-custom").value.trim();
+    const coin = customCoin || $("#pf-coin").value;
+    const chain = $("#pf-chain").value;
+    const amount = $("#pf-amount").value.trim();
+    $("#preflight-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Running pre-flight checks… (sanctions walk can take up to a minute)</div></div></div>`;
+    let d;
+    try {
+      const qs = new URLSearchParams({ address: addr });
+      if (coin) qs.set("coin", coin);
+      if (chain) qs.set("chain", chain);
+      if (amount) qs.set("amount", amount);
+      d = await fetchJson(API + "/preflight?" + qs.toString(), null, 90000);
+    } catch (err) {
+      if (!alive()) return;
+      $("#preflight-results").innerHTML = `<div class="card"><div class="empty">Pre-flight check failed: ${esc(err.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    $("#preflight-results").innerHTML = preflightResultHtml(d);
+  };
+  // Stablecoin symbols are mainnet-only: pin the chain to Ethereum.
+  $("#pf-coin").addEventListener("change", () => {
+    if (PREFLIGHT_STABLECOINS.includes($("#pf-coin").value)) $("#pf-chain").value = "ethereum";
+  });
+  $("#preflight-form").addEventListener("submit", (e) => { e.preventDefault(); runCheck(); });
+  if (param) runCheck();
+}
+
+/* ---------------- settlement tracker & receipt (walletscope only, Q1) ---------------- */
+/* Backend: GET /api/walletscope/settle?chain=&hash= (timeline + receipt
+   fields + bridge leg) and GET /api/walletscope/receipt?chain=&hash=
+   (&format=json). "Economically final" is a convention (see the notes
+   under every result), USD at execution uses the execution-day price
+   where available and is labelled estimate-current otherwise. */
+let settleRun = 0;
+let lastReceiptJson = null;
+
+function settleChainOptions(selected) {
+  const chains = CHAINS.slice();
+  if (!chains.some((c) => c.id === "bitcoin")) chains.push({ id: "bitcoin", label: "Bitcoin", native: "BTC" });
+  return chains.map((c) => `<option value="${esc(c.id)}" ${c.id === selected ? "selected" : ""}>${esc(c.label)}</option>`).join("");
+}
+
+function timelineHtml(steps) {
+  const icon = { done: "✓", current: "…", pending: "○" };
+  const cls = { done: "ok", current: "info", pending: "grey" };
+  return (steps || []).map((s) => `<div class="detail"><div class="dk"><span class="badge ${cls[s.status] || "grey"}">${icon[s.status] || "?"}</span> <b>${esc(s.label)}</b></div><div class="dv">${esc(s.detail || "")}</div></div>`).join("");
+}
+
+function bridgeHtml(b) {
+  if (!b) return `<div class="empty">No bridge transfer detected for this transaction (checked Circle CCTP logs and Wormholescan).</div>`;
+  const rows = [
+    ["Bridge", esc(b.bridge || b.kind || "")],
+    ["From → To", `${esc(b.from_chain || "")} → ${esc(b.to_chain || "")}`],
+  ];
+  if (b.kind === "cctp") {
+    rows.push(["Attestation", `<span class="badge ${b.attestation_status === "complete" ? "ok" : "info"}">${esc(b.attestation_status || "unknown")}</span>`]);
+    if (b.message_hash) rows.push(["Message hash", `<span class="mono">${esc(b.message_hash)}</span> ${copyBtn(b.message_hash)}`]);
+    if (b.nonce != null) rows.push(["Nonce", `<span class="mono">${esc(String(b.nonce))}</span>`]);
+    if (b.recipient) rows.push(["Mint recipient", `<span class="mono">${esc(b.recipient)}</span>`]);
+    rows.push(["Destination mint tx", `<span class="muted">Not linked — no keyless source maps a Circle message hash to the destination mint tx.</span>`]);
+  } else {
+    if (b.amount) rows.push(["Amount", `<span class="mono">${esc(b.amount)}</span>`]);
+    if (b.destination_tx_hash) rows.push(["Destination tx", `<span class="mono">${esc(b.destination_tx_hash)}</span> ${copyBtn(b.destination_tx_hash)}`]);
+    rows.push(["Destination status", esc(b.destination_status || "not yet minted")]);
+    if (b.explorer_url) rows.push(["Wormholescan", `<a href="${esc(b.explorer_url)}" target="_blank" rel="noopener">View transfer →</a>`]);
+  }
+  return `<div>${rows.map(([k, v]) => detailRow(k, v)).join("")}${b.note ? `<div class="muted" style="font-size:12px;margin-top:8px">${esc(b.note)}</div>` : ""}</div>`;
+}
+
+function amountHtml(a) {
+  if (!a) return "—";
+  const usd = a.usd_value != null ? ` <span class="muted">≈ $${esc(String(a.usd_value))}${a.price_basis === "estimate-current" ? " (ESTIMATE — live price, execution-day price unavailable)" : a.price_basis === "at-execution" ? " at execution" : ""}</span>` : ` <span class="muted">(USD unavailable)</span>`;
+  return `<b class="mono">${esc(String(a.value ?? "—"))} ${esc(a.symbol || a.token_address || "")}</b>${usd}${a.note ? `<div class="muted" style="font-size:12px;margin-top:4px">${esc(a.note)}</div>` : ""}`;
+}
+
+function settleResultHtml(d) {
+  const final = d.confirmations != null && d.finality_threshold != null && d.confirmations >= d.finality_threshold;
+  const notes = (d.notes || []).map((n) => `<li>${esc(n)}</li>`).join("");
+  const tt = (d.token_transfers || []).map((t) => `<tr><td>${esc(t.token || t.token_address || "—")}</td><td class="r mono">${esc(String(t.amount ?? "—"))}</td><td class="mono">${esc(t.from ? t.from.slice(0, 10) + "…" : "—")}</td><td class="mono">${esc(t.to ? t.to.slice(0, 10) + "…" : "—")}</td></tr>`).join("");
+  return `
+  <div class="card">
+    <div class="card-head">Settlement — ${esc(d.chain_label || d.chain)} <span class="spacer"></span><span class="badge ${final ? "ok" : "info"}">${final ? "Economically final" : esc(d.status || "")}</span></div>
+    <div style="padding:14px 16px">
+      ${detailRow("Transaction", `<span class="mono">${esc(d.hash)}</span> ${copyBtn(d.hash)}`)}
+      ${detailRow("Status", esc(d.status || "—"))}
+      ${detailRow("Block / Slot", d.block != null ? `<span class="mono">${esc(String(d.block))}</span> <span class="muted">(${num(d.confirmations)} ${esc(d.confirmations_unit || "confirmations")} · finality threshold ${num(d.finality_threshold)})</span>` : '<span class="badge info">Pending</span>')}
+      ${detailRow("Timestamp", `${esc(d.age || "")} <span class="muted">(${esc(d.timestamp != null && typeof d.timestamp === "number" ? new Date(d.timestamp * 1000).toISOString() : String(d.timestamp || ""))})</span>`)}
+      ${detailRow("From", d.from ? `<span class="mono">${esc(d.from)}</span> ${copyBtn(d.from)}` : '<span class="muted">—</span>')}
+      ${detailRow("To", d.to ? `<span class="mono">${esc(d.to)}</span> ${copyBtn(d.to)}` : '<span class="muted">—</span>')}
+      ${detailRow("Amount", amountHtml(d.amount))}
+      ${d.total_moved_btc != null ? detailRow("Total moved", `<span class="mono">${esc(String(d.total_moved_btc))} BTC</span>${d.total_moved_usd != null ? ` <span class="muted">≈ $${esc(String(d.total_moved_usd))}</span>` : ""}`) : ""}
+      ${detailRow("Fee", d.fee && d.fee.value != null ? `<span class="mono">${esc(String(d.fee.value))} ${esc(d.fee.symbol || "")}</span>${d.fee.usd_value != null ? ` <span class="muted">≈ $${esc(String(d.fee.usd_value))}${d.fee.price_basis === "estimate-current" ? " (ESTIMATE)" : ""}</span>` : ""}${d.fee.fee_rate_sat_vb != null ? ` <span class="muted">· ${esc(String(d.fee.fee_rate_sat_vb))} sat/vB</span>` : ""}` : '<span class="muted">Unknown until mined</span>')}
+      ${detailRow("Explorer", `<a href="${esc(d.explorer_url)}" target="_blank" rel="noopener">${esc(d.explorer_url)}</a>`)}
+      ${detailRow("Receipt", `<a href="${esc(receiptHref(d.chain, d.hash))}">Shareable receipt →</a> <span class="muted">(JSON exportable)</span>`)}
+    </div>
+  </div>
+  <div class="card"><div class="card-head">Timeline</div><div style="padding:8px 16px 14px">${timelineHtml(d.timeline)}</div></div>
+  <div class="card"><div class="card-head">Bridge leg</div><div style="padding:14px 16px">${bridgeHtml(d.bridge)}</div></div>
+  ${tt ? `<div class="card"><div class="card-head">Token Transfers</div><table class="tbl"><thead><tr><th>Token</th><th class="r">Amount</th><th>From</th><th>To</th></tr></thead><tbody>${tt}</tbody></table></div>` : ""}
+  ${notes ? `<div class="card"><div style="padding:12px 16px"><div class="muted" style="font-size:12px">Honest limits</div><ul class="risk-reasons muted" style="font-size:12px">${notes}</ul></div></div>` : ""}`;
+}
+
+async function trackPage(chain, hash) {
+  clearPoll();
+  const run = ++settleRun;
+  const alive = () => run === settleRun && document.getElementById("track-root");
+  document.title = "Track settlement — " + TITLE;
+  render(`
+    <div id="track-root">
+    <div class="pagehead"><h2>🧾 Settlement Tracker</h2></div>
+    <div class="card"><div style="padding:16px">
+      <p class="muted" style="margin-top:0">Paste a transaction hash and watch it settle: submitted → confirmed → economically final, plus the bridge leg (Circle CCTP attestation or Wormhole mint) when the transfer bridges. Works for Ethereum, Sepolia, Optimism, Gnosis, Solana and Bitcoin. Nothing here creates or signs a transaction.</p>
+      <form id="track-form" autocomplete="off">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+          <label class="field">Chain<select id="tr-chain">${settleChainOptions(chain || "ethereum")}</select></label>
+          <label class="field" style="grid-column:span 3">Transaction hash / signature / txid<input type="text" id="tr-hash" placeholder="0x… (EVM) · base58 signature (Solana) · 64-hex txid (Bitcoin)" value="${esc(hash || "")}"></label>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button class="btn" type="submit">Track settlement</button>
+          <span class="muted" style="font-size:12px">“Economically final” is a convention (see the notes under every result).</span>
+        </div>
+      </form>
+    </div></div>
+    <div id="track-results"></div>
+    </div>`);
+  const runTrack = async () => {
+    const c = $("tr-chain") ? $("tr-chain").value : (chain || "ethereum");
+    const h = ($("tr-hash") ? $("tr-hash").value : (hash || "")).trim();
+    if (!h) {
+      $("#track-results").innerHTML = `<div class="card"><div class="empty">Enter a transaction hash first.</div></div>`;
+      return;
+    }
+    history.replaceState(null, "", "#/track/" + c + "/" + h);
+    $("#track-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Tracking settlement… (bridge checks can take a few seconds)</div></div></div>`;
+    let d;
+    try {
+      const qs = new URLSearchParams({ chain: c, hash: h });
+      d = await fetchJson(API + "/settle?" + qs.toString(), null, 60000);
+    } catch (err) {
+      if (!alive()) return;
+      $("#track-results").innerHTML = `<div class="card"><div class="empty">Tracking failed: ${esc(err.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    $("#track-results").innerHTML = settleResultHtml(d);
+  };
+  $("#track-form").addEventListener("submit", (e) => { e.preventDefault(); runTrack(); });
+  if (hash) runTrack();
+}
+
+async function receiptPage(chain, hash) {
+  clearPoll();
+  const run = ++settleRun;
+  const alive = () => run === settleRun && document.getElementById("receipt-root");
+  document.title = "Receipt — " + TITLE;
+  render(`<div id="receipt-root"><div class="pagehead"><h2>🧾 Receipt</h2></div><div id="receipt-body"><div class="card"><div style="padding:16px"><div class="spinner">Loading receipt…</div></div></div></div></div>`);
+  let d;
+  try {
+    const qs = new URLSearchParams({ chain, hash, format: "json" });
+    d = await fetchJson(API + "/receipt?" + qs.toString(), null, 60000);
+  } catch (err) {
+    if (!alive()) return;
+    $("#receipt-body").innerHTML = `<div class="card"><div class="empty">Receipt not found: ${esc(err.message)}<br><span class="mono muted">${esc(chain)} / ${esc(hash)}</span></div></div>`;
+    return;
+  }
+  if (!alive()) return;
+  lastReceiptJson = d;
+  const notes = (d.notes || []).map((n) => `<li>${esc(n)}</li>`).join("");
+  $("#receipt-body").innerHTML = `
+  <div class="card">
+    <div class="card-head">Receipt — ${esc(d.chain_label || d.chain)} <span class="spacer"></span><span class="badge ${d.economically_final ? "ok" : "info"}">${d.economically_final ? "Economically final" : esc(d.status || "")}</span></div>
+    <div style="padding:14px 16px">
+      ${detailRow("Transaction", `<span class="mono">${esc(d.hash)}</span> ${copyBtn(d.hash)}`)}
+      ${detailRow("Status", esc(d.status || "—"))}
+      ${detailRow("Block / Slot", d.block != null ? `<span class="mono">${esc(String(d.block))}</span> <span class="muted">(${num(d.confirmations)} ${esc(d.confirmations_unit || "confirmations")} · finality threshold ${num(d.finality_threshold)})</span>` : '<span class="badge info">Pending</span>')}
+      ${detailRow("Timestamp", `${esc(d.age || "")} <span class="muted">(${esc(d.timestamp != null && typeof d.timestamp === "number" ? new Date(d.timestamp * 1000).toISOString() : String(d.timestamp || ""))})</span>`)}
+      ${detailRow("From", d.from ? `<span class="mono">${esc(d.from)}</span> ${copyBtn(d.from)}` : '<span class="muted">—</span>')}
+      ${detailRow("To", d.to ? `<span class="mono">${esc(d.to)}</span> ${copyBtn(d.to)}` : '<span class="muted">—</span>')}
+      ${detailRow("Amount", amountHtml(d.amount))}
+      ${d.total_moved_btc != null ? detailRow("Total moved", `<span class="mono">${esc(String(d.total_moved_btc))} BTC</span>${d.total_moved_usd != null ? ` <span class="muted">≈ $${esc(String(d.total_moved_usd))}</span>` : ""}`) : ""}
+      ${detailRow("Fee", d.fee && d.fee.value != null ? `<span class="mono">${esc(String(d.fee.value))} ${esc(d.fee.symbol || "")}</span>${d.fee.usd_value != null ? ` <span class="muted">≈ $${esc(String(d.fee.usd_value))}${d.fee.price_basis === "estimate-current" ? " (ESTIMATE)" : ""}</span>` : ""}${d.fee.fee_rate_sat_vb != null ? ` <span class="muted">· ${esc(String(d.fee.fee_rate_sat_vb))} sat/vB</span>` : ""}` : '<span class="muted">Unknown until mined</span>')}
+      ${detailRow("Explorer", `<a href="${esc(d.explorer_url)}" target="_blank" rel="noopener">${esc(d.explorer_url)}</a>`)}
+      ${detailRow("Generated", esc(d.generated_at || ""))}
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="receipt-download">Download JSON</button>
+        <button class="btn" id="receipt-copy-link">Copy receipt link</button>
+        <button class="btn" id="receipt-watch">☆ Watch this receipt</button>
+        <a class="btn" href="${esc(receiptHref(d.chain, d.hash).replace("#/receipt/", "#/track/"))}" style="text-decoration:none">Track settlement →</a>
+      </div>
+    </div>
+  </div>
+  <div class="card"><div class="card-head">Bridge leg</div><div style="padding:14px 16px">${bridgeHtml(d.bridge)}</div></div>
+  <div class="card" id="aftermath-card"><div class="card-head">Aftermath — received-funds monitor <span class="spacer"></span><span class="badge info">Q4</span></div><div id="aftermath-body" style="padding:14px 16px"><div class="spinner">Checking what happened after this receipt…</div></div></div>
+  ${notes ? `<div class="card"><div style="padding:12px 16px"><div class="muted" style="font-size:12px">Honest limits</div><ul class="risk-reasons muted" style="font-size:12px">${notes}</ul></div></div>` : ""}`;
+  $("#receipt-download").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(lastReceiptJson, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `receipt-${d.chain}-${d.hash.slice(0, 12)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  });
+  $("#receipt-copy-link").addEventListener("click", () => {
+    navigator.clipboard.writeText(location.href).then(() => {
+      $("#receipt-copy-link").textContent = "✓ Copied";
+      setTimeout(() => { const b = $("#receipt-copy-link"); if (b) b.textContent = "Copy receipt link"; }, 1200);
+    });
+  });
+  const watchBtn = $("#receipt-watch");
+  if (watchBtn) {
+    const saved = watchLoad().some((w) => w.chain === d.chain && w.hash.toLowerCase() === d.hash.toLowerCase());
+    if (saved) watchBtn.textContent = "★ Watching — see watchlist";
+    watchBtn.addEventListener("click", () => {
+      const list = watchLoad();
+      if (!list.some((w) => w.chain === d.chain && w.hash.toLowerCase() === d.hash.toLowerCase())) {
+        list.push({ chain: d.chain, hash: d.hash, from: d.from || null, to: d.to || null, amount: (d.amount && d.amount.value != null ? String(d.amount.value) + " " + (d.amount.symbol || "") : null), added_at: new Date().toISOString() });
+        watchSave(list);
+      }
+      watchBtn.textContent = "★ Watching — see watchlist";
+    });
+  }
+  loadAftermath(d.chain, d.hash);
+}
+
+/* ---------------- received-funds monitor / watchlist (walletscope only, Q4) ---------------- */
+/* Backend: GET /api/walletscope/aftermath?chain=&hash= — what happened
+   AFTER one receipt: the sender's onward transfers, direct OFAC SDN
+   checks on the onward destinations + the counterparty's full risk
+   walk, and the counterparty's frozen/blacklisted state (current
+   probe + targeted freeze-event scan since the receipt for freezable
+   stablecoins on Ethereum). Forward-looking from receipt time only —
+   a clean result is not proof of clean, and onward transfers are the
+   sender's later movements, not proven to be the same funds.
+   Watchlist: saved receipts live in localStorage only (key below);
+   they are re-checked on every visit to #/watchlist. There are no
+   push alerts in this repo and none are in scope. */
+const WATCH_LS_KEY = "cryptoscope-watchlist-v1";
+let aftermathRun = 0;
+
+function watchLoad() {
+  try { const v = JSON.parse(localStorage.getItem(WATCH_LS_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+function watchSave(list) { try { localStorage.setItem(WATCH_LS_KEY, JSON.stringify(list)); } catch (e) { /* storage full/blocked: watchlist stays in memory for this session */ } }
+
+function aftermathHtml(a) {
+  if (!a) return `<div class="empty">Aftermath unavailable.</div>`;
+  if (a.error) return `<div class="empty">Aftermath unavailable: ${esc(a.error)}</div>`;
+  if (a.status === "unavailable") return `<div>${esc(a.summary || "Aftermath cannot be checked yet.")}</div>`;
+  const badgeCls = a.status === "attention" ? "bad" : (a.status === "moved_on" ? "warn" : "ok");
+  const badgeTxt = a.status === "attention" ? "ATTENTION" : (a.status === "moved_on" ? "Moved on" : "No onward movement seen");
+  const onwardRows = (a.onward_transfers || []).map((t) => `<tr><td class="mono">${esc(t.hash ? t.hash.slice(0, 12) + "…" : "—")}</td><td>${esc(t.timestamp ? new Date(t.timestamp * 1000).toISOString().slice(0, 19).replace("T", " ") + " UTC" : "—")}</td><td>${esc(t.kind || "—")}</td><td class="r mono">${esc(String(t.value ?? "—"))} ${esc(t.symbol || "")}</td><td class="mono">${esc(t.to ? t.to.slice(0, 10) + "…" : (t.destinations && t.destinations.length ? t.destinations.length + " outputs" : "—"))}</td></tr>`).join("");
+  const sanc = (a.sanctioned_destinations || []).map((s) => `<li><span class="mono">${esc(s.address)}</span> — on the OFAC SDN list as ${esc(s.name)} (${esc(s.program)})${s.context ? ` <span class="muted">(${esc(s.context)})</span>` : ""}</li>`).join("");
+  const risk = a.counterparty_risk || {};
+  const frozen = a.frozen || {};
+  const frozenRows = (frozen.current || []).map((c) => `<tr><td>${esc(c.symbol || "—")}</td><td><span class="badge ${c.frozen === true ? "bad" : (c.frozen === false ? "ok" : "grey")}">${c.frozen === true ? "FROZEN" : (c.frozen === false ? "Not frozen" : "Unknown")}</span></td><td class="muted">${esc(c.note || "")}</td></tr>`).join("");
+  const evRows = (frozen.events_since_receipt || []).map((e) => `<tr><td>${esc(e.timestamp ? new Date(e.timestamp * 1000).toISOString().slice(0, 19).replace("T", " ") + " UTC" : "—")}</td><td>${esc(e.kind || "")}</td><td class="mono">${esc(e.tx_hash ? e.tx_hash.slice(0, 12) + "…" : "—")}</td></tr>`).join("");
+  const notes = (a.notes || []).map((n) => `<li>${esc(n)}</li>`).join("");
+  return `
+  <div style="margin-bottom:10px"><span class="badge ${badgeCls}">${esc(badgeTxt)}</span> <b>${esc(a.summary || "")}</b></div>
+  ${detailRow("Counterparty (sender)", a.receipt && a.receipt.from ? `<span class="mono">${esc(a.receipt.from)}</span> ${copyBtn(a.receipt.from)}` : '<span class="muted">—</span>')}
+  ${detailRow("Onward transfers after receipt", `<b>${num(a.onward_count)}</b> found <span class="muted">(${esc(a.onward_window || "")}${a.onward_count > a.onward_shown ? ` · showing ${num(a.onward_shown)}` : ""})</span>`)}
+  ${onwardRows ? `<table class="tbl"><thead><tr><th>Tx</th><th>When (UTC)</th><th>Kind</th><th class="r">Amount</th><th>To</th></tr></thead><tbody>${onwardRows}</tbody></table>` : `<div class="empty">No onward transfer by the sender after the receipt was found in the sampled window.</div>`}
+  <div style="margin-top:12px"><b>Sanctioned touch</b> — ${sanc ? `<ul class="risk-reasons">${sanc}</ul>` : `<span class="muted">No onward destination (and not the counterparty itself) is on the OFAC SDN list (${esc((a.sdn && a.sdn.labels_total) || 514)} labels, ${esc((a.sdn && a.sdn.date) || "2026-11-05")}). That is a statement about the destinations checked, not a clean bill.</span>`}</div>
+  <div style="margin-top:12px"><b>Counterparty risk walk</b> — ${risk.error ? `<span class="muted">Unavailable: ${esc(risk.error)}</span>` : `<span class="badge ${risk.score >= 75 ? "bad" : (risk.score >= 40 ? "warn" : "ok")}">${num(risk.score)} / ${esc(risk.level || "")}</span> <span class="muted">${esc((risk.reasons || []).join(" "))}</span>`}</div>
+  <div style="margin-top:12px"><b>Frozen / blacklisted</b> — <span class="badge ${frozen.status === "frozen" ? "bad" : (frozen.status === "not_frozen" ? "ok" : "grey")}">${esc(frozen.status || "unknown")}</span> <span class="muted">${esc(frozen.summary || "")}</span>
+  ${frozenRows ? `<table class="tbl" style="margin-top:8px"><thead><tr><th>Token</th><th>Current state</th><th>How checked</th></tr></thead><tbody>${frozenRows}</tbody></table>` : ""}
+  ${frozen.events_status === "ok" || frozen.events_status === "partial" ? `<div style="margin-top:8px"><b>Freeze events since the receipt:</b> ${evRows ? `<table class="tbl"><thead><tr><th>When (UTC)</th><th>Event</th><th>Tx</th></tr></thead><tbody>${evRows}</tbody></table>` : `<span class="muted">none naming the counterparty.</span>`}${frozen.events_note ? ` <span class="muted">${esc(frozen.events_note)}</span>` : ""}</div>` : (frozen.events_note ? `<div class="muted" style="margin-top:8px">${esc(frozen.events_note)}</div>` : "")}
+  </div>
+  ${notes ? `<div style="margin-top:12px"><div class="muted" style="font-size:12px">Honest limits</div><ul class="risk-reasons muted" style="font-size:12px">${notes}</ul></div>` : ""}`;
+}
+
+async function loadAftermath(chain, hash) {
+  const run = ++aftermathRun;
+  const body = document.getElementById("aftermath-body");
+  if (!body) return;
+  let a;
+  try {
+    const qs = new URLSearchParams({ chain, hash });
+    a = await fetchJson(API + "/aftermath?" + qs.toString(), null, 90000);
+  } catch (err) {
+    if (run !== aftermathRun) return;
+    body.innerHTML = `<div class="empty">Aftermath unavailable: ${esc(err.message)}</div>`;
+    return;
+  }
+  if (run !== aftermathRun) return;
+  body.innerHTML = aftermathHtml(a);
+}
+
+async function watchlistPage() {
+  clearPoll();
+  document.title = "Receipt watchlist — " + TITLE;
+  const list = watchLoad();
+  render(`
+    <div id="watchlist-root">
+    <div class="pagehead"><h2>👀 Receipt Watchlist</h2></div>
+    <div class="card"><div style="padding:14px 16px">
+      <p class="muted" style="margin-top:0">Receipts you saved from a receipt page, re-checked <b>on every visit to this page</b> — onward transfers by the sender, sanctioned touches, and the counterparty's frozen state. <b>Nothing is monitored in the background:</b> there are no push alerts in this app, so a receipt only gets re-checked when you open this page. Saved receipts live in this browser's localStorage only.</p>
+      ${list.length ? "" : `<div class="empty">No saved receipts yet. Open any receipt (<a href="#/track">track a transaction</a> first) and press “☆ Watch this receipt”.</div>`}
+    </div></div>
+    <div id="watchlist-body">${list.map((w, i) => `
+      <div class="card" data-watch-idx="${i}"><div class="card-head">${esc(w.chain || "")} receipt <span class="spacer"></span><button class="btn" data-watch-remove="${i}">Remove</button></div>
+      <div style="padding:14px 16px">
+        <div class="mono">${esc(w.hash)}</div>
+        <div class="muted" style="font-size:12px;margin-top:4px">${w.amount ? `Amount: ${esc(w.amount)} · ` : ""}Saved ${esc(w.added_at || "")} · <a href="#/receipt/${esc(w.chain)}/${esc(w.hash)}">Open receipt →</a></div>
+        <div class="watch-status" style="margin-top:10px"><div class="spinner">Re-checking…</div></div>
+      </div></div>`).join("")}
+    </div>
+    </div>`);
+  document.querySelectorAll("[data-watch-remove]").forEach((b) => b.addEventListener("click", () => {
+    const idx = Number(b.getAttribute("data-watch-remove"));
+    const l = watchLoad();
+    l.splice(idx, 1);
+    watchSave(l);
+    watchlistPage();
+  }));
+  // Sequential re-checks (one at a time) so a long watchlist does not
+  // burst the upstream with parallel walks.
+  for (let i = 0; i < list.length; i++) {
+    const card = document.querySelector(`[data-watch-idx="${i}"] .watch-status`);
+    if (!card) continue;
+    try {
+      const qs = new URLSearchParams({ chain: list[i].chain, hash: list[i].hash });
+      const a = await fetchJson(API + "/aftermath?" + qs.toString(), null, 90000);
+      if (!document.querySelector(`[data-watch-idx="${i}"]`)) continue;
+      card.innerHTML = aftermathHtml(a);
+    } catch (err) {
+      if (!document.querySelector(`[data-watch-idx="${i}"]`)) continue;
+      card.innerHTML = `<div class="empty">Re-check failed: ${esc(err.message)} — try opening the receipt directly.</div>`;
+    }
+  }
+}
+
+/* ---------------- invoice / payment matching (walletscope only, Q3) ---------------- */
+/* Backend: GET /api/walletscope/wallet/{address}/incoming — incoming
+   transfers only (native + ERC-20 on the EVM chains, SOL + SPL on
+   Solana). The endpoint takes an ADDRESS only: it accepts no invoice
+   data, so no invoice ever leaves this browser. Invoices live in
+   localStorage only (keys below); matching is local computation in
+   this file: a transfer counts toward an invoice when the coin
+   matches (symbol, or contract/mint address) AND its date falls
+   within due date ± window days. Each transfer is assigned to at
+   most one invoice (oldest due date first); transfers in the window
+   are added oldest-first only until the invoiced amount is reached,
+   so one invoice never swallows payments meant for another. Statuses: matched (received within
+   tolerance of the invoiced amount), partial (less), overpaid (more),
+   unmatched (no transfer in the window). Works for any coin the
+   wallet aggregates — stablecoins, ETH, SOL, BTC excluded (see
+   limits: the wallet serves EVM + Solana addresses only), tokens. */
+const INV_LS_KEY = "cryptoscope-invoices-v1";
+const INV_ADDR_KEY = "cryptoscope-invoices-address-v1";
+const INV_SETTINGS_KEY = "cryptoscope-invoices-settings-v1";
+let invoicesRun = 0;
+
+function invLoad() {
+  try { const v = JSON.parse(localStorage.getItem(INV_LS_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+function invSave(list) { try { localStorage.setItem(INV_LS_KEY, JSON.stringify(list)); } catch (e) { /* storage full/blocked: invoices stay in memory for this session */ } }
+function invSettingsLoad() {
+  try { const v = JSON.parse(localStorage.getItem(INV_SETTINGS_KEY) || "{}"); return { windowDays: Number(v.windowDays) > 0 ? Number(v.windowDays) : 7, tolerancePct: Number(v.tolerancePct) >= 0 ? Number(v.tolerancePct) : 0.5 }; } catch (e) { return { windowDays: 7, tolerancePct: 0.5 }; }
+}
+function invSettingsSave(s) { try { localStorage.setItem(INV_SETTINGS_KEY, JSON.stringify(s)); } catch (e) { /* ignore */ } }
+
+/* Pure matching — no network, no storage. Exported on window for
+   testing (window.__matchInvoices). */
+function matchInvoices(invoices, transfers, windowDays, tolPct) {
+  const dayMs = 86400000;
+  const coinMatch = (invCoin, t) => {
+    const ic = String(invCoin || "").trim().toLowerCase();
+    if (!ic) return false;
+    if (ic === String(t.coin || "").toLowerCase()) return true;
+    if (t.token_address && ic === String(t.token_address).toLowerCase()) return true;
+    return false;
+  };
+  const dueMs = (d) => { const p = String(d || "").split("-"); if (p.length !== 3) return NaN; return Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])); };
+  const txDayMs = (ts) => { const t = Date.parse(ts || ""); if (Number.isNaN(t)) return NaN; const d = new Date(t); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+  const used = new Set();
+  const ordered = (invoices || []).slice().sort((a, b) => String(a.due_date || "").localeCompare(String(b.due_date || "")) || (a.created || 0) - (b.created || 0));
+  const results = ordered.map((inv) => {
+    const due = dueMs(inv.due_date);
+    const amount = Number(inv.amount) || 0;
+    const tol = Math.abs(amount) * (Number(tolPct) || 0) / 100;
+    // Candidates: same coin, in the window, not yet assigned —
+    // oldest first. Add them only until the invoiced amount is
+    // reached (within tolerance), so one invoice never swallows
+    // payments meant for a later invoice.
+    const cands = (transfers || []).map((t, i) => ({ t, i }))
+      .filter(({ t, i }) => !used.has(i) && coinMatch(inv.coin, t) && !Number.isNaN(due) && !Number.isNaN(txDayMs(t.timestamp)) && Math.abs(txDayMs(t.timestamp) - due) / dayMs <= Number(windowDays))
+      .sort((a, b) => String(a.t.timestamp || "").localeCompare(String(b.t.timestamp || "")));
+    const matched = [];
+    let received = 0;
+    for (const { t, i } of cands) {
+      if (received >= amount - tol) break;
+      used.add(i);
+      matched.push(t);
+      received += Number(t.amount) || 0;
+    }
+    const diff = received - amount;
+    let status = "unmatched";
+    if (matched.length) status = Math.abs(diff) <= tol ? "matched" : (diff < 0 ? "partial" : "overpaid");
+    return { invoice: inv, status, received, diff, transfers: matched };
+  });
+  const unmatchedTransfers = (transfers || []).filter((_, i) => !used.has(i));
+  return { results, unmatchedTransfers };
+}
+if (typeof window !== "undefined") window.__matchInvoices = matchInvoices;
+
+function invStatusBadge(status) {
+  return { matched: '<span class="badge ok">Matched</span>', partial: '<span class="badge warn">Partial</span>', overpaid: '<span class="badge info">Overpaid</span>', unmatched: '<span class="badge fail">Unmatched</span>' }[status] || esc(status);
+}
+function invTxLink(t) {
+  const h = esc(t.tx_hash || "");
+  if (t.chain && t.tx_hash && ["ethereum", "sepolia", "optimism", "gnosis", "solana", "bitcoin"].includes(t.chain)) {
+    return `<a class="mono" href="${esc(trackHref(t.chain, t.tx_hash))}" title="Track settlement">${h.slice(0, 18)}…</a>`;
+  }
+  return `<span class="mono">${h.slice(0, 18)}…</span>`;
+}
+
+async function invoicesPage() {
+  const run = ++invoicesRun;
+  const alive = () => run === invoicesRun && document.getElementById("inv-root");
+  document.title = "Invoices — " + TITLE;
+  const settings = invSettingsLoad();
+  let invoices = invLoad();
+  let address = "";
+  try { address = localStorage.getItem(INV_ADDR_KEY) || ""; } catch (e) { address = ""; }
+  let transfers = null; // fetched incoming transfers (or null = not fetched yet)
+  let fetchError = null;
+  let fetchMeta = null;
+
+  render(`
+    <div id="inv-root">
+    <div class="pagehead"><h2>🧾 Invoices</h2></div>
+    <div class="card"><div style="padding:18px 16px">
+      <p class="muted" style="margin-top:0">Reconcile incoming payments against invoices — for any coin the wallet aggregates (stablecoins, ETH, SOL, tokens). <b>Nothing leaves this browser:</b> invoices are stored in this browser's localStorage only, and the only request the page makes is <span class="mono">GET /wallet/{address}/incoming</span>, which carries no invoice data. Matching runs locally: a transfer counts toward an invoice when the coin matches (symbol, or contract/mint address) and its date falls within due date ± the window below. Each transfer is assigned to at most one invoice (oldest due date first); transfers are added oldest-first only until the invoiced amount is reached, so one invoice never swallows payments meant for another.</p>
+      <form id="inv-watch-form" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <label class="field" style="flex:1;min-width:280px">Watched receiving address<input type="text" id="inv-address" placeholder="0x… / Solana address" value="${esc(address)}"></label>
+        <label class="field">Window (days ± due)<input type="number" id="inv-window" min="0" max="90" step="1" value="${esc(String(settings.windowDays))}" style="width:90px"></label>
+        <label class="field">Tolerance (%)<input type="number" id="inv-tol" min="0" max="100" step="0.1" value="${esc(String(settings.tolerancePct))}" style="width:90px"></label>
+        <button class="btn" type="submit">Fetch incoming &amp; match</button>
+      </form>
+      <p class="muted" style="font-size:12px;margin:10px 0 0">Window and tolerance are matching settings — changing them re-runs the match locally, with no new request.</p>
+    </div></div>
+    <div class="card"><div class="card-head">Add invoice</div><div style="padding:14px 16px">
+      <form id="inv-add-form" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <label class="field">Reference<input type="text" id="inv-ref" placeholder="INV-2026-001" required></label>
+        <label class="field">Amount<input type="number" id="inv-amount" min="0" step="any" placeholder="15" required></label>
+        <label class="field">Coin<input type="text" id="inv-coin" placeholder="USDC, ETH, SOL, 0x… / SPL mint" required></label>
+        <label class="field">Due date<input type="date" id="inv-due" required></label>
+        <button class="btn" type="submit">Add invoice</button>
+      </form>
+    </div></div>
+    <div id="inv-summary"></div>
+    <div id="inv-results"><div class="card"><div class="empty">No invoices yet — add one above, then fetch incoming transfers for the watched address.</div></div></div>
+    <div id="inv-unmatched"></div>
+    <div id="inv-limits"></div>
+    </div>`);
+
+  function renderResults() {
+    if (!alive()) return;
+    const s = invSettingsLoad();
+    const summaryEl = $("#inv-summary");
+    const resEl = $("#inv-results");
+    const unmEl = $("#inv-unmatched");
+    const limEl = $("#inv-limits");
+    if (!invoices.length) {
+      if (summaryEl) summaryEl.innerHTML = "";
+      if (resEl) resEl.innerHTML = `<div class="card"><div class="empty">No invoices yet — add one above${transfers ? ", then re-run the match" : ""}.</div></div>`;
+      if (unmEl) unmEl.innerHTML = "";
+      if (limEl) limEl.innerHTML = "";
+      return;
+    }
+    if (!transfers) {
+      if (summaryEl) summaryEl.innerHTML = "";
+      if (resEl) resEl.innerHTML = `<div class="card"><div style="padding:14px 16px"><div class="muted">Invoices saved locally (${invoices.length}). Enter the watched receiving address above and fetch incoming transfers to match them.</div>
+        ${invoices.map((inv) => `<div style="margin-top:8px">${esc(inv.reference)} — <span class="mono">${esc(String(inv.amount))} ${esc(inv.coin)}</span> · due ${esc(inv.due_date)} <button class="btn" data-inv-del="${esc(inv.id)}" style="margin-left:8px">Delete</button></div>`).join("")}
+        <div style="margin-top:12px"><button class="btn" id="inv-clear">Clear all invoices</button></div></div></div>`;
+      if (unmEl) unmEl.innerHTML = "";
+      if (limEl) limEl.innerHTML = "";
+      bindRowButtons();
+      return;
+    }
+    const { results, unmatchedTransfers } = matchInvoices(invoices, transfers, s.windowDays, s.tolerancePct);
+    const counts = { matched: 0, partial: 0, overpaid: 0, unmatched: 0 };
+    results.forEach((r) => { counts[r.status]++; });
+    if (summaryEl) summaryEl.innerHTML = `<div class="card"><div style="padding:12px 16px">Matched <b>${counts.matched}</b> · Partial <b>${counts.partial}</b> · Overpaid <b>${counts.overpaid}</b> · Unmatched <b>${counts.unmatched}</b> <span class="muted">— ${transfers.length} incoming transfer(s) in the sampled window · window ±${esc(String(s.windowDays))} days · tolerance ${esc(String(s.tolerancePct))}%</span></div></div>`;
+    if (resEl) resEl.innerHTML = `<div class="card"><div class="card-head">Invoices <span class="spacer"></span><button class="btn" id="inv-clear">Clear all</button></div>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Reference</th><th>Amount</th><th>Coin</th><th>Due</th><th>Status</th><th>Received</th><th>Matched transfer(s)</th><th></th></tr></thead><tbody>
+      ${results.map((r) => `<tr><td>${esc(r.invoice.reference)}</td><td class="mono">${esc(String(r.invoice.amount))}</td><td>${esc(r.invoice.coin)}</td><td>${esc(r.invoice.due_date)}</td><td>${invStatusBadge(r.status)}</td><td class="mono">${r.transfers.length ? esc(String(r.received)) + (r.diff !== 0 ? ` <span class="muted">(${r.diff > 0 ? "+" : ""}${esc(String(Math.round(r.diff * 1e9) / 1e9))})</span>` : "") : "—"}</td><td>${r.transfers.length ? r.transfers.map((t) => `<div>${invTxLink(t)} <span class="muted">${esc(t.chain_label || t.chain)} · ${esc(t.timestamp ? String(t.timestamp).slice(0, 10) : "")} · ${esc(String(t.amount))} ${esc(t.coin)}</span></div>`).join("") : '<span class="muted">—</span>'}</td><td><button class="btn" data-inv-del="${esc(r.invoice.id)}">Delete</button></td></tr>`).join("")}
+      </tbody></table></div></div>`;
+    if (unmEl) unmEl.innerHTML = unmatchedTransfers.length ? `<div class="card"><div class="card-head">Unmatched incoming transfers — candidates <span class="sample-badge">${unmatchedTransfers.length} not assigned to any invoice</span></div>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Date</th><th>Chain</th><th>Coin</th><th>Amount</th><th>From</th><th>Transfer</th></tr></thead><tbody>
+      ${unmatchedTransfers.map((t) => `<tr><td>${esc(t.timestamp ? String(t.timestamp).slice(0, 10) : "")}</td><td>${esc(t.chain_label || t.chain)}</td><td>${esc(t.coin)}</td><td class="mono">${esc(String(t.amount))}</td><td class="mono">${esc((t.from || "").slice(0, 18))}…</td><td>${invTxLink(t)}</td></tr>`).join("")}
+      </tbody></table></div></div>` : `<div class="card"><div style="padding:12px 16px" class="muted">No unmatched incoming transfers — every transfer in the sampled window is assigned to an invoice.</div></div>`;
+    if (limEl) limEl.innerHTML = `<div class="card"><div style="padding:12px 16px"><div class="muted" style="font-size:12px">Honest limits</div><ul class="risk-reasons muted" style="font-size:12px">${(fetchMeta && fetchMeta.limits ? fetchMeta.limits : []).map((n) => `<li>${esc(n)}</li>`).join("")}<li>Matching is by coin + date window only — it cannot prove a transfer was <i>meant</i> for an invoice, and a transfer outside the window or in a different coin will not match even if it was the payment.</li><li>Amounts compare as decimals with the tolerance above; very small dust amounts can match by coincidence — check the transfer hash before treating a match as settled.</li></ul>${fetchMeta && fetchMeta.errors && Object.keys(fetchMeta.errors).length ? `<div class="muted" style="font-size:12px;margin-top:6px">Chain errors (those chains contributed no transfers): ${esc(JSON.stringify(fetchMeta.errors))}</div>` : ""}</div></div>`;
+    bindRowButtons();
+  }
+  function bindRowButtons() {
+    document.querySelectorAll("[data-inv-del]").forEach((b) => {
+      b.addEventListener("click", () => {
+        invoices = invoices.filter((inv) => inv.id !== b.dataset.invDel);
+        invSave(invoices);
+        renderResults();
+      });
+    });
+    const clearBtn = $("#inv-clear");
+    if (clearBtn) clearBtn.addEventListener("click", () => { invoices = []; invSave(invoices); renderResults(); });
+  }
+
+  async function runFetch() {
+    if (!alive()) return;
+    const addr = $("#inv-address").value.trim();
+    const s = { windowDays: Number($("#inv-window").value) || 7, tolerancePct: Number($("#inv-tol").value) || 0 };
+    invSettingsSave(s);
+    if (!addr) { $("#inv-results").innerHTML = `<div class="card"><div class="empty">Enter a watched receiving address first.</div></div>`; return; }
+    try { localStorage.setItem(INV_ADDR_KEY, addr); } catch (e) { /* ignore */ }
+    $("#inv-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Fetching incoming transfers…</div></div></div>`;
+    try {
+      // The ONLY request this page makes: address only, no invoice data.
+      const d = await getWallet("/" + encodeURIComponent(addr) + "/incoming");
+      transfers = d.items || [];
+      fetchMeta = d;
+      fetchError = null;
+    } catch (e) {
+      transfers = null;
+      fetchError = e.message;
+      $("#inv-results").innerHTML = `<div class="card"><div class="empty">Could not fetch incoming transfers: ${esc(e.message)}</div></div>`;
+      return;
+    }
+    renderResults();
+  }
+
+  $("#inv-watch-form").addEventListener("submit", (e) => { e.preventDefault(); runFetch(); });
+  $("#inv-window").addEventListener("change", () => { invSettingsSave({ windowDays: Number($("#inv-window").value) || 7, tolerancePct: Number($("#inv-tol").value) || 0 }); if (transfers) renderResults(); });
+  $("#inv-tol").addEventListener("change", () => { invSettingsSave({ windowDays: Number($("#inv-window").value) || 7, tolerancePct: Number($("#inv-tol").value) || 0 }); if (transfers) renderResults(); });
+  $("#inv-add-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const ref = $("#inv-ref").value.trim();
+    const amount = $("#inv-amount").value.trim();
+    const coin = $("#inv-coin").value.trim().toUpperCase();
+    const due = $("#inv-due").value;
+    if (!ref || !amount || !coin || !due || Number(amount) < 0) return;
+    invoices.push({ id: "inv-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e6).toString(36), reference: ref, amount, coin, due_date: due, created: Date.now() });
+    invSave(invoices);
+    $("#inv-ref").value = ""; $("#inv-amount").value = ""; $("#inv-coin").value = ""; $("#inv-due").value = "";
+    renderResults();
+  });
+  renderResults();
+  // Re-run the saved match automatically when both an address and
+  // invoices exist, so a returning user sees results immediately.
+  if (address && invoices.length) runFetch();
+}
+
+/* ---------------- recurring payments (phase 2, Q5) ---------------- */
+/* Backend: GET /api/walletscope/recurring?address=&direction=out|in|all.
+   Detects repeating payments (same counterparty, coin, approx amount,
+   roughly regular interval) in the sampled transfer window. A series
+   needs >= 3 payments; 2-payment groups come back as candidates. */
+let recurringRun = 0;
+
+function recurringStatusBadge(s) {
+  if (s.kind === "burst") return `<span class="badge grey">Same-day burst</span>`;
+  if (s.status === "unknown") return `<span class="badge grey">Unknown</span>`;
+  if (s.status === "on_schedule") return `<span class="badge ok">On schedule</span>`;
+  if (s.status === "due") return `<span class="badge warn">Due</span>`;
+  if (s.status === "overdue") return `<span class="badge fail">Overdue${s.missed_payments ? ` — ${esc(String(s.missed_payments))} missed` : ""}</span>`;
+  return `<span class="badge grey">Candidate</span>`;
+}
+
+function recurringTxLink(chain, h) {
+  if (!h) return '<span class="muted">—</span>';
+  if (chain === "solana") return `<a class="mono" href="https://solscan.io/tx/${esc(h)}" target="_blank" rel="noopener">${esc(shortH(h))}</a>`;
+  if (chain === "bitcoin") return `<a class="mono" href="https://mempool.space/tx/${esc(h)}" target="_blank" rel="noopener">${esc(shortH(h))}</a>`;
+  return linkTxC(chain, h);
+}
+
+function recurringSeriesRows(list, isCandidate) {
+  return list.map((s) => {
+    const nextCell = s.expected_next
+      ? `${esc(String(s.expected_next).slice(0, 10))}<br><span class="muted">${s.days_until_next != null ? (s.days_until_next >= 0 ? `in ${esc(String(s.days_until_next))}d` : `${esc(String(Math.abs(s.days_until_next)))}d ago`) : ""}</span>`
+      : '<span class="muted">—</span>';
+    const cp = `<span class="mono">${esc(s.counterparty ? s.counterparty.slice(0, 18) : "")}…</span> ${copyBtn(s.counterparty || "")}`;
+    const coinCell = s.token_address
+      ? linkTokenC(s.chain, s.token_address, s.coin)
+      : esc(s.coin || "");
+    return `<tr><td>${cp}${s.counterparty_note ? `<br><span class="muted" style="font-size:11px">${esc(s.counterparty_note)}</span>` : ""}</td>
+      <td>${esc(s.chain_label || s.chain)}</td><td>${coinCell}</td>
+      <td class="mono">${esc(String(s.count))}</td>
+      <td class="mono">${s.median_interval_days != null ? esc(String(s.median_interval_days)) + "d" : "—"}</td>
+      <td><span class="badge ${s.cadence === "irregular" ? "warn" : "grey"}">${esc(s.cadence || "—")}</span>${s.regularity && s.regularity !== "unknown" ? `<br><span class="muted" style="font-size:11px">spacing: ${esc(s.regularity)}${s.interval_cv != null ? ` (CV ${esc(String(s.interval_cv))})` : ""}</span>` : ""}</td>
+      <td>${esc(String(s.last_payment || "").slice(0, 10))}</td>
+      <td>${nextCell}</td>
+      <td>${recurringStatusBadge(s)}${s.status_note ? `<br><span class="muted" style="font-size:11px">${esc(s.status_note)}</span>` : ""}${s.status === "overdue" && s.overdue_days ? `<br><span class="muted" style="font-size:11px">${esc(String(s.overdue_days))}d overdue</span>` : ""}${s.late_payments ? `<br><span class="muted" style="font-size:11px">${esc(String(s.late_payments))} late in history</span>` : ""}</td>
+      <td class="mono">${s.amount_median != null ? esc(String(s.amount_median)) : "—"}<br><span class="muted" style="font-size:11px">CV ${s.amount_cv_pct != null ? esc(String(s.amount_cv_pct)) : "—"}% · max dev ${s.amount_max_rel_dev_pct != null ? esc(String(s.amount_max_rel_dev_pct)) : "—"}%</span></td></tr>
+    <tr><td colspan="10" style="background:var(--bg-soft)"><details><summary class="muted" style="cursor:pointer;font-size:12px">Payments (${esc(String(s.count))}) — ${esc(String(s.first_payment || "").slice(0, 10))} → ${esc(String(s.last_payment || "").slice(0, 10))}</summary>
+      <div style="margin-top:6px">${(s.payments || []).map((p) => `<div><span class="mono">${esc(String(p.date || "").slice(0, 10))}</span> · <span class="mono">${esc(String(p.amount))} ${esc(s.coin || "")}</span> · ${recurringTxLink(s.chain, p.tx_hash)}</div>`).join("")}</div></details></td></tr>`;
+  }).join("");
+}
+
+async function recurringPage(param) {
+  const run = ++recurringRun;
+  const alive = () => run === recurringRun && document.getElementById("rec-root");
+  document.title = "Recurring Payments — " + TITLE;
+  render(`
+    <div id="rec-root">
+    <div class="pagehead"><h2>🔁 Recurring Payments</h2><span class="sample-badge">SAMPLED WINDOW</span></div>
+    <div class="card"><div style="padding:18px 16px">
+      <p class="muted" style="margin-top:0">Repeating payments for one address — same counterparty, same coin, approximately the same amount, at a roughly regular interval — across every coin the wallet aggregates (stablecoins, ETH, SOL, BTC, tokens) on every chain. A series needs at least 3 payments in the sampled window; 2-payment groups are shown as candidates, not series. Nothing here creates or signs a transaction.</p>
+      <form id="rec-form" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <label class="field" style="flex:1;min-width:280px">Address<input type="text" id="rec-address" placeholder="0x… / Solana / Bitcoin address, or ENS name" value="${esc(param || "")}"></label>
+        <label class="field">Direction<select id="rec-direction"><option value="out">Outgoing (payments)</option><option value="in">Incoming (receipts)</option><option value="all">All</option></select></label>
+        <button class="btn" type="submit">Detect recurring payments</button>
+      </form>
+    </div></div>
+    <div id="rec-results"><div class="card"><div class="empty">Enter an address to scan its transfers for repeating payments.</div></div></div>
+    </div>`);
+
+  async function runDetect() {
+    if (!alive()) return;
+    const raw = $("#rec-address").value.trim();
+    const direction = $("#rec-direction").value || "out";
+    if (!raw) { $("#rec-results").innerHTML = `<div class="card"><div class="empty">Enter an address first.</div></div>`; return; }
+    $("#rec-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Scanning transfers… (first page per chain; busy addresses take a while)</div></div></div>`;
+    let addr = raw;
+    try {
+      const r = await resolveWalletParam(raw);
+      addr = r.address;
+    } catch (e) {
+      // Not an ENS name / unresolvable: if it looks like a raw address
+      // (EVM, Solana or Bitcoin) the backend validates it; otherwise
+      // report the resolution failure.
+      if (!WALLET_ADDR_RE.test(raw) && !SOL_ADDR_RE.test(raw) && !/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,62}$/.test(raw)) {
+        if (!alive()) return;
+        $("#rec-results").innerHTML = `<div class="card"><div class="empty">Could not resolve “${esc(raw)}”: ${esc(e.message)}</div></div>`;
+        return;
+      }
+    }
+    let d;
+    try {
+      const qs = new URLSearchParams({ address: addr, direction });
+      d = await fetchJson(API + "/recurring?" + qs.toString(), null, 90000);
+    } catch (e) {
+      if (!alive()) return;
+      $("#rec-results").innerHTML = `<div class="card"><div class="empty">Recurring-payment scan failed: ${esc(e.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    const sum = d.summary || {};
+    const dirLabel = direction === "out" ? "outgoing" : direction === "in" ? "incoming" : "all";
+    const win = sum.window_start && sum.window_end
+      ? `window ${esc(String(sum.window_start).slice(0, 10))} → ${esc(String(sum.window_end).slice(0, 10))}`
+      : "window unknown";
+    $("#rec-results").innerHTML = `
+    <div class="card"><div style="padding:12px 16px"><b>${esc(String(d.series ? d.series.length : 0))}</b> recurring series · <b>${esc(String(d.candidates ? d.candidates.length : 0))}</b> candidate(s) (2 payments) · <b>${esc(String(d.bursts ? d.bursts.length : 0))}</b> same-day burst(s) <span class="muted">— ${esc(String(sum.transfers_scanned ?? "?"))} ${dirLabel} transfer(s) scanned in the sampled window (${win}) · ${esc(String(sum.groups_considered ?? "?"))} counterparty/coin group(s) considered</span></div></div>
+    ${(d.series && d.series.length) ? `<div class="card"><div class="card-head">Recurring series <span class="sample-badge">${esc(String(d.series.length))} found</span></div>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Counterparty</th><th>Chain</th><th>Coin</th><th>#</th><th>Median interval</th><th>Cadence</th><th>Last</th><th>Next expected</th><th>Status</th><th>Amount (median)</th></tr></thead><tbody>
+      ${recurringSeriesRows(d.series, false)}
+      </tbody></table></div></div>` : `<div class="card"><div style="padding:14px 16px" class="muted">No recurring series found in the sampled window for this address and direction — a monthly series on a busy address may show only 1–2 payments in the window (see candidates below), and absence of a series is not proof there is no recurring payment.</div></div>`}
+    ${(d.candidates && d.candidates.length) ? `<div class="card"><div class="card-head">Candidates — 2 payments only <span class="sample-badge">${esc(String(d.candidates.length))}</span></div>
+      <div style="padding:12px 16px" class="muted">One interval cannot establish a cadence. The “next expected” date below just repeats that single interval — treat it as a hint, not a schedule.</div>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Counterparty</th><th>Chain</th><th>Coin</th><th>#</th><th>Interval</th><th>Cadence</th><th>Last</th><th>Next (single-interval repeat)</th><th>Status</th><th>Amount (median)</th></tr></thead><tbody>
+      ${recurringSeriesRows(d.candidates, true)}
+      </tbody></table></div></div>` : ""}
+    ${(d.bursts && d.bursts.length) ? `<div class="card"><div class="card-head">Same-day bursts — not recurring <span class="sample-badge">${esc(String(d.bursts.length))}</span></div>
+      <div style="padding:12px 16px" class="muted">These groups paid 3+ times within hours (spam / airdrop dust). A burst is not a cadence, so no next date is estimated for them.</div>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Counterparty</th><th>Chain</th><th>Coin</th><th>#</th><th>Median interval</th><th>Cadence</th><th>Last</th><th>Next expected</th><th>Status</th><th>Amount (median)</th></tr></thead><tbody>
+      ${recurringSeriesRows(d.bursts, true)}
+      </tbody></table></div></div>` : ""}
+    <div class="card"><div style="padding:12px 16px"><div class="muted" style="font-size:12px">Honest limits</div><ul class="risk-reasons muted" style="font-size:12px">${(d.limits || []).map((n) => `<li>${esc(n)}</li>`).join("")}</ul>${d.errors && Object.keys(d.errors).length ? `<div class="muted" style="font-size:12px;margin-top:6px">Chain errors (those chains contributed no transfers): ${esc(JSON.stringify(d.errors))}</div></div>` : ""}</div></div>`;
+  }
+
+  $("#rec-form").addEventListener("submit", (e) => { e.preventDefault(); runDetect(); });
+  if (param) runDetect();
+}
+
+/* ---------------- freeze / blacklist watch (walletscope only) ---------------- */
+/* Backend: GET /api/walletscope/freeze/watch?address=&coin=(&chain=).
+   EVM addresses: live freeze/blacklist read probe + freeze events
+   naming the address (same window as the per-scope /freeze) for one
+   coin (?coin= stablecoin symbol; empty checks the USDC + USDT
+   majors). Solana addresses: ?coin= USDC / USDT checks that coin's
+   Solana mint, or paste an SPL mint — the mint's freeze authority
+   plus the token account's current state. Bitcoin: not applicable.
+   A "not frozen" answer is a screening signal, not proof the address
+   was never frozen before the scanned window (the blacklist is not
+   enumerable on-chain). */
+const FREEZE_WATCH_COINS = ["USDC", "USDT", "DAI", "USDe", "FDUSD", "PYUSD", "TUSD", "USDD"];
+
+function freezeWatchBadge(v) {
+  const x = String(v || "unknown").toLowerCase();
+  const cls = { frozen: "fail", not_frozen: "ok", unknown: "grey", not_freezable: "grey", not_applicable: "grey" }[x] || "grey";
+  const label = {
+    frozen: "FROZEN — blacklisted",
+    not_frozen: "Not frozen",
+    unknown: "UNKNOWN — could not be verified",
+    not_freezable: "Cannot be frozen",
+    not_applicable: "Not applicable",
+  }[x] || x;
+  return `<span class="badge ${cls}">${esc(label)}</span>`;
+}
+
+function freezeWatchCheckHtml(c) {
+  const rp = c.read_probe || {};
+  const evs = c.events || {};
+  const evList = evs.events || [];
+  const bal = c.balance || {};
+  const acct = c.token_account || null;
+  const sib = SIBLINGS.find((s) => s.name === c.symbol + " Scope");
+  const evRows = evList.map((e) => `<tr><td>${e.timestamp ? new Date(Number(e.timestamp) * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "—"}</td><td>${esc(e.kind || "")}</td><td style="text-align:right">${e.amount != null ? Number(e.amount).toLocaleString("en-US", { maximumFractionDigits: 4 }) + " " + esc(c.symbol || "") : "—"}</td><td>${e.tx_hash ? linkTxC("ethereum", e.tx_hash) : "—"}</td></tr>`).join("");
+  return `<div class="card" style="border-left:4px solid ${c.frozen === true ? "var(--red)" : c.frozen === false ? "var(--green)" : "var(--muted)"}">
+    <div class="card-head">${esc(c.symbol || c.mint || "?")}${c.chain ? ` <span class="muted">(${esc(c.chain === "solana" ? "Solana" : c.chain === "tron" ? "Tron" : "Ethereum")})</span>` : ""} <span class="spacer"></span>${freezeWatchBadge(c.verdict)}${sib ? ` <a href="${esc(sib.url)}" target="_blank" rel="noopener">${esc(c.symbol)} Scope →</a>` : ""}</div>
+    <div style="padding:12px 16px">
+      <div>${esc(c.summary || "")}</div>
+      <div class="detail" style="margin-top:10px">
+        <div class="dk">Live probe</div><div class="dv">${rp.function ? `${esc(rp.function)} → <b>${rp.frozen == null ? "unknown" : rp.frozen ? "frozen" : "not frozen"}</b>` : "No read function"}${rp.note ? `<br><span class="muted">${esc(rp.note)}</span>` : ""}</div>
+        ${c.chain === "solana" ? `
+        <div class="dk">Mint freeze authority</div><div class="dv">${c.freeze_authority ? `<span class="mono">${esc(c.freeze_authority)}</span> <b>(live — issuer CAN freeze)</b>` : "<b>None</b> — the issuer cannot freeze holder token accounts"}</div>
+        <div class="dk">Token account</div><div class="dv">${acct ? `<span class="mono">${esc(acct.address || "")}</span> · state <b>${esc(acct.state || "—")}</b>${acct.balance != null ? ` · balance ${esc(String(acct.balance))}` : ""}` : "No token account for this mint — nothing frozen, but a freeze authority (if any) still applies to future accounts"}</div>`
+        : `
+        <div class="dk">Balance</div><div class="dv">${bal.known ? `${bal.amount != null ? Number(bal.amount).toLocaleString("en-US", { maximumFractionDigits: 4 }) : "—"} ${esc(c.symbol || "")}${bal.amount_usd != null ? ` (${usd(bal.amount_usd)})` : ""}` : "Unknown (balance lookup failed)"}</div>
+        <div class="dk">Freeze events naming it</div><div class="dv">${num(evs.total_events_naming_address)} event(s)${evs.window && evs.window.window_days ? ` in the ${num(evs.window.window_days)}d window` : ""}${evs.in_currently_frozen_set ? " · in the currently-frozen set" : ""}${evs.status_note ? `<br><span class="muted">${esc(evs.status_note)}</span>` : ""}</div>`}
+      </div>
+      ${evRows ? `<div style="overflow-x:auto"><table class="tbl" style="margin-top:10px"><thead><tr><th>Time (UTC)</th><th>Event</th><th style="text-align:right">Amount</th><th>Tx</th></tr></thead><tbody>${evRows}</tbody></table></div>` : ""}
+    </div>
+  </div>`;
+}
+
+async function freezeWatchPage(param) {
+  document.title = "Freeze Watch — " + TITLE;
+  render(`
+    <div class="pagehead"><h2>🧊 Freeze Watch</h2></div>
+    <div class="card"><div style="padding:18px 16px">
+      <p class="muted" style="margin-top:0">Is this address currently frozen or blacklisted by a stablecoin issuer — and does any freeze event name it? EVM addresses are checked with the live on-chain read probe (<span class="mono">isBlacklisted</span> / <span class="mono">isBlackListed</span> / <span class="mono">isFrozen</span> / <span class="mono">frozen</span>) plus the freeze/blacklist events naming the address in the scanned window; Solana addresses are checked against the SPL mint's freeze authority and the token account's current state. The issuer blacklist is <b>not</b> enumerable on-chain — “not frozen” means the probe says not frozen and no event in the window names the address; it cannot prove the address was never frozen before the window. TUSD has no on-chain read function, so its state is event-derived, never live-verified. Nothing here creates or signs a transaction.</p>
+      <form id="fw-form" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <label class="field" style="flex:2;min-width:280px">Address<input type="text" id="fw-address" placeholder="0x… / Solana address, or ENS name" value="${esc(param || "")}"></label>
+        <label class="field">Coin<select id="fw-coin"><option value="">No coin — check USDC + USDT</option>${FREEZE_WATCH_COINS.map((c) => `<option value="${esc(c)}">${esc(c)} (Ethereum)</option>`).join("")}<option value="SOL-USDC">USDC (Solana)</option><option value="SOL-USDT">USDT (Solana)</option></select></label>
+        <label class="field">…or SPL mint<input type="text" id="fw-mint" placeholder="SPL mint address (Solana only)"></label>
+        <button class="btn" type="submit">Check freeze status</button>
+      </form>
+    </div></div>
+    <div id="fw-results"><div class="card"><div class="empty">Enter an address to check whether its issuer can — or already has — frozen its stablecoin balances.</div></div></div>`);
+
+  async function runCheck() {
+    const out = $("#fw-results");
+    if (!out) return;
+    const raw = $("#fw-address").value.trim();
+    const mint = $("#fw-mint").value.trim();
+    const coinSel = $("#fw-coin").value;
+    if (!raw) { out.innerHTML = `<div class="card"><div class="empty">Enter an address first.</div></div>`; return; }
+    let addr = raw;
+    try {
+      const r = await resolveWalletParam(raw);
+      addr = r.address;
+    } catch (e) {
+      if (!WALLET_ADDR_RE.test(raw) && !SOL_ADDR_RE.test(raw)) {
+        out.innerHTML = `<div class="card"><div class="empty">Could not resolve “${esc(raw)}”: ${esc(e.message)}</div></div>`;
+        return;
+      }
+    }
+    const qs = new URLSearchParams({ address: addr });
+    if (mint) { qs.set("coin", mint); qs.set("chain", "solana"); }
+    else if (coinSel.startsWith("SOL-")) { qs.set("coin", coinSel.slice(4)); qs.set("chain", "solana"); }
+    else if (coinSel) { qs.set("coin", coinSel); }
+    out.innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Checking freeze status… (live read probe + event scan; silent coins scan a 5-year window)</div></div></div>`;
+    let d;
+    try {
+      d = await fetchJson(API + "/freeze/watch?" + qs.toString(), null, 120000);
+    } catch (e) {
+      if (!document.getElementById("fw-results")) return;
+      out.innerHTML = `<div class="card"><div class="empty">Freeze watch failed: ${esc(e.message)}</div></div>`;
+      return;
+    }
+    if (!document.getElementById("fw-results")) return;
+    const checks = d.checks || [];
+    out.innerHTML = `
+    <div class="card"><div style="padding:12px 16px"><span class="mono" style="word-break:break-all">${esc(d.address || addr)}</span>${d.resolved_from ? ` <span class="badge info">ENS: ${esc(d.resolved_from)}</span>` : ""} <span class="spacer"></span>${freezeWatchBadge(d.verdict)}</div>
+    <div style="padding:0 16px 12px">${esc(d.summary || "")}</div></div>
+    ${checks.map(freezeWatchCheckHtml).join("")}
+    <div class="card"><div style="padding:12px 16px"><div class="muted" style="font-size:12px">Honest limits</div><ul class="risk-reasons muted" style="font-size:12px">${(d.limits || []).map((n) => `<li>${esc(n)}</li>`).join("")}</ul><div class="muted" style="font-size:12px;margin-top:6px">${esc(d.methodology || "")}</div></div></div>`;
+  }
+
+  $("#fw-form").addEventListener("submit", (e) => { e.preventDefault(); runCheck(); });
+  if (param) runCheck();
 }
 
 async function walletPage(param) {
@@ -1722,6 +3011,7 @@ async function walletPage(param) {
     <div class="card"><div class="card-head">Holdings <span class="spacer"></span><label class="muted" style="font-weight:400;font-size:12px"><input type="checkbox" id="w-dust"> Show dust (&lt; $1)</label></div><div id="w-holdings"><div class="spinner">Loading token holdings…</div></div></div>
     <div class="card"><div class="card-head">Portfolio Value — Estimate <span class="sample-badge">ESTIMATE</span><span class="spacer"></span><span class="daybtns" id="w-hist-btns"><button class="btn" data-days="7">7D</button><button class="btn active" data-days="30">30D</button><button class="btn" data-days="90">90D</button></span></div><div id="w-history"><div class="spinner">Loading history…</div></div></div>
     <div class="card"><div class="card-head">Estimated Realized PnL <span class="sample-badge">ESTIMATE</span></div><div id="w-pnl"><div class="spinner">Loading PnL…</div></div></div>
+    <div class="card"><div class="card-head">Accounting Export <span class="sample-badge">ESTIMATE</span></div><div id="w-accounting"><div class="spinner">Loading…</div></div></div>
     <div class="card"><div class="card-head">NFTs <span class="spacer"></span><span id="w-nft-count" class="badge grey">…</span></div><div id="w-nfts"><div class="spinner">Loading NFTs…</div></div></div>
     <div class="card"><div class="card-head">Activity — EVM Chains</div><div id="w-activity"><div class="spinner">Loading activity…</div></div></div>
     </div>`);
@@ -1734,7 +3024,7 @@ async function walletPage(param) {
   } catch (e) {
     if (!alive()) return;
     $("#w-hero").innerHTML = `<div class="empty">Could not resolve “${esc(param)}”: ${esc(e.message)}<br><a href="#/wallet">Try another address</a></div>`;
-    for (const id of ["w-chains", "w-holdings", "w-history", "w-pnl", "w-nfts", "w-activity"]) {
+    for (const id of ["w-chains", "w-holdings", "w-history", "w-pnl", "w-accounting", "w-nfts", "w-activity"]) {
       const el = document.getElementById(id); if (el) el.innerHTML = "";
     }
     return;
@@ -1745,7 +3035,27 @@ async function walletPage(param) {
   const addrHref = SOL_ADDR_RE.test(addr)
     ? `https://solscan.io/account/${addr}`
     : ((WALLET_ONLY && scopeUrl("ethereum")) ? scopeUrl("ethereum") + "/#/address/" + addr : "#/address/" + addr);
-  if (addrEl) addrEl.innerHTML = `<a class="mono" href="${addrHref}"${SOL_ADDR_RE.test(addr) ? ' target="_blank" rel="noopener"' : ""}>${esc(addr)}</a>${ensName ? ` <span class="badge info">${esc(ensName)}</span>` : ""} ${copyBtn(addr)}`;
+  if (addrEl) addrEl.innerHTML = `<a class="mono" href="${addrHref}"${SOL_ADDR_RE.test(addr) ? ' target="_blank" rel="noopener"' : ""}>${esc(addr)}</a>${ensName ? ` <span class="badge info">${esc(ensName)}</span>` : ""} ${copyBtn(addr)} <a class="btn" href="#/preflight/${esc(addr)}" title="Pre-flight compliance check before sending to this address">🛡️ Pre-flight check</a> <a class="btn" href="${allowanceHref(addr)}" title="Check what this address has already approved spenders to spend">✅ Allowance check</a> <a class="btn" href="#/recurring/${esc(addr)}" title="Detect repeating payments for this address">🔁 Recurring payments</a>`;
+
+  /* ---- accounting export (Q2): direct-download links + journal mapping ---- */
+  const accEl = $("w-accounting");
+  if (accEl) {
+    const csvUrl = API + "/accounting/export?address=" + encodeURIComponent(addr) + "&format=csv";
+    const jsonUrl = API + "/accounting/export?address=" + encodeURIComponent(addr) + "&format=json";
+    const explorerCsv = SOL_ADDR_RE.test(addr) ? "" :
+      `<p style="margin:8px 0 0">Single-chain list without USD values: the explorer's per-chain CSV is on the <a href="${esc(addrHref)}" target="_blank" rel="noopener">address page</a> (Export CSV buttons for transactions / token transfers).</p>`;
+    accEl.innerHTML = `<div style="padding:14px 16px">
+      <p style="margin:0">Finance-grade export for bookkeeping: every send/receive across all chains with USD value at time of transaction, FIFO cost basis and realized gain per send, and QuickBooks/Xero general-journal columns (debit/credit accounts + legs, memo with hash).</p>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn primary" href="${esc(csvUrl)}" download>⬇ Download CSV</a>
+        <a class="btn" href="${esc(jsonUrl)}" download>⬇ Download JSON</a>
+      </div>
+      <p class="muted" style="margin:12px 0 0;font-size:12.5px">Journal mapping — receive: Debit <span class="mono">Crypto Assets:{COIN}</span> / Credit <span class="mono">Other Income:Crypto Received</span> (= amount_usd). Send: Debit <span class="mono">Cost of Goods Sold:Crypto Disposed</span> / Credit <span class="mono">Crypto Assets:{COIN}</span> (= cost_basis_usd). Realized gain is reported per send row for separate posting.</p>
+      <p class="muted" style="margin:8px 0 0;font-size:12.5px">Sampled window: first page per chain (50 native txs + 50 token transfers per EVM chain, 10 Solana signatures, 25 Bitcoin txs). Rows priced at the live price are labelled <span class="mono">estimate-current</span>; rows with no price have null USD values, never invented. Token-transfer rows carry no fee (paid in native coin on the parent tx). This is an estimate, not tax advice.</p>
+      ${explorerCsv}
+    </div>`;
+  }
+
 
   const st = {
     addr, ens: ensName, agg: null,
@@ -2011,6 +3321,19 @@ async function walletPage(param) {
 const routes = WALLET_ONLY ? [
   [/^#\/?$/, () => walletLanding()],
   [/^#\/api-docs$/, () => apiDocsPage()],
+  [/^#\/quote$/, () => quotePage()],
+  [/^#\/allowance(\?.*)?$/, () => allowancePage()],
+  [/^#\/preflight$/, () => preflightPage()],
+  [/^#\/preflight\/(.+)$/, (m) => preflightPage(decodeURIComponent(m[1]))],
+  [/^#\/freeze-watch$/, () => freezeWatchPage()],
+  [/^#\/freeze-watch\/(.+)$/, (m) => freezeWatchPage(decodeURIComponent(m[1]))],
+  [/^#\/recurring$/, () => recurringPage()],
+  [/^#\/recurring\/(.+)$/, (m) => recurringPage(decodeURIComponent(m[1]))],
+  [/^#\/track$/, () => trackPage()],
+  [/^#\/track\/([^/]+)\/(.+)$/, (m) => trackPage(decodeURIComponent(m[1]), decodeURIComponent(m[2]))],
+  [/^#\/receipt\/([^/]+)\/(.+)$/, (m) => receiptPage(decodeURIComponent(m[1]), decodeURIComponent(m[2]))],
+  [/^#\/watchlist$/, () => watchlistPage()],
+  [/^#\/invoices$/, () => invoicesPage()],
   [/^#\/wallet$/, () => walletLanding()],
   [/^#\/wallet\/(.+)$/, (m) => walletPage(decodeURIComponent(m[1]))],
 ] : [
@@ -2019,6 +3342,18 @@ const routes = WALLET_ONLY ? [
   [/^#\/gastracker$/, () => gasPage()],
   [/^#\/pending$/, () => pendingPage()],
   [/^#\/api-docs$/, () => apiDocsPage()],
+  [/^#\/allowance(\?.*)?$/, (m) => { window.location.href = WALLET_URL + "/#/allowance" + (m[1] || ""); }],
+  [/^#\/preflight$/, () => { window.location.href = WALLET_URL + "/#/preflight"; }],
+  [/^#\/preflight\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/preflight/" + encodeURIComponent(decodeURIComponent(m[1])); }],
+  [/^#\/freeze-watch$/, () => { window.location.href = WALLET_URL + "/#/freeze-watch"; }],
+  [/^#\/freeze-watch\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/freeze-watch/" + encodeURIComponent(decodeURIComponent(m[1])); }],
+  [/^#\/recurring$/, () => { window.location.href = WALLET_URL + "/#/recurring"; }],
+  [/^#\/recurring\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/recurring/" + encodeURIComponent(decodeURIComponent(m[1])); }],
+  [/^#\/track$/, () => { window.location.href = WALLET_URL + "/#/track"; }],
+  [/^#\/track\/([^/]+)\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/track/" + encodeURIComponent(decodeURIComponent(m[1])) + "/" + encodeURIComponent(decodeURIComponent(m[2])); }],
+  [/^#\/receipt\/([^/]+)\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/receipt/" + encodeURIComponent(decodeURIComponent(m[1])) + "/" + encodeURIComponent(decodeURIComponent(m[2])); }],
+  [/^#\/watchlist$/, () => { window.location.href = WALLET_URL + "/#/watchlist"; }],
+  [/^#\/invoices$/, () => { window.location.href = WALLET_URL + "/#/invoices"; }],
   [/^#\/wallet$/, () => { window.location.href = WALLET_URL + "/#/wallet"; }],
   [/^#\/wallet\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/wallet/" + encodeURIComponent(decodeURIComponent(m[1])); }],
   [/^#\/block\/([^/]+)$/, (m) => blockPage(m[1])],
@@ -2068,6 +3403,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelectorAll(".nav-explorer").forEach((el) => { el.style.display = "none"; });
     const si = document.getElementById("search-input");
     if (si) si.placeholder = "Search by Address / ENS name";
+  } else {
+    ["nav-quote", "footer-quote", "nav-allowance", "footer-allowance", "nav-preflight", "footer-preflight", "nav-freeze-watch", "footer-freeze-watch", "nav-recurring", "footer-recurring", "nav-track", "footer-track", "nav-invoices", "footer-invoices"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = "none";
+    });
   }
   wireSearch($("#search-form"), $("#search-input"), $("#search-suggest"));
   document.getElementById("view").addEventListener("click", (e) => {

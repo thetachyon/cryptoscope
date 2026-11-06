@@ -31,7 +31,7 @@ the dashboard UI — every figure here is labeled with its method):
 import asyncio
 import re
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 from common.chains import CHAINS, WALLET_CHAINS
@@ -49,6 +49,7 @@ from common.solana import (
     sol_native_quote,
     sol_token_holdings,
 )
+from common.solana_explorer import _signatures as _sol_signatures, sol_tx
 
 WALLET_CHAIN_TIMEOUT = 8.0  # seconds per chain section (fast aggregate)
 WALLET_TOKENS_TIMEOUT = 45.0  # seconds per chain for token holdings (matches the 45s bs() timeout; the 3.4MB mainnet list alone can take 30s+ through a slow proxy)
@@ -133,6 +134,89 @@ def _price_on_or_before(daily, date_str, max_back=7):
         if p is not None:
             return p
     return None
+
+
+def _fifo_run(transfers, daily):
+    """Shared FIFO engine (used by _wallet_pnl and by the accounting
+    export in common/accounting.py — do not re-implement it elsewhere).
+
+    `transfers` — [{"timestamp", "amount": Decimal, "is_in": bool}],
+    sorted oldest-first by the caller. `daily` — {YYYY-MM-DD: usd_price}.
+    Every incoming transfer is an acquisition at that day's price, every
+    outgoing transfer a disposal at that day's price, matched against the
+    oldest lots first. A transfer with no price (no daily close within 7
+    days back) is unpriced and skipped entirely — it neither opens a lot
+    nor disposes one. A disposal larger than the open lots is unmatched
+    for the excess (proceeds/cost count the matched part only).
+
+    Returns Decimals plus a per-disposal lot breakdown and the lots still
+    open, so callers can attach cost basis to individual rows."""
+    lots: deque = deque()  # [amount_remaining, unit_cost_usd, acquired_date]
+    proceeds = cost = pnl = Decimal(0)
+    n_priced = n_unpriced = n_unmatched = 0
+    disposals = []
+    for t in transfers:
+        date = (t["timestamp"] or "")[:10]
+        price = _price_on_or_before(daily, date)
+        if price is None:
+            n_unpriced += 1
+            continue
+        usd_price = Decimal(str(price))
+        if t["is_in"]:
+            lots.append([t["amount"], usd_price, date])
+            n_priced += 1
+            continue
+        n_priced += 1
+        out_amt = t["amount"]
+        matched_cost = Decimal(0)
+        remaining = out_amt
+        used_lots = []
+        while remaining > 0 and lots:
+            lot_amt, lot_price, lot_date = lots[0]
+            take = min(lot_amt, remaining)
+            matched_cost += take * lot_price
+            used_lots.append(
+                {"amount": take, "unit_cost_usd": lot_price, "acquired_date": lot_date}
+            )
+            lot_amt -= take
+            remaining -= take
+            if lot_amt == 0:
+                lots.popleft()
+            else:
+                lots[0][0] = lot_amt
+        matched_amt = out_amt - remaining
+        if remaining > 0:
+            n_unmatched += 1
+        out_proceeds = matched_amt * usd_price
+        proceeds += out_proceeds
+        cost += matched_cost
+        pnl += out_proceeds - matched_cost
+        disposals.append(
+            {
+                "timestamp": t["timestamp"],
+                "amount": out_amt,
+                "matched_amount": matched_amt,
+                "unmatched_amount": remaining,
+                "proceeds_usd": out_proceeds,
+                "cost_usd": matched_cost,
+                "realized_pnl_usd": out_proceeds - matched_cost,
+                "unit_price_usd": usd_price,
+                "lots": used_lots,
+            }
+        )
+    return {
+        "proceeds_usd": proceeds,
+        "cost_usd": cost,
+        "realized_pnl_usd": pnl,
+        "transfers_priced": n_priced,
+        "transfers_unpriced": n_unpriced,
+        "transfers_unmatched": n_unmatched,
+        "disposals": disposals,
+        "lots_remaining": [
+            {"amount": a, "unit_cost_usd": p, "acquired_date": d}
+            for a, p, d in lots
+        ],
+    }
 
 
 async def _chain_wallet_fast_solana(chain, h):
@@ -668,41 +752,13 @@ async def _wallet_pnl(h):
             ),
             {},
         )
-        lots: deque = deque()  # [amount_remaining, unit_cost_usd]
-        proceeds = cost = pnl = Decimal(0)
-        n_priced = n_unpriced = n_unmatched = 0
-        for t in g["transfers"]:
-            date = (t["timestamp"] or "")[:10]
-            price = _price_on_or_before(daily, date)
-            if price is None:
-                n_unpriced += 1
-                continue
-            usd_price = Decimal(str(price))
-            if t["is_in"]:
-                lots.append([t["amount"], usd_price])
-                n_priced += 1
-                continue
-            n_priced += 1
-            out_amt = t["amount"]
-            matched_cost = Decimal(0)
-            remaining = out_amt
-            while remaining > 0 and lots:
-                lot_amt, lot_price = lots[0]
-                take = min(lot_amt, remaining)
-                matched_cost += take * lot_price
-                lot_amt -= take
-                remaining -= take
-                if lot_amt == 0:
-                    lots.popleft()
-                else:
-                    lots[0][0] = lot_amt
-            matched_amt = out_amt - remaining
-            if remaining > 0:
-                n_unmatched += 1
-            out_proceeds = matched_amt * usd_price
-            proceeds += out_proceeds
-            cost += matched_cost
-            pnl += out_proceeds - matched_cost
+        run = _fifo_run(g["transfers"], daily)
+        proceeds = run["proceeds_usd"]
+        cost = run["cost_usd"]
+        pnl = run["realized_pnl_usd"]
+        n_priced = run["transfers_priced"]
+        n_unpriced = run["transfers_unpriced"]
+        n_unmatched = run["transfers_unmatched"]
         rows.append(
             {
                 "chain": g["chain"],
@@ -878,3 +934,253 @@ async def _wallet_activity_page(h, chain, params):
         "items": items,
         "next_page_params": d.get("next_page_params"),
     }
+
+
+def _iso_ts(ts):
+    """Blockscout ISO timestamp or a unix int -> ISO string, or ""."""
+    if ts is None:
+        return ""
+    if isinstance(ts, (int, float)):
+        try:
+            return datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+        except (ValueError, OverflowError, OSError):
+            return ""
+    return str(ts)
+
+
+async def _wallet_incoming(h):
+    """Incoming transfers only, for invoice reconciliation (phase 2,
+    Q3). One row per received transfer: native coins + ERC-20 tokens
+    on Ethereum / Sepolia / Optimism / Gnosis (Blockscout first page
+    each — the same sampled window as the PnL estimate) and SOL + SPL
+    token balance changes on Solana (first 25 signatures, same source
+    as the accounting export). Bitcoin is NOT included: the wallet
+    dashboard serves EVM + Solana addresses only, and a Bitcoin
+    address is rejected by the route's address validation.
+
+    The endpoint takes an address only — it never receives invoice
+    data. Matching (amount + due-date window) runs entirely in the
+    browser on this payload. 60s cache."""
+    key = f"wallet:{h.lower()}:incoming"
+    hit = _cache_get(key)
+    if hit is not None:
+        return hit
+    h_low = h.lower()
+    items = []
+    errors = {}
+
+    async def _fetch_evm(chain, kind):
+        try:
+            d = (
+                await ADAPTER.transactions(chain, h)
+                if kind == "txs"
+                else await ADAPTER.token_transfers(chain, h)
+            )
+        except Exception as e:
+            return kind, None, str(e)
+        if d is None:
+            return kind, [], None
+        return kind, d.get("items", []), None
+
+    async def _collect_evm_chain(chain):
+        tx_r, tt_r = await asyncio.gather(
+            _fetch_evm(chain, "txs"), _fetch_evm(chain, "tt")
+        )
+        rows = []
+        for kind, lst, err in (tx_r, tt_r):
+            if err:
+                errors.setdefault(chain, []).append(f"{kind}: {err}")
+                continue
+            for it in lst or []:
+                if kind == "txs":
+                    status = (it.get("status") or it.get("result") or "").lower()
+                    if status in ("error", "fail", "failed"):
+                        continue  # failed tx moved nothing
+                    frm = (it.get("from") or {}).get("hash", "")
+                    to = (it.get("to") or {}).get("hash", "")
+                    if not frm or not to or frm.lower() == to.lower():
+                        continue
+                    if to.lower() != h_low:
+                        continue  # incoming only
+                    try:
+                        amt = Decimal(wei_to_eth(it.get("value")))
+                    except (InvalidOperation, ValueError, TypeError):
+                        continue
+                    if amt <= 0:
+                        continue
+                    rows.append(
+                        {
+                            "timestamp": _iso_ts(it.get("timestamp")),
+                            "tx_hash": it.get("hash") or "",
+                            "chain": chain,
+                            "chain_label": CHAINS[chain]["label"],
+                            "coin": CHAINS[chain]["native"],
+                            "token_address": None,
+                            "kind": "native",
+                            "amount": format(amt.normalize(), "f"),
+                            "from": frm,
+                        }
+                    )
+                else:
+                    tok = it.get("token") or {}
+                    if (tok.get("type") or "") != "ERC-20":
+                        continue  # NFT transfers are not fungible receipts
+                    frm = (it.get("from") or {}).get("hash", "")
+                    to = (it.get("to") or {}).get("hash", "")
+                    if not frm or not to or frm.lower() == to.lower():
+                        continue
+                    if to.lower() != h_low:
+                        continue  # incoming only
+                    total = it.get("total") or {}
+                    dec = (
+                        total.get("decimals")
+                        if total.get("decimals") is not None
+                        else tok.get("decimals")
+                    )
+                    try:
+                        amt = Decimal(token_amount(total.get("value"), dec))
+                    except (InvalidOperation, ValueError, TypeError):
+                        continue
+                    if amt <= 0:
+                        continue
+                    addr = tok.get("address_hash") or tok.get("address") or ""
+                    rows.append(
+                        {
+                            "timestamp": _iso_ts(it.get("timestamp")),
+                            "tx_hash": it.get("transaction_hash") or "",
+                            "chain": chain,
+                            "chain_label": CHAINS[chain]["label"],
+                            "coin": tok.get("symbol") or addr,
+                            "token_address": addr or None,
+                            "kind": "token",
+                            "amount": format(amt.normalize(), "f"),
+                            "from": frm,
+                        }
+                    )
+        return rows
+
+    if _EVM_ADDR_RE.fullmatch(h):
+        evm_rows = await asyncio.gather(
+            *[_collect_evm_chain(c) for c in CHAINS]
+        )
+        for rows in evm_rows:
+            items.extend(rows)
+
+    if is_solana_address(h):
+        # Solana: first 25 signatures + getTransaction per signature
+        # (same source as common/accounting._collect_solana). SOL is
+        # the account's balance change (fee added back when the
+        # address paid it, so the row is the transfer amount); SPL
+        # rows are positive token balance changes for the address.
+        # SPL symbols are not in the RPC response, so coin is
+        # "SPL:<mint[:8]>" and matching should use token_address.
+        try:
+            sigs = await _sol_signatures(h, limit=25)
+        except Exception as e:
+            errors.setdefault("solana", []).append(f"signatures: {e}")
+            sigs = None
+        if sigs is not None:
+            sig_list = [s.get("signature") for s in (sigs or {}).get("items", []) if s.get("signature")]
+            txs = await asyncio.gather(
+                *[sol_tx(s) for s in sig_list], return_exceptions=True
+            )
+            for sig, tx in zip(sig_list, txs):
+                if isinstance(tx, Exception) or not isinstance(tx, dict):
+                    errors.setdefault("solana", []).append(
+                        f"tx {str(sig)[:12]}: {tx if isinstance(tx, Exception) else 'no data'}"
+                    )
+                    continue
+                if tx.get("status") == "failed":
+                    continue
+                ts = _iso_ts(tx.get("block_time"))
+                try:
+                    fee_sol = Decimal(str(tx.get("fee_sol") or "0"))
+                except InvalidOperation:
+                    fee_sol = Decimal(0)
+                accounts = tx.get("accounts") or []
+                mine = [a for a in accounts if (a.get("address") or "") == h]
+                if mine:
+                    my = mine[0]
+                    try:
+                        change = Decimal(str(my.get("change_sol") or "0"))
+                    except InvalidOperation:
+                        change = Decimal(0)
+                    is_payer = bool(my.get("signer")) and fee_sol > 0
+                    transfer = change + fee_sol if is_payer else change
+                    if transfer > 0:
+                        others = [
+                            a for a in accounts
+                            if (a.get("address") or "") != h
+                            and Decimal(str(a.get("change_sol") or "0")) != 0
+                        ]
+                        others.sort(
+                            key=lambda a: abs(Decimal(str(a.get("change_sol") or "0"))),
+                            reverse=True,
+                        )
+                        items.append(
+                            {
+                                "timestamp": ts,
+                                "tx_hash": sig,
+                                "chain": "solana",
+                                "chain_label": "Solana",
+                                "coin": "SOL",
+                                "token_address": None,
+                                "kind": "native",
+                                "amount": format(transfer.normalize(), "f"),
+                                "from": others[0].get("address") if others else "",
+                            }
+                        )
+                for tc in tx.get("token_changes") or []:
+                    if (tc.get("owner") or "") != h:
+                        continue
+                    try:
+                        delta = Decimal(str(tc.get("change") or "0"))
+                    except InvalidOperation:
+                        continue
+                    if delta <= 0:
+                        continue
+                    mint = tc.get("mint") or ""
+                    cp = ""
+                    for tc2 in tx.get("token_changes") or []:
+                        if (tc2.get("mint") or "") == mint and (tc2.get("owner") or "") != h:
+                            try:
+                                if Decimal(str(tc2.get("change") or "0")) * delta < 0:
+                                    cp = tc2.get("owner") or ""
+                                    break
+                            except InvalidOperation:
+                                continue
+                    items.append(
+                        {
+                            "timestamp": ts,
+                            "tx_hash": sig,
+                            "chain": "solana",
+                            "chain_label": "Solana",
+                            "coin": f"SPL:{mint[:8]}" if mint else "SPL",
+                            "token_address": mint or None,
+                            "kind": "token",
+                            "amount": format(delta.normalize(), "f"),
+                            "from": cp,
+                        }
+                    )
+
+    items.sort(key=lambda r: r.get("timestamp") or "", reverse=True)
+    out = {
+        "address": h,
+        "items": items,
+        "count": len(items),
+        "errors": errors,
+        "method": (
+            "Incoming transfers only (native + ERC-20 on Ethereum / "
+            "Sepolia / Optimism / Gnosis; SOL + SPL on Solana). No "
+            "invoice data is sent to this endpoint — matching runs in "
+            "the browser."
+        ),
+        "limits": [
+            "Sampled window: first page per EVM chain (50 native txs + 50 token transfers per chain) and the latest 25 Solana signatures. Older receipts are not fetched — reconciliation is complete only for addresses whose whole relevant history fits the window.",
+            "SPL token rows carry no symbol (the Solana RPC does not return one) — coin is shown as SPL:<mint[:8]>; match SPL invoices by mint address.",
+            "Bitcoin is not included: the wallet dashboard serves EVM + Solana addresses only.",
+            "Failed transactions and self-transfers are excluded; a transfer that moved nothing is not a receipt.",
+        ],
+    }
+    _cache_set(key, out)
+    return out
