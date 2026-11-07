@@ -32,6 +32,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Ensure Fly app exists
+        working-directory: ${{ matrix.scope }}
+        # fly deploy does NOT create the app: only ethscope (created by hand)
+        # ever got a release. The Fly app name is the fly.toml `app` value,
+        # not the directory name — overview deploys as cryptoscope-overview
+        # because "overview" belongs to an unrelated app. `|| true` lets the
+        # step pass when the app already exists; a genuinely taken name still
+        # fails loudly at the deploy step below.
+        run: flyctl apps create $(grep '^app =' fly.toml | cut -d'"' -f2) || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: Deploy ${{ matrix.scope }}
         working-directory: ${{ matrix.scope }}
         run: flyctl deploy --remote-only
