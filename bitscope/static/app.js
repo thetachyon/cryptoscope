@@ -9,7 +9,7 @@ const CFG = window.SCOPE_CONFIG || {};
 const SCOPE = CFG.scope || "bitscope";
 const TITLE = CFG.title || "BitScope";
 const API = CFG.apiPrefix || "/api/bitscope";
-const WALLET_URL = CFG.walletUrl || "https://walletscope.vercel.app";
+const WALLET_URL = CFG.walletUrl || "https://walletscope.fly.dev";
 const SIBLINGS = Array.isArray(CFG.siblings) ? CFG.siblings : [];
 const SATS_PER_BTC = 1e8;
 

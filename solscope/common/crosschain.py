@@ -55,7 +55,7 @@ from common.formatting import wei_to_eth
 from common.solana import is_solana_address
 
 WORMHOLE_BASE = "https://api.wormholescan.io/api/v1"
-WALLETSCOPE_URL = "https://walletscope.vercel.app"
+WALLETSCOPE_URL = "https://walletscope.fly.dev"
 
 # Expected Vercel domains, same pattern as every app's config.py SIBLINGS.
 CHAIN_SCOPE = {
@@ -121,7 +121,7 @@ CROSSCHAIN_TTL = 120  # seconds
 
 
 def _scope_url(chain: str, addr: str) -> str:
-    return f"https://{CHAIN_SCOPE[chain]}.vercel.app/#/address/{addr}"
+    return f"https://{CHAIN_SCOPE[chain]}.fly.dev/#/address/{addr}"
 
 
 def _wh_chain(cid) -> str:

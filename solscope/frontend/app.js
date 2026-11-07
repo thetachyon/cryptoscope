@@ -9,7 +9,7 @@ const CFG = window.SCOPE_CONFIG || {};
 const SCOPE = CFG.scope || "solscope";
 const TITLE = CFG.title || "SolScope";
 const API = CFG.apiPrefix || "/api/solscope";
-const WALLET_URL = CFG.walletUrl || "https://walletscope.vercel.app";
+const WALLET_URL = CFG.walletUrl || "https://walletscope.fly.dev";
 const SIBLINGS = Array.isArray(CFG.siblings) ? CFG.siblings : [];
 const LAMPORTS_PER_SOL = 1e9;
 

@@ -70,7 +70,7 @@ ids. `/config.js` and `/app.js` serve 200 in every app.
   directory locally; if it ever fails in Vercel's build, delete the
   `buildCommand` — the committed vendored copies keep deploys working and
   `sync-common.py check` keeps them honest.
-- **Sibling scope URLs are expected domains** (`https://<scope>.vercel.app`)
+- **Sibling scope URLs are expected domains** (`https://<scope>.fly.dev`)
   until the Vercel projects exist; cross-links and wallet links use them
   and will 404 until the projects are created.
 - **Labels are mainnet-only** (unchanged): `labels.json` is vendored into
