@@ -175,7 +175,7 @@ def _b58check_valid(addr):
 
 def is_bitcoin_address(addr):
     """Shape-check a Bitcoin address: legacy/P2SH base58check, or bech32
-    bc1q (P2WPKH, 42 chars) / bc1p (P2TR, 62 chars). Checksum validity is
+    bc1q (P2WPKH, 42 chars; P2WSH, 62 chars) / bc1p (P2TR, 62 chars). Checksum validity is
     left to the upstream, which reports 'Invalid Bitcoin address'."""
     if not isinstance(addr, str) or not addr:
         return False
@@ -185,7 +185,8 @@ def is_bitcoin_address(addr):
         body = addr[3:]
         if len(addr) == 42 and addr[3] == "q":
             return all(c in _B32 for c in body)
-        if len(addr) == 62 and addr[3] == "p":
+        if len(addr) == 62 and addr[3] in ("q", "p"):
+            # 62 chars: P2TR (bc1p) or P2WSH (bc1q, 32-byte program).
             return all(c in _B32 for c in body)
     return False
 
@@ -561,10 +562,10 @@ async def btc_address_txs(addr, after=None):
 async def btc_counterparties(addr):
     """Counterparties from an address's most recent transactions.
 
-    One mempool.space page (25 txs): inputs' prevout addresses plus
+    One mempool.space page (mempool.space page size): inputs' prevout addresses plus
     outputs' addresses, excluding the address itself. Used by the
     risk funder walk (common/risk.py) — the address page loads the
-    same 25 transactions.
+    same page of transactions.
     """
     if not is_bitcoin_address(addr or ""):
         raise UpstreamError("Invalid Bitcoin address", status=400)
@@ -737,6 +738,11 @@ def btc_docs_payload(api_prefix):
                 "description": e["description"],
                 "params": e["params"],
                 "example": e["example"].replace("/api/bitscope", api_prefix),
+                # Paid-API model extension (phase 3): propagate any
+                # extra fields (paid_api, example_response, free_tier,
+                # paid_tier) so future entries render the same way.
+                **{k: v for k, v in e.items()
+                   if k not in ("method", "suffix", "description", "params", "example")},
             }
             for e in BTC_DOCS
         ]

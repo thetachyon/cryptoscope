@@ -20,7 +20,7 @@ Sources (all keyless, zero new dependencies):
 - Solana rows: getSignaturesForAddress (first 10) + getTransaction per
   signature (common/solana_explorer.sol_tx) — SOL balance change and
   SPL token balance changes for the address.
-- Bitcoin rows: mempool.space /address/{addr}/txs (first page, 25 txs),
+- Bitcoin rows: mempool.space /address/{addr}/txs (first page — mempool.space page size),
   raw tx objects (common/bitcoin._api) — net flow per tx, since change
   outputs cannot be identified from chain data alone.
 - USD at time: one CoinGecko daily-close series per coin, fetched ONCE
@@ -45,7 +45,7 @@ COLUMN_MAPPING, also rendered in the UI and in the JSON notes):
 
 Honest limits (also carried in the JSON `notes` and the UI):
 - Sampled window: first page per chain (50 native txs + 50 token
-  transfers per EVM chain, 10 Solana signatures, 25 Bitcoin txs).
+  transfers per EVM chain, 10 Solana signatures, first page of Bitcoin txs).
   Older history is NOT fetched — the export is complete only for
   addresses whose whole history fits the window.
 - Token-transfer rows carry no fee: the fee is paid in the native coin
@@ -142,7 +142,7 @@ COLUMN_MAPPING = {
 }
 
 HONEST_NOTES = [
-    "Sampled window: first page per chain (50 native txs + 50 token transfers per EVM chain, 10 Solana signatures, 25 Bitcoin txs). Older history is NOT fetched — the export is complete only for addresses whose whole history fits the window.",
+    "Sampled window: first page per chain (50 native txs + 50 token transfers per EVM chain, 10 Solana signatures, first page of Bitcoin txs). Older history is NOT fetched — the export is complete only for addresses whose whole history fits the window.",
     "Rows with price_basis 'estimate-current' are priced at today's live price, not at transaction time; for old transactions that is a weak estimate, and their FIFO lots inherit the same weakness.",
     "Rows with price_basis 'unavailable' have null USD fields — no price was invented. Unpriced tokens (e.g. unlisted / spam tokens) still appear with their amount, so nothing is silently dropped.",
     "Token-transfer rows carry no fee_usd: the fee is paid in the native coin on the parent transaction and Blockscout's token-transfer endpoint does not return it. Native rows carry fee_usd.",

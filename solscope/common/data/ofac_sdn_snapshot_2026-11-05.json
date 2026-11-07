@@ -1,0 +1,2577 @@
+{
+ "date": "2026-11-05",
+ "entries": {
+  "0x0330070fd38ec3bb94f58fa55d40368271e9e54a": {
+   "currency": "ETH",
+   "name": "AMNOKGANG TECHNOLOGY DEVELOPMENT COMPANY",
+   "program": "[DPRK4]"
+  },
+  "0x038989cbb1710c72b9920dc4fa529158f463e72c": {
+   "currency": "ETH",
+   "name": "OJEDA AVILES, Armando de Jesus",
+   "program": "[SDGT] [ILLICIT-DRUGS-EO14059]"
+  },
+  "0x08723392ed15743cc38513c4925f5e6be5c17243": {
+   "currency": "ETH",
+   "name": "LAZARUS GROUP",
+   "program": "[DPRK3]"
+  },
+  "0x0931ca4d13bb4ba75d9b7132ab690265d749a5e7": {
+   "currency": "ETH",
+   "name": "CRYPTEX",
+   "program": "[CYBER2] [RUSSIA-EO14024]"
+  },
+  "0x098b716b8aaf21512996dc57eb0615e2383e2f96": {
+   "currency": "ETH",
+   "name": "LAZARUS GROUP",
+   "program": "[DPRK3]"
+  },
+  "0x12de548f79a50d2bd05481c8515c1ef5183666a9": {
+   "currency": "ETH",
+   "name": "OLD VECTOR LLC",
+   "program": "[CYBER4]"
+  },
+  "0x12ea80238c7d805d003ce793594e92d84a6f4e8d": {
+   "currency": "ETH",
+   "name": "BOYKOV, Ilya Aleksandrovich",
+   "program": "[DPRK2]"
+  },
+  "0x14779cec0b117d5194c750c55ea1f42086631964": {
+   "currency": "ETH",
+   "name": "OJEDA AVILES, Armando de Jesus",
+   "program": "[SDGT] [ILLICIT-DRUGS-EO14059]"
+  },
+  "0x175d44451403edf28469df03a9280c1197adb92c": {
+   "currency": "USDT",
+   "name": "GAZA NOW",
+   "program": "[SDGT]"
+  },
+  "0x1999ef52700c34de7ec2b68a28aafb37db0c5ade": {
+   "currency": "ETH",
+   "name": "MAGOMEDOV, Khadzhi Murat Dalgatovich",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "0x19f8f2b0915daa12a3f5c9cf01df9e24d53794f7": {
+   "currency": "ETH",
+   "name": "OKO DESIGN BUREAU",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "0x1b8579cf6ab12ea6b74ac5fa41f3829a3cb61e6e": {
+   "currency": "ETH",
+   "name": "GHAL'EH-KUHI, Mojtaba",
+   "program": "[CYBER4]"
+  },
+  "0x1cab8177ace78b1b6b1c393371f4f2dcae40cbeb": {
+   "currency": "ETH",
+   "name": "MESRI, Behzad",
+   "program": "[HRIT-IR] [CYBER2]"
+  },
+  "0x1d19b52b54e7ef5ea1a4b40b616165e798eac9f8": {
+   "currency": "ETH",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "0x21b8d56bda776bbe68655a16895afd96f5534fed": {
+   "currency": "ETH",
+   "name": "GAZA NOW",
+   "program": "[SDGT]"
+  },
+  "0x252a8bd2319d8a555b872990601221b3a2053bce": {
+   "currency": "ETH",
+   "name": "MESRI, Behzad",
+   "program": "[HRIT-IR] [CYBER2]"
+  },
+  "0x2711d73d559f62f4f855ee21f38378f528e07985": {
+   "currency": "ETH",
+   "name": "FIRST VPN SERVICE",
+   "program": "[CYBER4]"
+  },
+  "0x2c7dcd774b33e10367f7d6385479e04f97d179dc": {
+   "currency": "ETH",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "0x32da24ca413f3e7b53145d4737e172c3bdf81e3e": {
+   "currency": "ETH",
+   "name": "OJEDA AVILES, Armando de Jesus",
+   "program": "[SDGT] [ILLICIT-DRUGS-EO14059]"
+  },
+  "0x35fb6f6db4fb05e6a4ce86f2c93691425626d4b1": {
+   "currency": "ETH",
+   "name": "LAZARUS GROUP",
+   "program": "[DPRK3]"
+  },
+  "0x38735f03b30fbc022ddd06abed01f0ca823c6a94": {
+   "currency": "USDT",
+   "name": "HANAFIN, John Desmond",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "0x39d908dac893cbcb53cc86e0ecc369aa4def1a29": {
+   "currency": "ETH",
+   "name": "ZIMENKOV, Jonatan",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "0x3ad9db589d201a710ed237c829c7860ba86510fc": {
+   "currency": "ETH",
+   "name": "TASK FORCE RUSICH",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "0x3cbded43efdaf0fc77b9c55f6fc9988fcc9b757d": {
+   "currency": "ETH",
+   "name": "SOUTHFRONT",
+   "program": "[NPWMD] [CYBER2] [ELECTION-EO13848]"
+  },
+  "0x3cffd56b47b7b41c56258d9c7731abadc360e073": {
+   "currency": "ETH",
+   "name": "LAZARUS GROUP",
+   "program": "[DPRK3]"
+  },
+  "0x3e37627deaa754090fbfbb8bd226c1ce66d255e9": {
+   "currency": "ETH",
+   "name": "LAZARUS GROUP",
+   "program": "[DPRK3]"
+  },
+  "0x4060cbf80734193f521a3cc6fd4e985df2825279": {
+   "currency": "ETH",
+   "name": "BLAGH, Keyvan Fayyaz Gareh",
+   "program": "[CYBER4]"
+  },
+  "0x43fa21d92141ba9db43052492e0deee5aa5f0a93": {
+   "currency": "ETH",
+   "name": "SEMENOV, Roman",
+   "program": "[DPRK3]"
+  },
+  "0x4f428c11dc82388fa5136d636e613ad923eb700b": {
+   "currency": "ETH",
+   "name": "OJEDA AVILES, Armando de Jesus",
+   "program": "[SDGT] [ILLICIT-DRUGS-EO14059]"
+  },
+  "0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c": {
+   "currency": "ETH",
+   "name": "SIM, Hyon Sop",
+   "program": "[NPWMD]"
+  },
+  "0x530a64c0ce595026a4a556b703644228179e2d57": {
+   "currency": "ETH",
+   "name": "SHEN, Xingbiao",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "0x532b77b33a040587e9fd1800088225f99b8b0e8a": {
+   "currency": "ETH",
+   "name": "ALIVAND, Arash Estaki",
+   "program": "[SDGT] [IFSR]"
+  },
+  "0x53b6936513e738f44fb50d2b9476730c0ab3bfc1": {
+   "currency": "ETH",
+   "name": "LAZARUS GROUP",
+   "program": "[DPRK3]"
+  },
+  "0x56de1527136f76a809e5b14ded6103eecd072ba7": {
+   "currency": "ETH",
+   "name": "BLAGH, Keyvan Fayyaz Gareh",
+   "program": "[CYBER4]"
+  },
+  "0x57ec89a0c056163a0314e413320f9b3abe761259": {
+   "currency": "ETH",
+   "name": "GARANTEX EUROPE OU",
+   "program": "[RUSSIA-EO14024] [CYBER4]"
+  },
+  "0x5a7a51bfb49f190e5a6060a5bc6052ac14a3b59f": {
+   "currency": "ETH",
+   "name": "SEMENOV, Roman",
+   "program": "[DPRK3]"
+  },
+  "0x5d5b5dafecbf31bdb08bfd3edad4f2694372d0ef": {
+   "currency": "ETH",
+   "name": "SOKOLOVSKI, Rolan",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "0x5f48c2a71b2cc96e3f0ccae4e39318ff0dc375b2": {
+   "currency": "ETH",
+   "name": "SEMENOV, Roman",
+   "program": "[DPRK3]"
+  },
+  "0x6b69e2a7545c166417a80c61a77562052bffa9c5": {
+   "currency": "ETH",
+   "name": "SHPS SHELBIT",
+   "program": "[SDGT]"
+  },
+  "0x6be0ae71e6c41f2f9d0d1a3b8d0f75e6f6a0b46e": {
+   "currency": "ETH",
+   "name": "SEMENOV, Roman",
+   "program": "[DPRK3]"
+  },
+  "0x6fac4d18c912343bf86fa7049364dd4e424ab9c0": {
+   "currency": "ETH",
+   "name": "MESRI, Behzad",
+   "program": "[HRIT-IR] [CYBER2]"
+  },
+  "0x747afb5c7a7fc34b547cd0fdebf9b91759c5a52b": {
+   "currency": "ETH",
+   "name": "SIM, Hyon Sop",
+   "program": "[NPWMD]"
+  },
+  "0x761edd5e4546229a0bd35ae99b4d3d01cf4a3510": {
+   "currency": "ETH",
+   "name": "BOYKOV, Ilya Aleksandrovich",
+   "program": "[DPRK2]"
+  },
+  "0x76ea76ca4eb727f18956ab93445a94c5280412b9": {
+   "currency": "ETH",
+   "name": "SIM, Hyon Sop",
+   "program": "[NPWMD]"
+  },
+  "0x797d7ae72ebddcdea2a346c1834e04d1f8df102b": {
+   "currency": "ETH",
+   "name": "SEMENOV, Roman",
+   "program": "[DPRK3]"
+  },
+  "0x7ced75026204ac29c34bea98905d4c949f27361e": {
+   "currency": "ETH",
+   "name": "GARANTEX EUROPE OU",
+   "program": "[RUSSIA-EO14024] [CYBER4]"
+  },
+  "0x7f03679b56d8772530efa516b58bb83d4829e881": {
+   "currency": "ETH",
+   "name": "MESRI, Behzad",
+   "program": "[HRIT-IR] [CYBER2]"
+  },
+  "0x7f367cc41522ce07553e823bf3be79a889debe1b": {
+   "currency": "ETH",
+   "name": "POTEKHIN, Danil",
+   "program": "[CYBER2]"
+  },
+  "0x7ff9cfad3877f21d41da833e2f775db0569ee3d9": {
+   "currency": "ETH",
+   "name": "GARANTEX EUROPE OU",
+   "program": "[RUSSIA-EO14024] [CYBER4]"
+  },
+  "0x8ac5381fcd9e7395d14e02986c344aada84b4bc6": {
+   "currency": "ETH",
+   "name": "MESRI, Behzad",
+   "program": "[HRIT-IR] [CYBER2]"
+  },
+  "0x8d79c73daae8630c88de372ba8f57592fa987607": {
+   "currency": "ETH",
+   "name": "KAYVANPOUR, Siavash",
+   "program": "[SDGT] [IRGC]"
+  },
+  "0x8dce2aac0de82bdcaf6b4373b79f94331b8e4995": {
+   "currency": "ETH",
+   "name": "GARANTEX EUROPE OU",
+   "program": "[RUSSIA-EO14024] [CYBER4]"
+  },
+  "0x901bb9583b24d97e995513c6778dc6888ab6870e": {
+   "currency": "ETH",
+   "name": "LIFSHITS, Artem Mikhaylovich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "0x931546d9e66836abf687d2bc64b30407bac8c568": {
+   "currency": "ETH",
+   "name": "SEMENOV, Roman",
+   "program": "[DPRK3]"
+  },
+  "0x95584c303fcd48af5c6b9873015f2ad0ca84eae3": {
+   "currency": "ETH",
+   "name": "YUN, Song Guk",
+   "program": "[DPRK4]"
+  },
+  "0x961c5be54a2ffc17cf4cb021d863c42dacd47fc1": {
+   "currency": "ETH",
+   "name": "ZHANG, Wei",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "0x97b1043abd9e6fc31681635166d430a458d14f9c": {
+   "currency": "ETH",
+   "name": "KIM, Sang Man",
+   "program": "[DPRK4]"
+  },
+  "0x983a81ca6fb1e441266d2fbcb7d8e530ac2e05a2": {
+   "currency": "ETH",
+   "name": "VALERIAN LABS, INC.",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "0x9be599d7867f5e1a2d7ec6db9710df2b98a15573": {
+   "currency": "ETH",
+   "name": "AMNOKGANG TECHNOLOGY DEVELOPMENT COMPANY",
+   "program": "[DPRK4]"
+  },
+  "0x9c2bc757b66f24d60f016b6237f8cdd414a879fa": {
+   "currency": "ETH",
+   "name": "JIMENEZ CASTRO, Mario Alberto",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "0x9f4cda013e354b8fc285bf4b9a60460cee7f7ea9": {
+   "currency": "ETH",
+   "name": "SOUTHFRONT",
+   "program": "[NPWMD] [CYBER2] [ELECTION-EO13848]"
+  },
+  "0xa0e1c89ef1a489c9c7de96311ed5ce5d32c20e4b": {
+   "currency": "ETH",
+   "name": "LAZARUS GROUP",
+   "program": "[DPRK3]"
+  },
+  "0xa40cfbfc8534ffc84e20a7d8bbc3729b26a35f6f": {
+   "currency": "ETH",
+   "name": "MESRI, Behzad",
+   "program": "[HRIT-IR] [CYBER2]"
+  },
+  "0xa7e5d5a720f06526557c513402f2e6b5fa20b008": {
+   "currency": "ETH",
+   "name": "LIFSHITS, Artem Mikhaylovich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "0xac4cc4b68ea24bbfaac8fd127b67ed445accce22": {
+   "currency": "ETH",
+   "name": "ALARCON PALOMARES, Rodrigo",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "0xb338962b92cd818d6aef0a32a9ecd01212a71f33": {
+   "currency": "ETH",
+   "name": "GARANTEX EUROPE OU",
+   "program": "[RUSSIA-EO14024] [CYBER4]"
+  },
+  "0xb637f84b66876ebf609c2a4208905f9ddac9d075": {
+   "currency": "ETH",
+   "name": "YUN, Song Guk",
+   "program": "[DPRK4]"
+  },
+  "0xb6f5ec1a0a9cd1526536d3f0426c429529471f40": {
+   "currency": "ETH",
+   "name": "KIM, Sang Man",
+   "program": "[DPRK4]"
+  },
+  "0xbb69e01921b17cd22080968bcc96ba6115da6062": {
+   "currency": "ETH",
+   "name": "CRYPTO HOME DMCC",
+   "program": "[SDGT]"
+  },
+  "0xc103b7dc095c904b92081eef0c1640081ec01c10": {
+   "currency": "ETH",
+   "name": "SOKOLOVSKI, Rolan",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "0xc2a3829f459b3edd87791c74cd45402ba0a20be3": {
+   "currency": "ETH",
+   "name": "TASK FORCE RUSICH",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "0xcb74874f1e06fcf80a306e06e5379a44b488ba2d": {
+   "currency": "ETH",
+   "name": "AMNOKGANG TECHNOLOGY DEVELOPMENT COMPANY",
+   "program": "[DPRK4]"
+  },
+  "0xd04e33461fea8302c5e1e13895b60cee8aefda7f": {
+   "currency": "ETH",
+   "name": "SIM, Hyon Sop",
+   "program": "[NPWMD]"
+  },
+  "0xd5ed34b52ac4ab84d8fa8a231a3218bbf01ed510": {
+   "currency": "ETH",
+   "name": "FUNNULL TECHNOLOGY INC",
+   "program": "[CYBER3]"
+  },
+  "0xd8500c631dc32fa18645b7436344a99e4825e10e": {
+   "currency": "ETH",
+   "name": "GARANTEX EUROPE OU",
+   "program": "[RUSSIA-EO14024] [CYBER4]"
+  },
+  "0xd882cfc20f52f2599d84b8e8d58c7fb62cfe344b": {
+   "currency": "ETH",
+   "name": "KARASAVIDI, Dmitrii",
+   "program": "[CYBER2]"
+  },
+  "0xdb2720ebad55399117ddb4c4a4afd9a4ccada8fe": {
+   "currency": "ETH",
+   "name": "DERAKHSHAN, Alireza",
+   "program": "[SDGT] [IFSR]"
+  },
+  "0xdcbeffbecce100cce9e4b153c4e15cb885643193": {
+   "currency": "ETH",
+   "name": "SEMENOV, Roman",
+   "program": "[DPRK3]"
+  },
+  "0xe05f529f5284d75624eba386cb716928c3b54a2a": {
+   "currency": "ETH",
+   "name": "SHPS SHELBIT",
+   "program": "[SDGT]"
+  },
+  "0xe1e4c5e5ed8f03ae61b581e2def126025f2b9401": {
+   "currency": "ETH",
+   "name": "SOKOLOVSKI, Rolan",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "0xe3d35f68383732649669aa990832e017340dbca5": {
+   "currency": "ETH",
+   "name": "ALIVAND, Arash Estaki",
+   "program": "[SDGT] [IFSR]"
+  },
+  "0xe4c9a7f68b1eba4508f54f07f7378847318dd1a3": {
+   "currency": "ETH",
+   "name": "KIM, Ki Hyok",
+   "program": "[DPRK2]"
+  },
+  "0xe950dc316b836e4eefb8308bf32bf7c72a1358ff": {
+   "currency": "ETH",
+   "name": "GAZA NOW",
+   "program": "[SDGT]"
+  },
+  "0xeb507efa9ee692a4c774ad1de9f3cb26fc459da3": {
+   "currency": "ETH",
+   "name": "KAHZADIAN, Arman",
+   "program": "[CYBER4]"
+  },
+  "0xed6e0a7e4ac94d976eebfb82ccf777a3c6bad921": {
+   "currency": "ETH",
+   "name": "SEMENOV, Roman",
+   "program": "[DPRK3]"
+  },
+  "0xef85a6fafa5942a964dc618e94e230881d29ce2a": {
+   "currency": "ETH",
+   "name": "KAHZADIAN, Arman",
+   "program": "[CYBER4]"
+  },
+  "0xf2235d55b2950a0b1317469d72d07ae65b2e27cb": {
+   "currency": "ETH",
+   "name": "OJEDA AVILES, Armando de Jesus",
+   "program": "[SDGT] [ILLICIT-DRUGS-EO14059]"
+  },
+  "0xf3701f445b6bdafedbca97d1e477357839e4120d": {
+   "currency": "ETH",
+   "name": "KONDRATIEV, Ivan Gennadievich",
+   "program": "[CYBER2]"
+  },
+  "0xf4377eda661e04b6dda78969796ed31658d602d4": {
+   "currency": "ETH",
+   "name": "GARANTEX EUROPE OU",
+   "program": "[RUSSIA-EO14024] [CYBER4]"
+  },
+  "0xf7b31119c2682c88d88d455dbb9d5932c65cf1be": {
+   "currency": "ETH",
+   "name": "LAZARUS GROUP",
+   "program": "[DPRK3]"
+  },
+  "0xfac583c0cf07ea434052c49115a4682172ab6b4f": {
+   "currency": "USDT",
+   "name": "WANG, Mingming",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "0xfb3eff152ea55d1bfa04dbdd509a80fd7b72cdeb": {
+   "currency": "ETH",
+   "name": "SIM, Hyon Sop",
+   "program": "[NPWMD]"
+  },
+  "0xfda1ec4a6178d4916b001a065422d31ebe5f62ff": {
+   "currency": "ETH",
+   "name": "SIM, Hyon Sop",
+   "program": "[NPWMD]"
+  },
+  "0xfec8a60023265364d066a1212fde3930f6ae8da7": {
+   "currency": "USDT",
+   "name": "POLYANIN, Yevgeniy Igorevich",
+   "program": "[CYBER2]"
+  },
+  "125W5ek3DT6Zqy5S2iPt4FHQdNMCbZA3FU": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "1295rkVyNfFpqZpXvKGhDqwhP1jZcNNDMV": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "129zKFLoVad9JtxSmDKeJoLCsjhGR7b3vr": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "12HQDsicffSBaYdJ6BhnE22sfjTESmmzKx": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "12NpCkhddSNiDkD9rRYUCHsTT9ReMNiJjG": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "12QtD5BFwRsdNsAZY76UVE1xyCGNTojH9h": {
+   "currency": "XBT",
+   "name": "YAN, Xiaobing",
+   "program": "[SDNTK]"
+  },
+  "12YCfVAEzkEZXBYhUTyJJaRkgMXiFxJgcu": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "12YyR9EpvHxBjjKjTWqfKqeyoWnvcraxpW": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "12aNKp2iDKuhEde2YfPdd4DFGenRUTKupL": {
+   "currency": "XBT",
+   "name": "MESRI, Behzad",
+   "program": "[HRIT-IR] [CYBER2]"
+  },
+  "12udabs2TkX7NXCSj6KpqXfakjE52ZPLhz": {
+   "currency": "XBT",
+   "name": "LIFSHITS, Artem Mikhaylovich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "12w6v1qAaBc4W8h8C2Cu5SKFaKDSv3erUW": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "134r8iHv69xdT6p5qVKTsHrcUEuBVZAYak": {
+   "currency": "XBT",
+   "name": "TIAN, Yinyin",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "13JtX4h7G5ZuNK5mFudKGq9DHLvvMFuNuz": {
+   "currency": "XBT",
+   "name": "CRYPTEX",
+   "program": "[CYBER2] [RUSSIA-EO14024]"
+  },
+  "13RH4JaFhaCxDGPyYE9emjp2aDxdX18uBA": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "13YBQr2Cp1YY3xqq2qngaPb7ca1o4ugeq6": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "13f59kUM5FU8MfTG7DCEugYarDhSD7XCoC": {
+   "currency": "XBT",
+   "name": "YAN, Xiaobing",
+   "program": "[SDNTK]"
+  },
+  "13fhnkmpBBWXUQucJd6efWvXdEj78DKavk": {
+   "currency": "XBT",
+   "name": "OKO DESIGN BUREAU",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "13mnk8SvDGqsQTHbiGiHBXqtaQCUKfcsnP": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "149w62rY42aZBox8fGcmqNsXUzSStKeq8C": {
+   "currency": "XBT",
+   "name": "KHORASHADIZADEH, Ali",
+   "program": "[CYBER2]"
+  },
+  "14gM1HuLVDELNHaFU22qpabjtiWek4HhV1": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "14kqryJUxM3a7aEi117KX9hoLUw592WsMR": {
+   "currency": "XBT",
+   "name": "TIAN, Yinyin",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "14rjAD8ZP5xaL571cMRE98qgxxbg1S8mAN": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "158treVZBGMBThoaympxccPdZPtqUfYrT9": {
+   "currency": "XBT",
+   "name": "POLYANIN, Yevgeniy Igorevich",
+   "program": "[CYBER2]"
+  },
+  "15Pt4NwZaUmMUwS2bQbyyncc7mzgWShtv8": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "15YK647qtoZQDzNrvY6HJL6QwXduLHfT28": {
+   "currency": "XBT",
+   "name": "TIAN, Yinyin",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "15Zt2mKuQ5Qy6DEXfDcbtsEVneoGQQXrS4": {
+   "currency": "XBT",
+   "name": "KAYVANPOUR, Siavash",
+   "program": "[SDGT] [IRGC]"
+  },
+  "15cRqR3TXS1JehBGWERuxFE8NhWZzfoeeU": {
+   "currency": "XBT",
+   "name": "KONDRATIEV, Ivan Gennadievich",
+   "program": "[CYBER2]"
+  },
+  "15kZobLkD6HZgEECtz4oS2Vz21XHTnNfSg": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "15qyVrZvvVGvB7GWiAZ82TNcZ6QWMKu3kx": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "15uqdxqNXQwVf5H7yZPz4TmEGeSccCwdor": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "15yqWQ4sqr7jzCwDtZ3U1KaCa8WMEy7Mm2": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "16PhXY3hNNMTo8kpuJx2emh713KbWpkqci": {
+   "currency": "XBT",
+   "name": "SECONDEYE SOLUTION",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "17UVSMegvrzfobKC82dHXpZLtLcqzW9stF": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "17V7THwHMiDJmDwZK4unhE5HgKFJKx7VCe": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "17ezuJoT3XBbdcwFZbkTnrXbup11F4uhiy": {
+   "currency": "XBT",
+   "name": "ZHENG, Fujing",
+   "program": "[SDNTK]"
+  },
+  "17mhyeBX617ABZ1ffThhUTJkHUcMvCkfd5": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "182NGZbPJXwg2WDrhrPpR7tpiGQkNPF844": {
+   "currency": "XBT",
+   "name": "SECONDEYE SOLUTION",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "18Qj1THHuETfYhuRDZycXJbWwDMGw73Poa": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "18dLDAWi8LmrHbEq3QzDJb9SLxCf4uimXB": {
+   "currency": "XBT",
+   "name": "VOLOSOVIK, Aleksandr Aleksandrovich",
+   "program": "[CAATSA - RUSSIA] [CYBER4]"
+  },
+  "18gaXypKj9M23S2zT9qZfL9iPbLFM372Q5": {
+   "currency": "XBT",
+   "name": "SUNGATOV, Artur Ravilevich",
+   "program": "[CYBER2]"
+  },
+  "18uKfaUjgG52rVeXEi3wxnveww7zZuECtE": {
+   "currency": "XBT",
+   "name": "ZHENG, Guanghua",
+   "program": "[SDNTK]"
+  },
+  "18yWCu6agTxYqAerMxiz9sgHrK3ViezzGa": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "1986rYHckYbJpGQJy6ornuMyD2N5MTqwDt": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "19D1iGzDr7FyAdiy3ZZdxMd6ttHj1kj6WW": {
+   "currency": "XBT",
+   "name": "BUY CASH MONEY AND MONEY TRANSFER COMPANY",
+   "program": "[SDGT]"
+  },
+  "19D8PHBjZH29uS1uPZ4m3sVyqqfF8UFG9o": {
+   "currency": "XBT",
+   "name": "SECONDEYE SOLUTION",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "19GrL5jnUkGmHXVcraB1Etv5rXCANeLWpq": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1A7SKE2dQtezLktCY8peLsdAtkqxV9r1dC": {
+   "currency": "XBT",
+   "name": "KONDRATIEV, Ivan Gennadievich",
+   "program": "[CYBER2]"
+  },
+  "1AXUTu9y3H8w4wYx4BjyFWgRhZKDhmcMrn": {
+   "currency": "XBT",
+   "name": "TIAN, Yinyin",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "1AeSq93WDNdLoEJ92sex7T8xQZoYYm8BtS": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1AjZPMsnmpdK2Rv9KQNfMurTXinscVro9V": {
+   "currency": "XBT",
+   "name": "GHORBANIYAN, Mohammad",
+   "program": "[CYBER2]"
+  },
+  "1AoxtfiBQ22DvbhqAN9Ctb8sULMRhrdwTr": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1B11Ezqg3AXj": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "1B64QRxf": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "1BUXxhcwzFukm9CUxnhag85sSXDkMRbXse": {
+   "currency": "XBT",
+   "name": "KAYVANPOUR, Siavash",
+   "program": "[SDGT] [IRGC]"
+  },
+  "1BiUFjzH6wsT73U3tfy4aXHCQsYQHzjk5h": {
+   "currency": "XBT",
+   "name": "RAZA, Mujtaba Ali",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1CF46Rfbp97absrs7zb7dFfZS6qBXUm9EP": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "1CPJak9ZyddbawMGJPyEhCiJLXXb4sYv8N": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "1D6gG9iKEhPitTcWRJiniuj1jYM2hNeAfJ": {
+   "currency": "XBT",
+   "name": "KIM, Sang Man",
+   "program": "[DPRK4]"
+  },
+  "1DDA93oZPn7wte2eR1ABwcFoxUFxkKMwCf": {
+   "currency": "XBT",
+   "name": "KARASAVIDI, Dmitrii",
+   "program": "[CYBER2]"
+  },
+  "1DH2xDH7TngrDU6LXciprKCBKNcPA1xX8A": {
+   "currency": "XBT",
+   "name": "ZHENG, Fujing",
+   "program": "[SDNTK]"
+  },
+  "1DJoEMvp95yJYWyxAZy8DDBzuvjnrTVrsN": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1DJoVLgn1foJHHngduRPJvRbwpaFEKxvxd": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "1DT3tenf14cxz9WFNxmYrXFbB6TFiVWA9U": {
+   "currency": "XBT",
+   "name": "LIFSHITS, Artem Mikhaylovich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1DYFJ6CuBvrxyoQSuBzVsNcetY9tvdsrag": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1DbShx4r8i2XesthoDBf5EkYWz5dsKEusV": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1DbvK8P6imBuLcwh2Vruis4xsUb8YAwJQF": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1Df883c96LVauVsx9FEgnsourD8DELwCUQ": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "1DfyWkiXVVqWfcSduj23qTDis9kb2qvRDa": {
+   "currency": "XBT",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "1ECeZBxCVJ8Wm2JSN3Cyc6rge2gnvD3W5K": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "1EYitrwBYNWuTBcjZFbEUdqHppe2raLpaF": {
+   "currency": "XBT",
+   "name": "SECONDEYE SOLUTION",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1Edue8XZCWNoDBNZgnQkCCivDyr9GEo4x6": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "1EfMVkxQQuZfBdocpJu6RUsCJvenQWbQyE": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "1EpMiZkQVekM5ij12nMiEwttFPcDK9XhX6": {
+   "currency": "XBT",
+   "name": "YAN, Xiaobing",
+   "program": "[SDNTK]"
+  },
+  "1F2Gdug9ib9NQMhKMGGJczzMk5SuENoqrp": {
+   "currency": "XBT",
+   "name": "TIAN, Yinyin",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "1FCNgfZWpYMeYhy9t18AAkTBu8AsdoAc1Z": {
+   "currency": "XBT",
+   "name": "KIM, Sang Man",
+   "program": "[DPRK4]"
+  },
+  "1FE2cuvkq8n5VGwj5hi8YYQxskwJpovPyV": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1FRyL9gmFGbzfYDAB4iY9836DJe3KSnjP9": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1FjubFHV4mpYjBmvjsEhZssyiiA4TNmnm2": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1Fz29BQp82pE3vXXcsZoMNQ3KSHfMzfMe3": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1G1V1b9s9uPsFCNL15ibZk44xsVygKsP2u": {
+   "currency": "XBT",
+   "name": "CRYPTO HOME DMCC",
+   "program": "[SDGT]"
+  },
+  "1G6DuwDKNHiUWqks2Lgu44cesu7ffFbLK7": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1G9A8WRjGXdnYY4TNEVRrcaHsMtana4ncF": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1G9CKRHA3mx22DoT1QyNYrh85VSQ19Y1em": {
+   "currency": "XBT",
+   "name": "SECONDEYE SOLUTION",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1GXeCkFQq7SYo6B7wdLAPkkri6NFTFB7No": {
+   "currency": "XBT",
+   "name": "GHAL'EH-KUHI, Mojtaba",
+   "program": "[CYBER4]"
+  },
+  "1GYuu9d5HPikafbys3k5Q3DRJq6debGsoB": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "1Gekw8ACSs37oXcc5XQHvoux3iKoVFtpF4": {
+   "currency": "XBT",
+   "name": "ZSERVERS",
+   "program": "[CYBER3]"
+  },
+  "1Gq": {
+   "currency": "XBT",
+   "name": "SECONDEYE SOLUTION",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1H939dom7i4WDLCKyGbXUp3fs9CSTNRzgL": {
+   "currency": "XBT",
+   "name": "KHATIBI AGHADA, Ahmad",
+   "program": "[IRGC] [IFSR] [CYBER2]"
+  },
+  "1HmqvgSXUVES1jn4TQPzk9dxo1NE8wim2T": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Vitaliy Sergeyevich",
+   "program": "[DPRK2]"
+  },
+  "1Hn9ErTCPRP6j5UDBeuXPGuq5RtRjFJxJQ": {
+   "currency": "XBT",
+   "name": "TIAN, Yinyin",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "1Hpj6qm9i7nMF3VkKfBFtjhEDpEjxHWvgv": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1J9oGoAiHeRfeMZeUnJ9W7RpV55CdKtgYE": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "1JGPiQGK78xTxAVoxA1MjK3Z15M84Rj6BL": {
+   "currency": "XBT",
+   "name": "KAHZADIAN, Arman",
+   "program": "[CYBER4]"
+  },
+  "1JHdQHkBZiim1cb4hyUh2PbzEbbg6z2TrF": {
+   "currency": "XBT",
+   "name": "SINBAD",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "1JPfVv5cWRLx1js9NWxg46dG2CGbeRz4th": {
+   "currency": "XBT",
+   "name": "HEBEI ATUN TRADING CO., LTD.",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1JPqJ8sxLBvdHBqMqSFBmUkoh2vAuCUNvs": {
+   "currency": "XBT",
+   "name": "SOKOLOVSKI, Rolan",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1JREJdZupiFhE7ZzQPtASuMCvvpXC7wRsC": {
+   "currency": "XBT",
+   "name": "YAN, Xiaobing",
+   "program": "[SDNTK]"
+  },
+  "1Js6goCey2NaqPQptiLANLQGuk4d6mowjP": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1KSAbh5trMCTZwhiNsuUQvfTtSSTT8zqRk": {
+   "currency": "XBT",
+   "name": "RAZA, Mujtaba Ali",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1KUUJPkyDhamZXgpsyXqNGc3x1QPXtdhgz": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "1Kc6egXevyLEaeTxLFA1Zyw7GuhCN8jQtt": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "1KctQENEX5QkQMpnMC3Zh9yRAzkMBLpPcr": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1KgudqxMfYaGzqAA7MS4DcsqejtMteqhix": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1Kuf2Rd8mDyAViwBozGTNYnvWL8uYFrkVo": {
+   "currency": "XBT",
+   "name": "YAN, Xiaobing",
+   "program": "[SDNTK]"
+  },
+  "1Kys8fqDen8NGFUJ6AFcXfFW5qquuTH4eh": {
+   "currency": "XBT",
+   "name": "POTEKHIN, Danil",
+   "program": "[CYBER2]"
+  },
+  "1L4ncif9hh9TnUveqWq77HfWWt6CJWtrnb": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "1LAh7PQwpd1uGiLHae5C5Xz9QXse3y2phq": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1LiNmTUPSJEd92ZgVJjAV3RT9BzUjvUCkx": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "1Ljk8RNNabkZ9bfDYQBn98XfFozJhTjqcZ": {
+   "currency": "XBT",
+   "name": "ZHDANOVA, Ekaterina Valeryevna",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "1LpYKb3SXZPve9hsH2QEJZFX279wJVGowi": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1LrxsRd7zNuxPJcL5rttnoeJFy1y4AffYY": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "1M5N4sJ1NHb4fviLVZA5MZLKhLZqU4CPZz": {
+   "currency": "XBT",
+   "name": "ZSERVERS",
+   "program": "[CYBER3]"
+  },
+  "1MLPqwaFFUBZePTjpR3nxRoK19Cv9mPCc7": {
+   "currency": "XBT",
+   "name": "WANG, Mingming",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1MTndG4K51RRMvkzyvguaHnQpiMLnxFGzM": {
+   "currency": "XBT",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "1MkCnCa9agS5t6V1B15bzusBgYECB4LfWp": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "1MnbhWe5wr7Ut45ReyQsm96PwnM9jD7KaH": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1N6XqS": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "1NE2NiGhhbkFPSEyNWwj7hKGhGDedBtSrQ": {
+   "currency": "XBT",
+   "name": "SECONDEYE SOLUTION",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1NayLEVF3bEEbDtdF2Cwso1VdEtvVNh2qX": {
+   "currency": "XBT",
+   "name": "SECONDEYE SOLUTION",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1NuBZQXJPyYQGfoBib8wWBDpZmbtkJa5Ba": {
+   "currency": "XBT",
+   "name": "WU, Huihui",
+   "program": "[DPRK3]"
+  },
+  "1P3ZfGFLezzYGg9k5SVzQmnjyh7nrUmF2y": {
+   "currency": "XBT",
+   "name": "YAN, Xiaobing",
+   "program": "[SDNTK]"
+  },
+  "1PJp8diNa89cVHpiT1VPu7EQ8LxYM5HX6v": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "1PfwHNxUnkpfkK9MKjMqzR3Xq3KCtq9u17": {
+   "currency": "XBT",
+   "name": "TIAN, Yinyin",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "1PhqQpaGCrqSxQ6QDXcv14QCd1U98Zp34E": {
+   "currency": "XBT",
+   "name": "ANDREYEV, Anton Nikolaeyvich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "1Q6saNmqKkyFB9mFR68Ck8F7Dp7dTopF2W": {
+   "currency": "XBT",
+   "name": "KARASAVIDI, Dmitrii",
+   "program": "[CYBER2]"
+  },
+  "1Q9UAQbcDezmyouFrzt94t4dSMxgsUfW1X": {
+   "currency": "XBT",
+   "name": "POTEKHIN, Danil",
+   "program": "[CYBER2]"
+  },
+  "3": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "31p6woV4e55HUfC2aGynFhzQnGoJFW26cD": {
+   "currency": "XBT",
+   "name": "POLYANIN, Yevgeniy Igorevich",
+   "program": "[CYBER2]"
+  },
+  "32DaxSzUhLBHY2WGSWQYiBSHnRsfQZrrRp": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "32jgFkZsTEjMFaBvxJnYvJEeTNKTmq5b32": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "32pTjxTNi7snk8sodrgfmdKao3DEn1nVJM": {
+   "currency": "XBT",
+   "name": "KONDRATIEV, Ivan Gennadievich",
+   "program": "[CYBER2]"
+  },
+  "32wdqwX3zCEX3DhAVEcKwXCEGdzgBnx1R9": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "33Kja69SQVc8kozpoP7Qw6HFtGxHkiWzTz": {
+   "currency": "XBT",
+   "name": "ZHENG, Guanghua",
+   "program": "[SDNTK]"
+  },
+  "33xWfziVZesgo83U5izdNCBVTnrtBpSwK7": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "347QFbejDBdMZFTxpmn6evvvqyXiqZTCd7": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "34pFGsSYbWEritXncW9unZtQQE9dKSvKku": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "35KAdTa2vqnJzitF2xiUzZn1Gmcas2Y465": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "35LScRJ8hzDvvWh9t9UA8bHGnGNVz3YEfa": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "35QpLWYkvD3ALhjbge5bK2kd7HfHYcDMu3": {
+   "currency": "XBT",
+   "name": "VASINSKYI, Yaroslav",
+   "program": "[CYBER2]"
+  },
+  "35irs2AU6pVgenYbWvMRz22avDBLC9XMkd": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "35qwVtMEohWDdBWRiCSR7azoP5cbY8SG1Q": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "3685sEusmTwZBiKJ4cgV73EAhpVD1nbgbe": {
+   "currency": "XBT",
+   "name": "ZHDANOVA, Ekaterina Valeryevna",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "36ia8qAE1k1PKQePdXENCm1YKLXxZyVnnc": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "372Wk9NLrMkJzKgqJdatWJy4bYRfxFjgat": {
+   "currency": "XBT",
+   "name": "VASINSKYI, Yaroslav",
+   "program": "[CYBER2]"
+  },
+  "374RguZDMNW5Zh5ouW3KhKDcrerKusmsuk": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "37fKFZQGMqdBkjSUub1jCDWGgSHwv9VxfZ": {
+   "currency": "XBT",
+   "name": "SOKOLOVSKI, Rolan",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "386sPhHBbLidzPnoxUH74jiiYkHYtobefQ": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "389Sft4nJFkPGhbagk9FN4jXncA9piYTuU": {
+   "currency": "XBT",
+   "name": "POLYANIN, Yevgeniy Igorevich",
+   "program": "[CYBER2]"
+  },
+  "38TftW1heYPqvKbiAhT4ttNBqkUPpooXad": {
+   "currency": "XBT",
+   "name": "XIA, Fengbing",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "38ncxqt932N9CcfNfYuHGZgCyR85hDkWBW": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "39NG2LcGRHXxSr1irpEVnJMw4ydL231sEn": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "39Te8MbphSgs7npDJPj2hbNzhke61NTcnB": {
+   "currency": "XBT",
+   "name": "POLYANIN, Yevgeniy Igorevich",
+   "program": "[CYBER2]"
+  },
+  "39eboeqYNFe2VoLC3mUGx4dh6GNhLB3D2q": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "39fhoB2DohisGBbHvvfmkdPdShT75CNHdX": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "39p8qWp1bkBNhi4vPpFTetKPtH7goqNDZf": {
+   "currency": "XBT",
+   "name": "ZHDANOVA, Ekaterina Valeryevna",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "3AQSmMk5n3c6TKEg9B2WyzYAPm33gJJAA4": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "3AjyprBY5yhijiCjUC5NUJutGbwhd3AQdE": {
+   "currency": "XBT",
+   "name": "POLYANIN, Yevgeniy Igorevich",
+   "program": "[CYBER2]"
+  },
+  "3B7S6zrgxQVQUHTU8wstM23tB9afE7ojuX": {
+   "currency": "XBT",
+   "name": "SHEN, Xingbiao",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "3BsyZ7qRFSi3NsaoV1Ff724qAgrEpjVUHm": {
+   "currency": "XBT",
+   "name": "VASINSKYI, Yaroslav",
+   "program": "[CYBER2]"
+  },
+  "3CuqLrZWn5oCe6DR": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "3DNsaQnaUz7wkQny1ZDSmtz6QfbEShxoDD": {
+   "currency": "XBT",
+   "name": "POLYANIN, Yevgeniy Igorevich",
+   "program": "[CYBER2]"
+  },
+  "3E6ZCKRrsdPc35chA9Eftp1h3DLW18NFNV": {
+   "currency": "USDT",
+   "name": "GARANTEX EUROPE OU",
+   "program": "[RUSSIA-EO14024] [CYBER4]"
+  },
+  "3E6rY4dSCDW6y2bzJNwrjvTtdmMQjB6yeh": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "3E7YbpXuhh3CWFks1jmvWoV8y5DvsfzE6n": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "3EPqGUw2q89pwPZ1UF8FJspE2AyojSTjdu": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "3EeR8FbcPbkcGj77D6ttneJxmsr3Nu7KGV": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "3EynPFpoGTPxU9m5bPaEDEUxUanzh7vgQP": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "3F2sZ4jbhvDKQdGbHYPC6ZxFXEau2m5Lqj": {
+   "currency": "XBT",
+   "name": "TIAN, Yinyin",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "3F6bbvS1krsc1qR8FsbTDfYQyvkMm": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "3F6bbvS1krsc1qR8FsbTDfYQyvkMm3QvmR": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "3FfRvC3kSo2SxiQe5e7SSuNdegwgq8iusL": {
+   "currency": "XBT",
+   "name": "MISHIN, Alexander Igorevich",
+   "program": "[CYBER3]"
+  },
+  "3FoD1f6Tfnq3s8MYHgJqFPWv9cUrtUdBSv": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "3GXdtA6kbb4M5aqzZm5qqxcFDFRMW8LqdJ": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "3Gbs4rjcVUtQd8p3CiFUCxPLZwRqurezRZ": {
+   "currency": "XBT",
+   "name": "SOUTHFRONT",
+   "program": "[NPWMD] [CYBER2] [ELECTION-EO13848]"
+  },
+  "3H3rh85qPaGLy2w6618yZNaH7i8asHv46B": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "3HQRveQzPifZorZLDXHernc5zjoZax8U9f": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "3He6EyDaCUgmdr4GXqhxbeTQukaGLCByU2": {
+   "currency": "XBT",
+   "name": "GRIMM, Matthew Simon",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "3HePkztPU6UsdENxnyQHFrdZA6eVKeMtvz": {
+   "currency": "XBT",
+   "name": "WANG, Mingming",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "3HqA7i3ttECLvgqvq69HNxxUP5BL7Z5YgA": {
+   "currency": "XBT",
+   "name": "PEIJNENBURG, Alex Adrianus Martinus",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "3JHMz3mTna1gVCZSPp8NgRFiY7phkv5mA8": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "3JXKQ81JzBqVbB8VHdV9Jtd7auWokkdPgY": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "3K35dyL85fR9ht7UgzPfd1gLRRXQtNTqE3": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "3K4rjdh8A5yi6LWvft2rbmyZvqEbPSSSX4": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "3K7PMJyMNVnxqsfpmK9r9nJDtzDw9wNwNV": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "3KHfXU24Bt3YD5Ef4J7uNp2buCuhrxfGen": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "3LbDu1rUXHNyiz4i8eb3KwkSSBMf7C583D": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "3LhnVMcBq4gsR7aDaRr9XmUo17CuYBV4FN": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "3Lpoy53K625zVeE47ZasiG5jGkAxJ27kh1": {
+   "currency": "XBT",
+   "name": "GARANTEX EUROPE OU",
+   "program": "[RUSSIA-EO14024] [CYBER4]"
+  },
+  "3MKXKqPXf6VxTLkVSXuDKzaTiZZaz5AmiK": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "3MN8nYo1tt5hLxMwMbxDkXWd7Xu522hb9P": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "3MTRvM5QrYZHKo8gh5qKcrPK3RLjxcDCZE": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "3MTrJTFhYK9v1C6pjHtuweZSopfZa4b1wb": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "3MkUNScqf21EcfWq6T4x2MFgBeSTqhB5t6": {
+   "currency": "XBT",
+   "name": "ZHENG, Guanghua",
+   "program": "[SDNTK]"
+  },
+  "3N6WeZ6i34taX8Ditser6LKWBcXmt2XXL4": {
+   "currency": "XBT",
+   "name": "LI, Jiadong",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "3N9YcPBDky9UsMx1RTk33tL4jDkZfSnsPk": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "3NEcQKZ8RwL2eDNhmMPpZ4td9vPsQh9JwM": {
+   "currency": "XBT",
+   "name": "HUANG, Xiaojun",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "3NNcbBcMZokPB2JC2dxYuZrpgcetvyGeJn": {
+   "currency": "XBT",
+   "name": "WANG, Jiantong",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "3NQ1aa9ceirMJ1JvRq3eXefvXj1L639fzX": {
+   "currency": "XBT",
+   "name": "VASINSKYI, Yaroslav",
+   "program": "[CYBER2]"
+  },
+  "3NRJ8aXdUiZdHaiFX9ePX3DhGHzcEi14Fq": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "3NU9zkD8CCVGVmYnNNSN7PbU9sSFQBm5UV": {
+   "currency": "XBT",
+   "name": "ZHANG, Wei",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "3PKiHs4GY4rFg8dpppNVPXGPqMX6K2cBML": {
+   "currency": "XBT",
+   "name": "WANG, Hongfei",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "3PiCnZrBvGfWAKQ9hr4cCpfaDjy64yNSpE": {
+   "currency": "XBT",
+   "name": "HYDRA MARKET",
+   "program": "[CYBER2]"
+  },
+  "3Q5dGfLKkWqWSwYtbMUyc8xGjN5LrRviK4": {
+   "currency": "XBT",
+   "name": "BLENDER.IO",
+   "program": "[CYBER2]"
+  },
+  "3Q8H2ZWMtc4R1M3mkmhnTjCoYKTeCFigDP": {
+   "currency": "XBT",
+   "name": "GAZA NOW",
+   "program": "[SDGT]"
+  },
+  "42RLPACwZPx3vYYmxSueqsogfynBDqXK298EDsNoyoHi": {
+   "currency": "SOL",
+   "name": "SOKOLOVSKI, Rolan",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "44dZUJ7w1T3fKAvFW8XyXUVoAGSbFvXef2wcbnsjNKGWYorpLJBjth5VKSFhLGkpYKJb2J341tdZHBnbpv72WL7e8zuxfR2": {
+   "currency": "XMR",
+   "name": "ISIL KHORASAN",
+   "program": "[FTO] [SDGT]"
+  },
+  "45ezvPejNsKYntjhyyeb7fbfzi1sxYQozc5Ffseh8jPGW4JZQQVXykNTfK5uGFiij7Hp3qPv3T5HCR7F3Fnmz2mzE1aKQwo": {
+   "currency": "XMR",
+   "name": "ISIL KHORASAN",
+   "program": "[FTO] [SDGT]"
+  },
+  "47FVhkRkWgnLs81UBqgY8ui6axAB1627HJjkY2qPnWxMbGfx7387kcY6RzScHgGMQAaH6CBxKXAS4862tS2fhs9BRdmuyav": {
+   "currency": "XMR",
+   "name": "ISIL KHORASAN",
+   "program": "[FTO] [SDGT]"
+  },
+  "49HqitRzdnhYjgTEAhgGpCfsjdTeMbUTU6cyR4JV1R7k2Eej9rGT8JpFiYDa4tZM6RZiFrHmMzgSrhHEqpDYKBe5B2ufNsL": {
+   "currency": "XMR",
+   "name": "SOUTHFRONT",
+   "program": "[NPWMD] [CYBER2] [ELECTION-EO13848]"
+  },
+  "5be5543ff73456ab9f2d207887e2af87322c651ea1a873c5b25b7ffae456c320": {
+   "currency": "XMR",
+   "name": "KARASAVIDI, Dmitrii",
+   "program": "[CYBER2]"
+  },
+  "6wjqWWra8ombzaw6VHrG5xpQ972jCYF6bbHiFCbWmr4U": {
+   "currency": "SOL",
+   "name": "SHPS SHELBIT",
+   "program": "[SDGT]"
+  },
+  "884Bz8UH63aYsjVdkfWfScRYWZGGNbjFL7pztqvWNSrtYT4reFSwyvkCj9KEGUtheHhhMUj87ciTBFyzoesrMJ4L1FvSoxL": {
+   "currency": "XMR",
+   "name": "SOUTHFRONT",
+   "program": "[NPWMD] [CYBER2] [ELECTION-EO13848]"
+  },
+  "DFFJhnQNZf8rf67tYnesPu7MuGUpYtzv7Z": {
+   "currency": "XVG",
+   "name": "RAZA, Mujtaba Ali",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "DHzAVdEoL3PjGeLWNdEJwwMA1CeQ9J9Cpo": {
+   "currency": "DOGE",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "DTqpKQ96rqkTvHcohQQd9BksmgRjasHgGo": {
+   "currency": "DOGE",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "GPwg61XoHqQPNmAucFACuQ5H9sGCDv9TpS": {
+   "currency": "BTG",
+   "name": "KARASAVIDI, Dmitrii",
+   "program": "[CYBER2]"
+  },
+  "LNwgtMxcKUQ51dw7bQL1yPQjBVZh6QEqsd": {
+   "currency": "LTC",
+   "name": "KARASAVIDI, Dmitrii",
+   "program": "[CYBER2]"
+  },
+  "LaizKtS5DUhPuP1nTQcc83MS7HwK6vk85z": {
+   "currency": "LTC",
+   "name": "ZHENG, Guanghua",
+   "program": "[SDNTK]"
+  },
+  "LbPAqHvemZBv3pvAqiAtDnZ3U1t6EziaL1": {
+   "currency": "LTC",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "LcP1DumXkNJbBtSYD3XxAfsJ2nZR5hLdpM": {
+   "currency": "LTC",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "LeKvNdNEzgQkzVVnRdV3fAu2DSF1nLsNw6": {
+   "currency": "LTC",
+   "name": "RAZA, Mujtaba Ali",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "Leo3j36nn1JcsUQruytQhFUdCdCH5YHMR3": {
+   "currency": "LTC",
+   "name": "LIFSHITS, Artem Mikhaylovich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "M8yFL6SFC6TreATegTyuSYkDfDRbisdpT3": {
+   "currency": "LTC",
+   "name": "CRYPTEX",
+   "program": "[CYBER2] [RUSSIA-EO14024]"
+  },
+  "TA3941uFAvmVibSkQ6fMJXxmaSNovX86mz": {
+   "currency": "USDT",
+   "name": "CHEIL CREDIT BANK",
+   "program": "[DPRK4]"
+  },
+  "TA39q3p75XRSWYAEaSF7dANtyksoa3sLge": {
+   "currency": "USDT",
+   "name": "CHEIL CREDIT BANK",
+   "program": "[DPRK4]"
+  },
+  "TASWbk6X1wiTku5TMmMQYqYFvshVEtfJy8": {
+   "currency": "TRX",
+   "name": "ZEDCEX EXCHANGE LTD",
+   "program": "[SDGT] [IFSR] [IRAN-EO13902]"
+  },
+  "TAYhjpL8pPs8T84FSM329nffQpc6jD8GBM": {
+   "currency": "TRX",
+   "name": "GRINEX",
+   "program": "[CYBER4]"
+  },
+  "TAhHpxPRwo1Bmm1A9m51uZ31tcB7EPq7SY": {
+   "currency": "TRX",
+   "name": "AL-JEBOURI, Zaid Issam Ahmed",
+   "program": "[SDGT]"
+  },
+  "TAhwhFv3JpK39Nc2m8W5LPCcoTisutiRfp": {
+   "currency": "TRX",
+   "name": "BANK MARKAZI JOMHOURI ISLAMI IRAN",
+   "program": "[IRAN] [SDGT] [IRGC] [IFSR]"
+  },
+  "TAoLw5yD5XUoHWeBZRSZ1ExK9HMv2CiPvP": {
+   "currency": "TRX",
+   "name": "WEDDING, Ryan James",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TBATDh41qMQ1yeVYecneEvhpfayYmkAQWS": {
+   "currency": "USDT",
+   "name": "CHEIL CREDIT BANK",
+   "program": "[DPRK4]"
+  },
+  "TBEmt7kPSwAv6NJTYKNdBVW524bUfPwJpJ": {
+   "currency": "TRX",
+   "name": "HERNANDEZ GUERRERO, Anthony Wuiliam",
+   "program": "[SDGT] [TCO]"
+  },
+  "TBFW9gF4oDX5cG44gS7AoxQeujScmm3z6h": {
+   "currency": "TRX",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "TBKpozurdWLrbKkxtDqkveeq1dSB8Axj3V": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TBWRDpQsW1ZVPGGaBAwVLNb7iqmVBuM1nj": {
+   "currency": "USDT",
+   "name": "CHEIL CREDIT BANK",
+   "program": "[DPRK4]"
+  },
+  "TBXMiRqUp1XH1zLazWu8cWitMAScv4HsYq": {
+   "currency": "TRX",
+   "name": "ABDERRAHMANE, Miloud",
+   "program": "[SDGT]"
+  },
+  "TBYRhsZR7Mdn9ezpGVLwZiNVnGm8wZGLAD": {
+   "currency": "USDT",
+   "name": "CHEIL CREDIT BANK",
+   "program": "[DPRK4]"
+  },
+  "TBZefVsyQpzzxc2WSCLbZBECvxVdzGqdtC": {
+   "currency": "USDT",
+   "name": "CHEIL CREDIT BANK",
+   "program": "[DPRK4]"
+  },
+  "TBcLqqqyZjNj1ptuXFgj5H768NhNU5nDyn": {
+   "currency": "TRX",
+   "name": "SOKOLOVSKI, Rolan",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TBtRqkiFzyuwe8nSAGQghxygAfwAF5eERq": {
+   "currency": "TRX",
+   "name": "ISIL KHORASAN",
+   "program": "[FTO] [SDGT]"
+  },
+  "TBwghbQMsBC5xcUxE7ZpYXhfDMXZAfiFv6": {
+   "currency": "USDT",
+   "name": "CHEIL CREDIT BANK",
+   "program": "[DPRK4]"
+  },
+  "TC4VsFHJdZ66BdwobZxkudVZBVmQZgCP65": {
+   "currency": "USDT",
+   "name": "ANSARALLAH",
+   "program": "[FTO] [SDGT]"
+  },
+  "TC5UNu3LGrjjVCuLNDdVgjm4oL5cQAyFRZ": {
+   "currency": "USDT",
+   "name": "CHEIL CREDIT BANK",
+   "program": "[DPRK4]"
+  },
+  "TC8axQvzJEVR3NKN6mZnJtGy7537GEmh38": {
+   "currency": "TRX",
+   "name": "GRINEX",
+   "program": "[CYBER4]"
+  },
+  "TCA7AfTSuDmgYk2VaezfPuZF4Z4X8wxwcQ": {
+   "currency": "USDT",
+   "name": "CHEIL CREDIT BANK",
+   "program": "[DPRK4]"
+  },
+  "TCA9vmjsYw9MtPKEwRBtGhKFRfr4CLxJAv": {
+   "currency": "TRX",
+   "name": "ZEDCEX EXCHANGE LTD",
+   "program": "[SDGT] [IFSR] [IRAN-EO13902]"
+  },
+  "TCFD8N3vM5b4Gr5f1kkajQsodRVNyyAq1d": {
+   "currency": "TRX",
+   "name": "OLD VECTOR LLC",
+   "program": "[CYBER4]"
+  },
+  "TCUmMCHQEbFFdGvfdg2LeS64QfzUKP2AgW": {
+   "currency": "TRX",
+   "name": "CARDENAS ARZOLA, Eric Gabriel",
+   "program": "[SDGT] [TCO]"
+  },
+  "TCV4qdpTxoMyqkn7sSPeRrXmhH5JFxMvmT": {
+   "currency": "TRX",
+   "name": "OBERTAS, Vitold Viktorovich",
+   "program": "[DPRK2]"
+  },
+  "TCifMAMwst3oEJx8GaNfqZw75dkFUa8vjG": {
+   "currency": "TRX",
+   "name": "MARTINEZ ARMENTA, Carlos Javier",
+   "program": "[SDGT] [TCO]"
+  },
+  "TCqKhk7MpPnGH3UfygE1TRzUo92a5tuVy6": {
+   "currency": "TRX",
+   "name": "ISIL KHORASAN",
+   "program": "[FTO] [SDGT]"
+  },
+  "TCu5onCzXuqxjvVzdB2tR4FLuF66d4yRqf": {
+   "currency": "TRX",
+   "name": "SOKOLOVSKI, Rolan",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TCzq6m2zxnQkrZrf8cqYcK6bbXQYAfWYKC": {
+   "currency": "TRX",
+   "name": "ZEDCEX EXCHANGE LTD",
+   "program": "[SDGT] [IFSR] [IRAN-EO13902]"
+  },
+  "TDFj8tYzfLDkwEMo4MJ2DfrbpMztuCCnan": {
+   "currency": "TRX",
+   "name": "ABDERRAHMANE, Miloud",
+   "program": "[SDGT]"
+  },
+  "TDFtJtyLPgN3oWUoHh23oJox3T5V5nR11K": {
+   "currency": "TRX",
+   "name": "SAYYED, Sadiq Abbas Habib",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TDNKsLvsY2iSznyghddXz7ZDRc": {
+   "currency": "USDT",
+   "name": "CHEIL CREDIT BANK",
+   "program": "[DPRK4]"
+  },
+  "TDU61o35UEe5hdB3R16c116DrPSV4kiyKz": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TDdbRFoBTEmE3qiR69Y6rKRSG1hoF65QaE": {
+   "currency": "USDT",
+   "name": "CHIRKINYAN, Elena",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "TDe2UNAvuUnTbbDo7518eMe3TXN5qJW8Ft": {
+   "currency": "TRX",
+   "name": "AMNOKGANG TECHNOLOGY DEVELOPMENT COMPANY",
+   "program": "[DPRK4]"
+  },
+  "TDprk9jeYPVm6khkBp1u7fwuyJcEJFrPWD": {
+   "currency": "USDT",
+   "name": "ANSARALLAH",
+   "program": "[FTO] [SDGT]"
+  },
+  "TDwN1Eq62bqvVhfGAjdRRJjE46jsi5KNMV": {
+   "currency": "USDT",
+   "name": "ANSARALLAH",
+   "program": "[FTO] [SDGT]"
+  },
+  "TDxZ1XTZCmqkJJW2eJT362z6omRchJyGBX": {
+   "currency": "TRX",
+   "name": "MARTINEZ PIRONA, Oscar Leonardo",
+   "program": "[SDGT] [TCO]"
+  },
+  "TEAqwfMhXLaomXhZ8KeMhx3njGmQEDnsUR": {
+   "currency": "USDT",
+   "name": "SHEN, Xingbiao",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TEECjwHqVG8sDmM3VtscjuCaRe5p351MU7": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TEEYCuGDyeNkuDj4u6GQRXxXo3Nh29r2vP": {
+   "currency": "TRX",
+   "name": "AMNOKGANG TECHNOLOGY DEVELOPMENT COMPANY",
+   "program": "[DPRK4]"
+  },
+  "TEFph7dZoUN5233cGEzF6XFwRpjPF8fQDS": {
+   "currency": "USDT",
+   "name": "GAMBASHIDZE, Ilya Andreevich",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "TEcuHDQthTmULe8fFLUccBPpjfXaTmJuuD": {
+   "currency": "TRX",
+   "name": "GRINEX",
+   "program": "[CYBER4]"
+  },
+  "TFFvv7NAWmbcVfA7QN81mMvUC25TWj1WJx": {
+   "currency": "USDT",
+   "name": "AL-JAMAL, Sa'id Ahmad Muhammad",
+   "program": "[SDGT] [IFSR]"
+  },
+  "TFQbqaNbmq2xsVor2NbufLkYZvxFC9wC7k": {
+   "currency": "TRX",
+   "name": "BANK MARKAZI JOMHOURI ISLAMI IRAN",
+   "program": "[IRAN] [SDGT] [IRGC] [IFSR]"
+  },
+  "TFdTr9C3BqQrzKBXqSxJfAZFTh8UwBAfSg": {
+   "currency": "TRX",
+   "name": "OKO DESIGN BUREAU",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "TFksjBcHPYqgAax2USheQuaT1ydRKyZRdg": {
+   "currency": "TRX",
+   "name": "OBERTAS, Vitold Viktorovich",
+   "program": "[DPRK2]"
+  },
+  "TFwjPScaJRCbSWVAywE1S1WgaU": {
+   "currency": "TRX",
+   "name": "GARANTEX EUROPE OU",
+   "program": "[RUSSIA-EO14024] [CYBER4]"
+  },
+  "TG83Fk56S2mycAUMYHZyZp9wMg6DCf4bUn": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TGJVc32ig2u8tQsYMLE7KXHT5NDQroaVNU": {
+   "currency": "USDT",
+   "name": "GAZA NOW",
+   "program": "[SDGT]"
+  },
+  "TGUPpmW2bAnMCLe5ih2CFisfCHk4gTFDsx": {
+   "currency": "USDT",
+   "name": "ANSARALLAH",
+   "program": "[FTO] [SDGT]"
+  },
+  "TGXE9dGWawjfd3xqFSho1h1bRbRv9wUGrF": {
+   "currency": "TRX",
+   "name": "SIM, Hyon Sop",
+   "program": "[NPWMD]"
+  },
+  "TGckaiamj5NzaYx6Qp6Zu7kahuHArzUo99": {
+   "currency": "TRX",
+   "name": "GRINEX",
+   "program": "[CYBER4]"
+  },
+  "TGr2i8ZQiiMRjP3mWyQUH2MQBfKu8GJNqm": {
+   "currency": "TRX",
+   "name": "AL-JEBOURI, Zaid Issam Ahmed",
+   "program": "[SDGT]"
+  },
+  "TGsNFrgWfbGN2gX25Wcf8oTejtxtQkvmEx": {
+   "currency": "TRX",
+   "name": "ZEDCEX EXCHANGE LTD",
+   "program": "[SDGT] [IFSR] [IRAN-EO13902]"
+  },
+  "TH96tFMn8KGiYSLiwcV3E2UiaJc8jmcbz3": {
+   "currency": "USDT",
+   "name": "GAZA NOW",
+   "program": "[SDGT]"
+  },
+  "THJUJFyTnrBWb1ijWav7qfRBrjUuKgP49Z": {
+   "currency": "TRX",
+   "name": "AL-JEBOURI, Zaid Issam Ahmed",
+   "program": "[SDGT]"
+  },
+  "THh5woR8qfmDsNknQ3agPYzQSiRtMnKsTh": {
+   "currency": "USDT",
+   "name": "AL-JAMAL, Sa'id Ahmad Muhammad",
+   "program": "[SDGT] [IFSR]"
+  },
+  "THwbVuBBb26abe5TrAsYUpYz9mhWnBppdz": {
+   "currency": "TRX",
+   "name": "GALEANO BAZURTO, Jose Dario",
+   "program": "[SDGT] [TCO]"
+  },
+  "TJCBpxZ3yC7C7oegSRZMFxBcscmUVeSA36": {
+   "currency": "USDT",
+   "name": "TSORIS, Almpertos",
+   "program": "[IRAN-EO13902]"
+  },
+  "TJdgB1k6ot3f2nLuZug6D8eD3HavTmzmSK": {
+   "currency": "TRX",
+   "name": "BANK MARKAZI JOMHOURI ISLAMI IRAN",
+   "program": "[IRAN] [SDGT] [IRGC] [IFSR]"
+  },
+  "TJjRAn9kLiyh8h6gjBjaYjkfDkskgZfyW9": {
+   "currency": "TRX",
+   "name": "CANELON AGUIRRE, Anibal Alexander",
+   "program": "[SDGT] [TCO]"
+  },
+  "TK3n8pGHvDTcK53mpfeDAMzdwjb22qvFU3": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TKRNCETxbiMmyyMraCkgdXKdLr1ZkmKxV5": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TL1k1U6SHohxBqb68kCodxHc9y2LXoDSep": {
+   "currency": "TRX",
+   "name": "GRINEX",
+   "program": "[CYBER4]"
+  },
+  "TLM3zA3EWycoDX4ZX4gKze7sgfbdkntTum": {
+   "currency": "USDT",
+   "name": "OBSHCHESTVO S OGRANICHENNOI OTVETSTVENNOSTYU KONSTRUKTORSKOE BYURO VOSTOK",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "TLNRT524dzL5FF1nJHDhYEMFpeWjLjRbz1": {
+   "currency": "USDT",
+   "name": "AL-JAMAL, Sa'id Ahmad Muhammad",
+   "program": "[SDGT] [IFSR]"
+  },
+  "TLoG3vbjDgqmTD5bM7w9rMgA6ysaNReuRy": {
+   "currency": "TRX",
+   "name": "AL-JEBOURI, Zaid Issam Ahmed",
+   "program": "[SDGT]"
+  },
+  "TLvuvpfBKdxddxSsJefeiGCe9eVY8HUroE": {
+   "currency": "TRX",
+   "name": "ZEDCEX EXCHANGE LTD",
+   "program": "[SDGT] [IFSR] [IRAN-EO13902]"
+  },
+  "TM6Kix9wH8cYQ4rLpFifsQ4ddH3rPX3f8p": {
+   "currency": "USDT",
+   "name": "ANSARALLAH",
+   "program": "[FTO] [SDGT]"
+  },
+  "TMGLqRQ4twjW8wJhVH1mQR7nUThpGHUsN3": {
+   "currency": "USDT",
+   "name": "GAMBASHIDZE, Ilya Andreevich",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "TMStbg5fgb4uTV7fK1gEYF9hKAzP3siPsG": {
+   "currency": "TRX",
+   "name": "WANG, Jiantong",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TMuCgBejD5RsNANZdjGtaM3YyKGNgDoy7N": {
+   "currency": "TRX",
+   "name": "GRINEX",
+   "program": "[CYBER4]"
+  },
+  "TNTFhgFoKH4srBMiWbfrVFqP2AThSmdwf1": {
+   "currency": "TRX",
+   "name": "SIM, Hyon Sop",
+   "program": "[NPWMD]"
+  },
+  "TNZxGWCwvsHr6JxQxzoeDXV597Yf7Zb7nV": {
+   "currency": "TRX",
+   "name": "GRINEX",
+   "program": "[CYBER4]"
+  },
+  "TNiq9AXBp9EjUqhDhrwrfvAA8U3GUQZH81": {
+   "currency": "TRX",
+   "name": "BANK MARKAZI JOMHOURI ISLAMI IRAN",
+   "program": "[IRAN] [SDGT] [IRGC] [IFSR]"
+  },
+  "TNmRfnSUXZoWWzxcDDbf95eGQYXt1mJDt8": {
+   "currency": "TRX",
+   "name": "FUNNULL TECHNOLOGY INC",
+   "program": "[CYBER3]"
+  },
+  "TNrX2FwrHKoo4XACGkmSzqeK4pdnKYn6Z7": {
+   "currency": "TRX",
+   "name": "AMNOKGANG TECHNOLOGY DEVELOPMENT COMPANY",
+   "program": "[DPRK4]"
+  },
+  "TNuA5CQ6LB4jTHoNrjEeQZJmcmhQuHMbQ7": {
+   "currency": "TRX",
+   "name": "ZEDCEX EXCHANGE LTD",
+   "program": "[SDGT] [IFSR] [IRAN-EO13902]"
+  },
+  "TPDLpXxPcaSsupEZ3yrVksmNkYP5SLeKxu": {
+   "currency": "TRX",
+   "name": "SIM, Hyon Sop",
+   "program": "[NPWMD]"
+  },
+  "TPJ1JNX98MJpHueBJeF5SVSg85z8mYg1P1": {
+   "currency": "TRX",
+   "name": "WEDDING, Ryan James",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TPgxjjB6AJeMSQFngbUM6dMMxPHa9GEtYa": {
+   "currency": "TRX",
+   "name": "KAYVANPOUR, Siavash",
+   "program": "[SDGT] [IRGC]"
+  },
+  "TPyE2oSoaysrXfLzwf9wetBVr9JudLwjtD": {
+   "currency": "TRX",
+   "name": "AL-JEBOURI, Zaid Issam Ahmed",
+   "program": "[SDGT]"
+  },
+  "TQ5H49Wz3K57zNHmuXVp6uLzFwitxviABs": {
+   "currency": "TRX",
+   "name": "ALIVAND, Arash Estaki",
+   "program": "[SDGT] [IFSR]"
+  },
+  "TQ5mpZPbQMSq2s1vSM3RJgiB1AsTsiTpFZ": {
+   "currency": "USDT",
+   "name": "ANSARALLAH",
+   "program": "[FTO] [SDGT]"
+  },
+  "TQCBdU4K92oxLAkzwexZpqVZJhmPbtLYMm": {
+   "currency": "TRX",
+   "name": "OBERTAS, Vitold Viktorovich",
+   "program": "[DPRK2]"
+  },
+  "TQKoDq5aCrWAciiNtete5pDYVN38i4qFN1": {
+   "currency": "TRX",
+   "name": "BOYKOV, Ilya Aleksandrovich",
+   "program": "[DPRK2]"
+  },
+  "TRBACioxdrdsYEZHvJWiUDZcMdBPpEe5Ub": {
+   "currency": "TRX",
+   "name": "ZHANG, Wei",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TRakpsE1mZjCUMNPyozR4BW2ZtJsF7ZWFN": {
+   "currency": "TRX",
+   "name": "ALIVAND, Arash Estaki",
+   "program": "[SDGT] [IFSR]"
+  },
+  "TSbGiFzG9xFXUYgGA6Rw": {
+   "currency": "TRX",
+   "name": "ISIL KHORASAN",
+   "program": "[FTO] [SDGT]"
+  },
+  "TScXZTbDjjZ6a6jiC7dZjgCqfNo4vm7atV": {
+   "currency": "TRX",
+   "name": "AL-JEBOURI, Zaid Issam Ahmed",
+   "program": "[SDGT]"
+  },
+  "TSxAAo67VTDgKT537EVXxdogkJtk9c6ojz": {
+   "currency": "TRX",
+   "name": "DERAKHSHAN, Alireza",
+   "program": "[SDGT] [IFSR]"
+  },
+  "TTAHMdqoom4f2VTWniroPWQHcTRZ4caoH4": {
+   "currency": "USDT",
+   "name": "AL-JAMAL, Sa'id Ahmad Muhammad",
+   "program": "[SDGT] [IFSR]"
+  },
+  "TTKnV2S1295UrPr7N67Tp9ykNL7xX2Z4Uj": {
+   "currency": "TRX",
+   "name": "XIA, Fengbing",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TTLRNgLpz5H5tLPuNU4FViUs7zmmAtyvzW": {
+   "currency": "TRX",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "TTS9o5KkpGgH8cK9LofLmMAPYb5zfQvSNa": {
+   "currency": "TRX",
+   "name": "ZEDCEX EXCHANGE LTD",
+   "program": "[SDGT] [IFSR] [IRAN-EO13902]"
+  },
+  "TTUDyVhhpCC1xJoPmWzdjLAzeoPwbSABdr": {
+   "currency": "TRX",
+   "name": "CRYPTEX",
+   "program": "[CYBER2] [RUSSIA-EO14024]"
+  },
+  "TTVJuXWCusAURrpNShiypauagEH1N4CrxV": {
+   "currency": "TRX",
+   "name": "CRYPTO HOME DMCC",
+   "program": "[SDGT]"
+  },
+  "TTWRf2MD6zJ26bS4uKCNrcp84aAr7AmTjm": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TTgcTTNbNuFdbrhvbjMZVrdU5KALyzDaPw": {
+   "currency": "USDT",
+   "name": "GAZA NOW",
+   "program": "[SDGT]"
+  },
+  "TTiDLWE6fZK8okMJv6ijg42yrH6W2pjSr9": {
+   "currency": "TRX",
+   "name": "BANK MARKAZI JOMHOURI ISLAMI IRAN",
+   "program": "[IRAN] [SDGT] [IRGC] [IFSR]"
+  },
+  "TTs7KRq39547ruAsxb9brAPuTLy7h3U6H1": {
+   "currency": "TRX",
+   "name": "ISIL KHORASAN",
+   "program": "[FTO] [SDGT]"
+  },
+  "TU4tDFRvcKhAZ1jdihojmBWZqvJhQCnJ4F": {
+   "currency": "TRX",
+   "name": "AEZA GROUP LLC",
+   "program": "[CAATSA - RUSSIA] [CYBER4]"
+  },
+  "TUCsTq7TofTCJRRoHk6RvhMoS2mJLm5Yzq": {
+   "currency": "XBT",
+   "name": "WANG, Mingming",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TUoixKFaWVsHxGWgnYyMzpkrT22YqU7VvH": {
+   "currency": "TRX",
+   "name": "ISIL KHORASAN",
+   "program": "[FTO] [SDGT]"
+  },
+  "TUuaxBAWfA5nmsqNfycxYrzEvz4a5GJMGY": {
+   "currency": "TRX",
+   "name": "FIRST VPN SERVICE",
+   "program": "[CYBER4]"
+  },
+  "TV5ZTpKDszLTF6XcMnPongS33pwBgF91by": {
+   "currency": "USDT",
+   "name": "AL-JAMAL, Sa'id Ahmad Muhammad",
+   "program": "[SDGT] [IFSR]"
+  },
+  "TVNyvx2astt2AB1Us67ENjfMZeEXZeiuu6": {
+   "currency": "TRX",
+   "name": "WEDDING, Ryan James",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "TVacWx7F5wgMgn49L5frDf9KLgdYy8nPHL": {
+   "currency": "USDT",
+   "name": "SHAFIU, Ali",
+   "program": "[SDGT]"
+  },
+  "TVgUsVzA7mpFExP4zS7HHbtKti6UuBDuwZ": {
+   "currency": "TRX",
+   "name": "AL-JEBOURI, Zaid Issam Ahmed",
+   "program": "[SDGT]"
+  },
+  "TVn4q7L4fKEPbygi7UHq1CKfZxtbeuMV5q": {
+   "currency": "USDT",
+   "name": "ANSARALLAH",
+   "program": "[FTO] [SDGT]"
+  },
+  "TVttWTHTCU9kULP51m9BaHpmCW8H1BJJNQ": {
+   "currency": "TRX",
+   "name": "ISIL KHORASAN",
+   "program": "[FTO] [SDGT]"
+  },
+  "TW5tokvhEfrb77z98Rc8HqbkzQJ6sxYtGX": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TWBAPzpPiZarfVsY2BLXeaLhNHurn4wkWG": {
+   "currency": "USDT",
+   "name": "AL-LAW, Tawfiq Muhammad Sa'id",
+   "program": "[SDGT]"
+  },
+  "TWJmTGhquvdp1jhBmgeGxBBwefteGZUQYW": {
+   "currency": "TRX",
+   "name": "MEJIA CASTILLO, Alejandro",
+   "program": "[SDGT] [TCO]"
+  },
+  "TWPma8xH48AEN93x2krdukV9e1j6sPsBeS": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TWqcMjV7Wq2RHe2CSiKQHpkn6A7B2AWUPe": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TX5GV4DyfxNB3rPkzZJhmqZ1efVmL4rEqG": {
+   "currency": "USDT",
+   "name": "TASK FORCE RUSICH",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "TXEaKf4rT3rMoD3Vuqnuhwr6vLq6BL5t33": {
+   "currency": "USDT",
+   "name": "ANSARALLAH",
+   "program": "[FTO] [SDGT]"
+  },
+  "TXEsK1sEsKjZ1xtHitnyAAoqw3WLdYdRNW": {
+   "currency": "USDT",
+   "name": "GAZA NOW",
+   "program": "[SDGT]"
+  },
+  "TXGHxdYbGy574z5hBu4LNzq9NzjZQ9bhUf": {
+   "currency": "TRX",
+   "name": "BANK MARKAZI JOMHOURI ISLAMI IRAN",
+   "program": "[IRAN] [SDGT] [IRGC] [IFSR]"
+  },
+  "TXHX2NUvcgft4zs6MkkUtdNVERPTavHDWN": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TXN3hVukebhyYR31YPCYd7aJAvmUeXu1ab": {
+   "currency": "TRX",
+   "name": "SHPS SHELBIT",
+   "program": "[SDGT]"
+  },
+  "TXmrnVgsqCMJncYHTXchuJ5z111BXSj4g3": {
+   "currency": "TRX",
+   "name": "BOYKOV, Ilya Aleksandrovich",
+   "program": "[DPRK2]"
+  },
+  "TYDUutYN4YLKUPeT7TG27Yyqw6kNVLq9QZ": {
+   "currency": "TRX",
+   "name": "ALIVAND, Arash Estaki",
+   "program": "[SDGT] [IFSR]"
+  },
+  "TYkE8VwX1SGHM3Q2CA29nka5U2F2khKAj5": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TYvjt4ZKfsipHjA52nzgjUjDBF622SLCih": {
+   "currency": "TRX",
+   "name": "XINBI GUARANTEE",
+   "program": "[TCO]"
+  },
+  "TZB4NrX7k9ZsV6PRc1GigAztLL8WHpLvwP": {
+   "currency": "TRX",
+   "name": "AMNOKGANG TECHNOLOGY DEVELOPMENT COMPANY",
+   "program": "[DPRK4]"
+  },
+  "XcuGqRfrR85zyDrzVr1gSL5RNjwwpbu2KS": {
+   "currency": "DASH",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "XnPFsRWTaSgiVauosEwQ6dEitGYXgwznz2": {
+   "currency": "DASH",
+   "name": "KARASAVIDI, Dmitrii",
+   "program": "[CYBER2]"
+  },
+  "XowUeMFa1FkEUnAHL78E5oqpezMfSB6xP1": {
+   "currency": "DASH",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "Xs3vzQmNvAxRa3Xo8XzQqUb3BMgb9EogF4": {
+   "currency": "DASH",
+   "name": "LIFSHITS, Artem Mikhaylovich",
+   "program": "[CYBER2] [ELECTION-EO13848]"
+  },
+  "XyARKoupuArYtToA2S6yMdnoquDCDaBsaT": {
+   "currency": "DASH",
+   "name": "ASSOCIATION FOR FREE RESEARCH AND INTERNATIONAL COOPERATION",
+   "program": "[UKRAINE-EO13661] [CYBER2] [ELECTION-EO13848]"
+  },
+  "bc1q2lpgjntr348pfvxhfy33ehmdzy3gmx8w4052z6": {
+   "currency": "XBT",
+   "name": "TASK FORCE RUSICH",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "bc1q2we5eqjj8je6lz9xwjattpc3pn4jejc5h0s70f": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "bc1q3q2lz3cmt4u2f49ugxz5q34xrs0m2z4w2gmkp5": {
+   "currency": "XBT",
+   "name": "PARSARAD, Behrouz",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1q3y5v2khlyvemcz042wl98dzflywr8ghglqws6s": {
+   "currency": "XBT",
+   "name": "KHATIBI AGHADA, Ahmad",
+   "program": "[IRGC] [IFSR] [CYBER2]"
+  },
+  "bc1q45cxufu7x6s5v9adzm9t38k80gwawse75xffwe": {
+   "currency": "XBT",
+   "name": "PARSARAD, Behrouz",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1q4ktvxxhhvf8qhs9qkdsm9arcxfmmeex6rl7n50": {
+   "currency": "XBT",
+   "name": "BLAGH, Keyvan Fayyaz Gareh",
+   "program": "[CYBER4]"
+  },
+  "bc1q4namcagg5wljs0u20z6h2sqgsq4q5lts8rt2rr": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1q4yzd2rjmshm8ucrwy6dzj5rna20j0zlf8hf8vz": {
+   "currency": "XBT",
+   "name": "ZSERVERS",
+   "program": "[CYBER3]"
+  },
+  "bc1q5jqgm7nvrhaw2rh2vk0dk8e4gg5g373g0vz07r": {
+   "currency": "XBT",
+   "name": "KONDRATIEV, Ivan Gennadievich",
+   "program": "[CYBER2]"
+  },
+  "bc1q86tl9255vg5wldamfymaaz36uqxzm30gs7fhkljvzdlt9t38s3lqgdwdfq": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "bc1q8ew45w2agdffrnwp6adt2gqrc9n4mkev9ns29c": {
+   "currency": "XBT",
+   "name": "KONDRATIEV, Ivan Gennadievich",
+   "program": "[CYBER2]"
+  },
+  "bc1q90zrdysy4flyacw7hsury3ajs9yzwtwp6guqpypx94w0d3p58hysvz6pde": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "bc1q9lvynkfpaw330uhqmunzdz6gmafsvapv7y3zty": {
+   "currency": "XBT",
+   "name": "NIKAEEN RAVARI, Amir Hossein",
+   "program": "[IRGC] [IFSR] [CYBER2]"
+  },
+  "bc1qagp0gy58v8hqvw4p2wsphcxg067rrppp45hexr": {
+   "currency": "XBT",
+   "name": "KONDRATIEV, Ivan Gennadievich",
+   "program": "[CYBER2]"
+  },
+  "bc1qardcxz845jw83vgfvcmewhuxa0ag9gchjwmcfd": {
+   "currency": "XBT",
+   "name": "VALERIAN LABS, INC.",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1qdnr88f4d2yqunnc4mjsguezm6g3mlwe44z5dw8": {
+   "currency": "XBT",
+   "name": "FIRST VPN SERVICE",
+   "program": "[CYBER4]"
+  },
+  "bc1qdpazd6smrkq5hmw6lupq98za2fqtgmq3azv3av": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1qdt3gml5z5n50y5hm04u2yjdphefkm0fl2zdj68": {
+   "currency": "XBT",
+   "name": "SUEX OTC, S.R.O.",
+   "program": "[CYBER2]"
+  },
+  "bc1qeth6n6ryxexvkx34wnx3nuynun4474h3j0gkhw": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "bc1qf6zxs4lkp9umh6hf087mh70w0ymcyt8cunp58r": {
+   "currency": "XBT",
+   "name": "BLAGH, Keyvan Fayyaz Gareh",
+   "program": "[CYBER4]"
+  },
+  "bc1qfg4gfg0y6t6xjnpmlhuwx5k0wlw6nmfzxn2psc": {
+   "currency": "XBT",
+   "name": "ZIMENKOV, Jonatan",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "bc1qj2ffj6pepc80sfqpx2k2pd3q278q72dpqv2ens": {
+   "currency": "XBT",
+   "name": "PARSARAD, Behrouz",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1qjwr3rgww7a8ut7a4x8jqh3vswcue3xvp6dm7qe": {
+   "currency": "XBT",
+   "name": "PARSARAD, Behrouz",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1qjzk63wwatq2f638psymq3qapn00aqgksyx56l3t8eg7zuuccwasq498khf": {
+   "currency": "XBT",
+   "name": "SHPS SHELBIT",
+   "program": "[SDGT]"
+  },
+  "bc1qkfqh5p2qsakseg5gnwen6zh5xf3elmku2xaup29mw3l0wnncy3es880dss": {
+   "currency": "XBT",
+   "name": "XIA, Fengbing",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1ql7dlyh8xz6tpqk92vztrhqh88dmjvcwrmsemrm": {
+   "currency": "XBT",
+   "name": "TASK FORCE RUSICH",
+   "program": "[RUSSIA-EO14024]"
+  },
+  "bc1qmzmx8res2fgzd2wttyvf2ajqqqtcnxxrgkqc2t": {
+   "currency": "XBT",
+   "name": "PARSARAD, Behrouz",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1qn6segn8km4nfdp9vueu6msfjsaxaqgun9h60n9": {
+   "currency": "XBT",
+   "name": "KONDRATIEV, Ivan Gennadievich",
+   "program": "[CYBER2]"
+  },
+  "bc1qnujzvts45qka3cr2eqqw8ur3q6g6s0ze2wlk5m": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "bc1qnykkrlk67f9kdqvzyw2ndu3xmef5z2e52886yl": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1qpaly5nm7pfka9v92d6qvl4fc2l9xzee8a6ys3s": {
+   "currency": "XBT",
+   "name": "NIKAEEN RAVARI, Amir Hossein",
+   "program": "[IRGC] [IFSR] [CYBER2]"
+  },
+  "bc1qq7p0es3dv5hcynjjf40f2xjjr6qp5py47d2f6n847vduuq9gvnyq7y9ecd": {
+   "currency": "XBT",
+   "name": "SINBAD",
+   "program": "[DPRK3] [CYBER2]"
+  },
+  "bc1qr2pwmvkpq5tc5um2g9uh34yyu6wepwx89rts70": {
+   "currency": "XBT",
+   "name": "BLAGH, Keyvan Fayyaz Gareh",
+   "program": "[CYBER4]"
+  },
+  "bc1qr4ankqmvmrhce3ydvzse86dfx5s3zhehfr9tg9": {
+   "currency": "XBT",
+   "name": "FIRST VPN SERVICE",
+   "program": "[CYBER4]"
+  },
+  "bc1qsxf77cvwcd6jv6j8d8j3uhh4g0xqw4meswmwuc": {
+   "currency": "XBT",
+   "name": "NIKAEEN RAVARI, Amir Hossein",
+   "program": "[IRGC] [IFSR] [CYBER2]"
+  },
+  "bc1qtdupwe722vcc5e0vh94cgwfs0ep4gzwyfsf75q": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1qte9ret332gwrk6e7vqc87d807npzvdj5savg4h": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1qtnr3t28l": {
+   "currency": "XBT",
+   "name": "PARSARAD, Behrouz",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1qtrrfhr0f3ufsrjxfv8a7p3yuqj0spe4cm6vaws": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1qtsl3ufenrv3zgrgm9z8xarcx22x8mfztuartyn": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1qu5vngdtcx8nc9d68pq8nv7pzcjrswsy87s66gk": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1qv4krhj2qmpd9qz9xj9nhvj99fq8s9xsw05d485": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1qv7k70u2zynvem59u88ctdlaw7hc735d8xep9rq": {
+   "currency": "XBT",
+   "name": "SOUTHFRONT",
+   "program": "[NPWMD] [CYBER2] [ELECTION-EO13848]"
+  },
+  "bc1qvhnfknw852ephxyc5hm4q520zmvf9maphetc9z": {
+   "currency": "XBT",
+   "name": "KHOROSHEV, Dmitry Yuryevich",
+   "program": "[CYBER2]"
+  },
+  "bc1qvxlwpgcw260sc97a0u6dm0cjxv027clhd67fvx": {
+   "currency": "XBT",
+   "name": "PARSARAD, Behrouz",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1qw4cxpe6sxa5dg6sdwxjph959cw6yztrzl4r54s": {
+   "currency": "XBT",
+   "name": "SOUTHFRONT",
+   "program": "[NPWMD] [CYBER2] [ELECTION-EO13848]"
+  },
+  "bc1qw4fxztd5u3sl7vrcqwk2a8v5zh5dllvckx3tlt": {
+   "currency": "XBT",
+   "name": "CHEN, Zhi",
+   "program": "[TCO]"
+  },
+  "bc1qw7vfgv3r5vnehafl0y95sclg3uqsj87wxs9ad628yjjcq33cwessr6ndyw": {
+   "currency": "XBT",
+   "name": "CHATEX",
+   "program": "[CYBER2]"
+  },
+  "bc1qw8evftpgc8wsmkemd8yl5fg2husza5z802xaym": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1qwtswqzvaxl6lyw3keqqzwt8z937psta3wg9sjy": {
+   "currency": "XBT",
+   "name": "PARSARAD, Behrouz",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1qwz0l2ceddckwdy5rh6zyrm3x4ha6gn5f2da5zg": {
+   "currency": "XBT",
+   "name": "WANG, Yunhe",
+   "program": "[CYBER2]"
+  },
+  "bc1qx3e2axj3wsfn0ndtvlwmkghmmgm4583nqg8ngk": {
+   "currency": "XBT",
+   "name": "KHATIBI AGHADA, Ahmad",
+   "program": "[IRGC] [IFSR] [CYBER2]"
+  },
+  "bc1qx9upga7f09tsetqf78wa3qrmcjar58mkwz6ng6": {
+   "currency": "XBT",
+   "name": "KONDRATIEV, Ivan Gennadievich",
+   "program": "[CYBER2]"
+  },
+  "bc1qyqvyupkpl6tm60zdecef925y220ssjuagpxsm0": {
+   "currency": "XBT",
+   "name": "PARSARAD, Behrouz",
+   "program": "[ILLICIT-DRUGS-EO14059]"
+  },
+  "bc1qyy5pt5cx3zth8xlj92lq5y87dh8xv3nwgs4ncq": {
+   "currency": "XBT",
+   "name": "HOANG, Minh Quang",
+   "program": "[DPRK4]"
+  },
+  "bc1qz654h5qcqzalv6ltpxsk4ksdcc3e20wkedqntgnarv3a0t2e2p7scr48pl": {
+   "currency": "XBT",
+   "name": "SHPS SHELBIT",
+   "program": "[SDGT]"
+  },
+  "bnb136ns6lfw4zs5hg4n85vdthaad7hq5m4gtkgf23": {
+   "currency": "BNB",
+   "name": "CRYPTO HOME DMCC",
+   "program": "[SDGT]"
+  },
+  "ltc1qr8ntsedq8tv0svmxqhzvdcdl5k7kntdmnhwep7": {
+   "currency": "LTC",
+   "name": "FIRST VPN SERVICE",
+   "program": "[CYBER4]"
+  },
+  "qpf2cphc5dkuclkqur7lhj2yuqq9pk3hmukle77vhq": {
+   "currency": "BCH",
+   "name": "SOUTHFRONT",
+   "program": "[NPWMD] [CYBER2] [ELECTION-EO13848]"
+  },
+  "qzjv8hrdvz6edu4gkzpnd4w6jc7zf296g5e9kkq4lx": {
+   "currency": "BCH",
+   "name": "SOUTHFRONT",
+   "program": "[NPWMD] [CYBER2] [ELECTION-EO13848]"
+  },
+  "t1LHesgnkapziGQCJtrfZWYXhyjfTVo1dvh": {
+   "currency": "ZEC",
+   "name": "RASHEVSKYI, Dmytro",
+   "program": "[CYBER4]"
+  },
+  "t1MMXtBrSp1XG38Lx9cePcNUCJj5vdWfUWL": {
+   "currency": "ZEC",
+   "name": "ASSOCIATION FOR FREE RESEARCH AND INTERNATIONAL COOPERATION",
+   "program": "[UKRAINE-EO13661] [CYBER2] [ELECTION-EO13848]"
+  },
+  "t1g7wowvQ8gn2v8jrU1biyJ26sieNqNsBJy": {
+   "currency": "ZEC",
+   "name": "KARASAVIDI, Dmitrii",
+   "program": "[CYBER2]"
+  }
+ },
+ "note": "Baseline snapshot of the vendored OFAC SDN crypto-address set in common/risk.py. Generated from risk.SDN at build time; do NOT regenerate casually \u2014 on a rebuild from a fresh sdn.csv, run scripts/sdn_diff.py first so added/removed addresses are recorded, and only rewrite this file after review.",
+ "source": "U.S. Treasury OFAC Specially Designated Nationals (SDN) list \u2014 sdn.csv, https://www.treasury.gov/ofac/downloads/sdn.csv"
+}
