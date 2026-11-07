@@ -1028,3 +1028,189 @@ endpoints re-verified 200 below.
   session): the card markup, download-link construction and
   `node --check` were verified; the rendered page still needs one
   browser pass.
+
+## Phase 3, item 7 — Attestation monitor API (2026-11-06)
+
+### What was built
+
+- `GET /api/overview/attestations` (new `common/attestation_monitor.py`,
+  wired in `common/factory.py` `create_overview_app`): all 8 coins'
+  attestation status in one call. One gather of `sc_reserves` per coin;
+  the feature-3 tracker embedded verbatim per coin, headline fields
+  copied from it (never recomputed). Coins ordered overdue first.
+  Response carries `summary` (counts + by-status symbol lists),
+  `history` (current-status-only, see limits), `methodology`, `limits`,
+  `note`, `as_of`. Cached 300s.
+- Home decision: overview-only. No per-scope endpoint was added — the
+  per-scope tracker already exists (`GET /api/<scope>/reserves` ->
+  `attestation_tracker`, untouched), mirroring item 6's call.
+- Docs: `_OV_DOCS` entry in `common/overview.py` with `paid_api: true`,
+  a real `example_response` (live response, FDUSD + USDC rows in full),
+  `free_tier` (keyless today, ~9s cold call) and `paid_tier` metering
+  plan (stored history, status-change webhooks, export). Listed in the
+  Paid API section of `#/api-docs`.
+- UI: `#/attestations` dedicated page + "Stablecoin Attestations" home
+  card in `overview/frontend/app.js` (shared table renderer; overdue
+  flags, reserve ratios, per-coin source links to the latest report
+  and to each scope's `/reserves` API). No scope reserves page exists
+  in the canonical scope SPA to link from (verified: no reserves
+  rendering in `frontend/app.js`), so the overview page links out to
+  the per-scope reserves APIs instead.
+- Nothing pushed. `python3 scripts/sync-common.py check` →
+  "in sync: 16 apps match canonical common/ + frontend/".
+
+### Verified live (uvicorn overview :8060, 2026-11-06)
+
+- `GET /api/overview/attestations` → 200 in 8.3s cold (8.7s first
+  run), 8 coins included, 0 missing. Order: USDC, FDUSD, PYUSD
+  (overdue), USDT (current), TUSD (live), DAI, USDD (on-chain), USDe
+  (no attestation). Summary counts: overdue 3, current 1, live 1,
+  on_chain 2, no_attestation 1, due_soon 0.
+- FDUSD: overdue by 223 days — last attestation 2026-02-28, AOGB CPA
+  Limited, monthly, next expected 2026-03-28, days since 251,
+  reserve-to-supply 1.345x (dated Feb reserves vs current supply),
+  reserve-to-outstanding null (no outstanding stated).
+- USDC: September attestation confirmed — Deloitte, last 2026-09-30,
+  monthly, next expected 2026-10-30, overdue by 7 days (37 days
+  since), reserve-to-supply 1.0485x, reserve-to-outstanding 1.0011x
+  (dated $73,956,687,701 reserves as of 2026-09-30).
+- PYUSD: also overdue by 7 days (KPMG LLP, last 2026-09-30, next
+  2026-10-30), r2s 1.0368x, r2o 1.0009x. USDT: current (BDO,
+  quarterly, last 2026-09-30, next 2026-12-30), r2s 1.0804x,
+  r2o 1.0435x. TUSD live (The Network Firm, real-time feed);
+  DAI on-chain (no auditor); USDD on-chain (SlowMist, contract
+  auditor, not reserve attestor); USDe no attestation (Quantstamp,
+  contract auditor). All four carry null reserve ratios, as designed.
+- `GET /api/overview/docs` → 200, 19 endpoints; the attestations
+  entry carries `paid_api: true`, a real `example_response` (FDUSD
+  overdue_by 223, USDC Deloitte 2026-09-30), `free_tier` and
+  `paid_tier`. Paid-API section now has 2 entries.
+- Static: `/`, `/app.js` (74,578 bytes, contains
+  `attestationMonitorPage` / `attestationsTableHtml` / `#/attestations`),
+  `/config.js`, `/styles.css` all 200. `node --check` passes on
+  `overview/frontend/app.js`.
+- Second attestations call served from cache (PYUSD r2s moved
+  1.0348x → 1.0368x between the two cold runs as live supply moved —
+  the ratio is live-computed, not frozen).
+
+### Honest limits
+
+- Current-status-only: no auditor-change history exists in the repo
+  (the tracker holds current status only); past auditors appear solely
+  as prose in a coin's note (FDUSD Prescient/Prism/AOGB, PYUSD
+  Withum-before-KPMG). No history is invented; a stored history is a
+  planned paid-tier feature.
+- "Overdue" means past the next reporting date per cadence, not past a
+  publication deadline — USDC/PYUSD are 7 days overdue only because
+  their October reports are not yet verified, and issuers typically
+  publish weeks after the reporting date.
+- Reserve figures are dated published figures from the named
+  attestation only, never live/estimated; the reserve-to-supply ratio
+  divides that dated total by current DeFiLlama supply (both dates
+  stated in the tracker).
+- UI rendering was NOT verified in a live browser (no browser in this
+  session): the table markup, route and `node --check` were verified;
+  the rendered page still needs one browser pass.
+
+## Phase 3, item 13 — Plain-English transaction API (2026-11-06)
+
+### What was built
+
+- New dedicated endpoint `GET /api/walletscope/explain?chain=&hash=`
+  (a productized wrapper, NOT a rename): `common/explain_api.py`
+  reuses `common/explain.py` wholesale (EVM / Solana / Bitcoin
+  explainers, feature 3 — local canonical signature map + curated
+  4byte.directory fallback, "What happened" sentences, token flows)
+  and only adds the cross-chain dispatch on `?chain=` (ethereum /
+  sepolia / optimism / gnosis / solana / bitcoin — the same
+  SETTLE_CHAINS as the settlement tracker) plus the contract fields
+  (`explain`, `hash`, `chain_label`, `api_url`, `method`, `limits`).
+  Response cached 60s server-side. No method decoding or sentence
+  building was re-implemented; zero new dependencies, all keyless.
+- One rename vs the per-scope payload: the explainer's `method` (the
+  decoded text signature, e.g. `transfer(address,uint256)`) moves to
+  `method_signature` in this contract, because `method` carries the
+  contract method description here, as in every other phase-3
+  wrapper. The per-scope `GET /api/<scope>/tx/{h}/explain`
+  endpoints are untouched and keep `method` as the signature
+  (verified unchanged below).
+- Docs: one DOCS_GLOBAL entry in `common/explorer.py` with
+  `paid_api: true`, the real live swap response as
+  `example_response`, `free_tier` (keyless today) and `paid_tier`
+  (metered per explanation, batch, larger signature database).
+  Walletscope `/docs` now lists 9 paid-API entries; the `#/api-docs`
+  hub groups it under "Paid API" with example response + tiers
+  rendered (existing hub code, reused).
+- UI: `#/explain` demo page in walletscope (`explainPage` in the
+  shared `frontend/app.js`, routes in both router tables with the
+  explorer→walletscope redirect). The result reuses the existing
+  `explainCardHtml` — the same "What happened" card the tx pages
+  show — extended with an optional `{chain}` so flow-row address
+  links point at the right Scope app (`linkAddrC`) and native flows
+  are labelled with that chain's native coin (`chainNativeSym`);
+  without it the card renders exactly as on tx pages. The page adds
+  an API contract card (method, limits, raw-JSON link, explorer
+  link, docs link) and 7 Try links. The tx page gained a
+  "Plain-English → Explain this transaction" detail row (next to
+  Settlement / Screen transaction) and the wallet landing's tool
+  list gained an "Explain a transaction" link.
+
+### Verified live (uvicorn walletscope :8131, ethscope :8132, solscope :8134, bitscope :8135, 2026-11-06)
+
+| Check | Result |
+|---|---|
+| Uniswap swap `GET /api/walletscope/explain?chain=ethereum&hash=0xf992b18e…954d1f37` | **swap** — "Swapped 0.03 ETH for 60460.570297 Gato via 0x7a250d56...59F2488D." Identical sentence to the feature-3 verification; `method_signature` `swapExactETHForTokensSupportingFeeOnTransferTokens(uint256,address[],address,uint256)` (local), 4 flows. |
+| Plain transfer `…&hash=0x88a0447f…54fb6c2e` (block 26359307) | **native_transfer** — "Sent 0.00185 ETH from 0xde1C31ef...D44bfe78 to 0xeF005Ad9...e36a74b4." Raw tx confirms value_eth 0.00185, block 26359307. |
+| ERC-20 transfer `…&hash=0x19d0c4b4…fdbb01` | **erc20_transfer** — "Sent 548 USDT from 0x6E8b145B...DCD2F15c to 0x6872b663...e13Df7dE." Method `transfer(address,uint256)` (local). |
+| Approval `…&hash=0x5fc91846…c71cba023a` | **approval** — "Approved 0x1231deb6...486f4eae to spend 20 USDC on behalf of 0x9043AB6a...EFFFae0e." Method `approve(address,uint256)` (local). |
+| Unknown method `…&hash=0xb37711ba…034c390a` | **unknown** — "Contract interaction with 0xFEEEEEE4...de0a7ffC — method 0x6aee6bdf is not in the signature database, so what it does cannot be described here." No invented description. |
+| Solana `…?chain=solana&hash=soGqMCJj…nddLS3WF` | **contract_call** — "Called unknown program dijk…1mBu. Called unknown program dijk…1mBu." (two identical instructions; inherited explainer wording, identical on the per-scope endpoint). |
+| Bitcoin coinbase `…?chain=bitcoin&hash=45a07546…a6ba606` | **coinbase** — "Miner reward: created 3.14971558 BTC (block subsidy + fees) paid to 1K6KoYC69NnafWJ7YgtrpwJxBLiijWqwa6." 2 flows. |
+| Error cases | Missing hash → 400 "chain and hash are required"; unknown chain `tron` → 400 with the expected-chain list; malformed hash → 400; unknown tx `0x000…0` → 404 "Transaction not found" (passthrough); bad Solana sig → 400. |
+| Per-scope endpoints unchanged | `GET /api/ethscope/tx/0xf992b18e…/explain` → same swap sentence, `method` still the text signature. `GET /api/solscope/tx/<sig>/explain` → identical Solana sentence. |
+| Docs | `GET /api/walletscope/docs` → 200, 29 endpoints, 9 `paid_api` entries including `/api/walletscope/explain` with the real example response + free/paid tiers. |
+| Static | `/`, `/app.js` (300,365 bytes, contains `explainPage` + all 7 Try-link hashes), `/styles.css`, `/config.js`, `/labels.json` all 200 on walletscope. `node --check` passes on `frontend/app.js`. |
+| Sync | `scripts/sync-common.py check` passes ("in sync: 16 apps"). |
+
+### Bugs / observations found live during verification
+
+- A first plain-transfer candidate (`0xc61417c9…`, "Sent 0.0000001
+  ETH") was visible in the latest-txs feed but 404'd on Blockscout
+  minutes later: it was a pending transaction that got dropped /
+  never mined. The feed mixes pending and confirmed txs; the
+  recorded example above (`0x88a0447f…`, block 26359307) was
+  confirmed via the raw tx before recording. Not a code bug — the
+  endpoint correctly surfaces the upstream 404.
+- Blockscout intermittently 404'd two other feed txs for a few
+  minutes mid-run, then served them again (the unknown-method tx
+  404'd via the app, then returned 200 direct from Blockscout on
+  retry). Upstream flakiness, surfaced honestly as 404, not masked.
+- The original feature-3 example hashes survive only truncated in
+  this file (`0xeff2196a…682e83`, `0xb5b6fcab…52d801`,
+  `0x0d27868c…ee803f5`), so the plain-transfer and ERC-20 examples
+  above are fresh live equivalents with the same shapes, not
+  re-verifications of the same hashes. The swap hash is the same
+  one and re-verifies identically.
+
+### Honest limits
+
+- A method the signature database does not know is reported
+  honestly ("not in the signature database") — never invented; the
+  4byte fallback accepts only curated KNOWN_NAMES, so colliding junk
+  is never trusted.
+- Multicall inner calls are not decoded and proxy / meta-tx
+  internals are not decoded (`execute` shows only the forwarded-to
+  address + wei) — the sentence says so rather than guessing.
+- Swap amounts come from token transfers (actual movements), never
+  from minimum-out arguments; a token → native swap cannot show the
+  exact native amount (internal transfer) and the sentence says so.
+- Only the first page of token transfers is shown when a tx has
+  more; the note says so.
+- Solana token symbols are not resolved (SPL mints shown
+  shortened); SOL balance changes include the fee payer's fee.
+  Bitcoin change outputs cannot be identified — every output is
+  listed.
+- UI rendering was NOT verified in a live browser (no browser in this
+  session): the page markup, route, served `app.js` and the API
+  behind every Try link were verified; the rendered `#/explain`
+  page still needs one browser pass.
