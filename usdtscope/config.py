@@ -12,82 +12,82 @@ TITLE = "USDT Scope"
 BRAND_LETTER = "T"
 CHAIN = "ethereum"
 WALLET_ONLY = False
-WALLET_URL = "https://walletscope.vercel.app"
+WALLET_URL = "https://walletscope.fly.dev"
 NETPILL = "USDT · Ethereum"
 SIBLINGS = [
     {
         "chain": None,
         "name": "Cryptoscope",
-        "url": "https://overview.vercel.app"
+        "url": "https://overview.fly.dev"
     },
     {
         "chain": "ethereum",
         "name": "EthScope",
-        "url": "https://ethscope.vercel.app"
+        "url": "https://ethscope.fly.dev"
     },
     {
         "chain": "sepolia",
         "name": "SepoliaScope",
-        "url": "https://sepoliascope.vercel.app"
+        "url": "https://sepoliascope.fly.dev"
     },
     {
         "chain": "optimism",
         "name": "OptimismScope",
-        "url": "https://optimismscope.vercel.app"
+        "url": "https://optimismscope.fly.dev"
     },
     {
         "chain": "gnosis",
         "name": "GnosisScope",
-        "url": "https://gnosisscope.vercel.app"
+        "url": "https://gnosisscope.fly.dev"
     },
     {
         "chain": "solana",
         "name": "SolScope",
-        "url": "https://solscope.vercel.app"
+        "url": "https://solscope.fly.dev"
     },
     {
         "chain": None,
         "name": "WalletScope",
-        "url": "https://walletscope.vercel.app"
+        "url": "https://walletscope.fly.dev"
     },
     {
         "chain": "bitcoin",
         "name": "BitScope",
-        "url": "https://bitscope.vercel.app"
+        "url": "https://bitscope.fly.dev"
     },
     {
         "chain": None,
         "name": "USDC Scope",
-        "url": "https://usdcscope.vercel.app"
+        "url": "https://usdcscope.fly.dev"
     },
     {
         "chain": None,
         "name": "DAI Scope",
-        "url": "https://daiscope.vercel.app"
+        "url": "https://daiscope.fly.dev"
     },
     {
         "chain": None,
         "name": "USDe Scope",
-        "url": "https://usdescope.vercel.app"
+        "url": "https://usdescope.fly.dev"
     },
     {
         "chain": None,
         "name": "FDUSD Scope",
-        "url": "https://fdusdsscope.vercel.app"
+        "url": "https://fdusdsscope.fly.dev"
     },
     {
         "chain": None,
         "name": "PYUSD Scope",
-        "url": "https://pyusdsscope.vercel.app"
+        "url": "https://pyusdsscope.fly.dev"
     },
     {
         "chain": None,
         "name": "TUSD Scope",
-        "url": "https://tusdscope.vercel.app"
+        "url": "https://tusdscope.fly.dev"
     },
     {
         "chain": None,
         "name": "USDD Scope",
-        "url": "https://usddscope.vercel.app"
+        "url": "https://usddscope.fly.dev"
     }
 ]

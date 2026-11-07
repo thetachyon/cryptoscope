@@ -163,6 +163,11 @@ from common.overview import (
 
 
 def _add_handlers(app: FastAPI) -> None:
+    @app.get("/healthz")
+    async def _healthz():
+        # Fly.io http_service check. No upstream calls: liveness only.
+        return {"status": "ok"}
+
     @app.exception_handler(UpstreamError)
     async def _upstream_handler(request: Request, exc: UpstreamError):
         return JSONResponse({"error": exc.msg}, status_code=exc.status)
