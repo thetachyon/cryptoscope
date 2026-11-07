@@ -132,11 +132,16 @@ def _band(score):
     return "high"
 
 
-def _redemption_score(price, bps, hist):
-    """0-100 (higher = riskier). 60% current deviation, 40% 365d history."""
+def _redemption_score(price, bps, hist, as_of=None):
+    """0-100 (higher = riskier). 60% current deviation, 40% 365d history.
+    `as_of` (unix epoch) anchors the trailing 365d window — the live
+    score calls it with now; the depeg-score history (phase 3, item 5)
+    calls it once per day with that day's close, so each day's history
+    component is the trailing 365 days ending on that day, not on now.
+    `hist` must already be truncated to days <= as_of."""
     if bps is None:
         return None, {}
-    now = int(time.time())
+    now = int(as_of) if as_of is not None else int(time.time())
     window = [p for p in hist if p["date"] >= now - 365 * 86400]
     evs, worst = _depeg_events(window)
     current = _clamp(abs(bps))  # 50 bps -> 50, 100+ bps -> 100
@@ -332,6 +337,35 @@ def _depth_score(near_liq, pairs, supply_usd, meta=None):
     }
 
 
+def _incident_score(hist):
+    """0-100 incident half of the issuer/operational input: depeg days
+    + worst depeg over the given history. Extracted from
+    _issuer_score so the depeg-score history (phase 3, item 5) can
+    reuse the exact same incident math on the history truncated to
+    each day — the disclosure half (cadence/auditor) cannot be
+    reconstructed historically (only the current attestation config
+    is known), so history carries the incident half alone."""
+    evs, worst = _depeg_events(hist)
+    worst_bps = abs(worst["deviation_bps"]) if worst else 0
+    n = len(evs)
+    if n == 0:
+        incident_base = 0.0
+    elif n <= 5:
+        incident_base = 20.0
+    elif n <= 20:
+        incident_base = 40.0
+    elif n <= 100:
+        incident_base = 60.0
+    else:
+        incident_base = 80.0
+    incident = _clamp(incident_base + max(0.0, worst_bps - DEPEG_BPS) * 0.1)
+    return incident, {
+        "depeg_days_total": n,
+        "worst_depeg_bps": worst["deviation_bps"] if worst else None,
+        "worst_depeg_date": worst["date"] if worst else None,
+    }
+
+
 def _issuer_score(att, hist):
     """0-100: 50% disclosure (cadence + auditor tier), 50% incident
     history (full-history depeg days + worst depeg)."""
@@ -350,29 +384,16 @@ def _issuer_score(att, hist):
         disclosure = 80.0
     if tier in ("audit-only", "unknown") and cadence not in ("real-time", "on-chain"):
         disclosure = _clamp(disclosure + 10.0)
-    evs, worst = _depeg_events(hist)
-    worst_bps = abs(worst["deviation_bps"]) if worst else 0
-    n = len(evs)
-    if n == 0:
-        incident_base = 0.0
-    elif n <= 5:
-        incident_base = 20.0
-    elif n <= 20:
-        incident_base = 40.0
-    elif n <= 100:
-        incident_base = 60.0
-    else:
-        incident_base = 80.0
-    incident = _clamp(incident_base + max(0.0, worst_bps - DEPEG_BPS) * 0.1)
+    incident, inc_ev = _incident_score(hist)
     score = round(0.5 * disclosure + 0.5 * incident, 1)
     return score, {
         "cadence": cadence,
         "auditor": auditor,
         "auditor_tier": tier,
         "disclosure_component": round(disclosure, 1),
-        "depeg_days_total": n,
-        "worst_depeg_bps": worst["deviation_bps"] if worst else None,
-        "worst_depeg_date": worst["date"] if worst else None,
+        "depeg_days_total": inc_ev["depeg_days_total"],
+        "worst_depeg_bps": inc_ev["worst_depeg_bps"],
+        "worst_depeg_date": inc_ev["worst_depeg_date"],
         "incident_component": round(incident, 1),
         "note": (
             "Disclosure quality is from the issuer's stated "

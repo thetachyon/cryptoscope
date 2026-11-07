@@ -60,8 +60,8 @@ Detection method (stated in the response, and in the UI):
 
 Honest limits (also carried in the response `limits` and the UI):
 - Sampled window only: first page per EVM chain (50 native txs +
-  50 token transfers per chain), latest 25 Solana signatures, latest
-  25 Bitcoin txs. A series is only as complete as the window — an
+  50 token transfers per chain), latest 25 Solana signatures, first
+  page of Bitcoin txs. A series is only as complete as the window — an
   older series whose recent payments fall outside the window is
   invisible, and a series that started before the window looks
   shorter than it is (first_payment is the first payment SEEN, not
@@ -119,7 +119,7 @@ CADENCE_BUCKETS = [
 ]
 
 HONEST_NOTES = [
-    "Sampled window only: first page per EVM chain (50 native txs + 50 token transfers per chain), latest 25 Solana signatures, latest 25 Bitcoin txs. A series is only as complete as the window — an older series whose recent payments fall outside the window is invisible, and a series that started before the window looks shorter than it is (first_payment is the first payment SEEN, not necessarily the first ever).",
+    "Sampled window only: first page per EVM chain (50 native txs + 50 token transfers per chain), latest 25 Solana signatures, first page of Bitcoin txs. A series is only as complete as the window — an older series whose recent payments fall outside the window is invisible, and a series that started before the window looks shorter than it is (first_payment is the first payment SEEN, not necessarily the first ever).",
     "The window is newest-first: for a busy address the 50-transfer page may cover only days, so a monthly series may show just 1-2 payments (a candidate, not a series) or nothing at all. Absence of a series is not proof there is no recurring payment.",
     "Counterparty attribution is per-source and imperfect: Solana counterparties are best-effort (largest opposite balance change); Bitcoin counterparties are the first other address in the tx (change outputs cannot be identified from chain data alone), so Bitcoin series are weak evidence and are labelled as such.",
     "A detected series is a pattern, not proof of intent: two different obligations to the same counterparty in the same coin at similar amounts and spacing will read as one series.",
