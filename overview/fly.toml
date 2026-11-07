@@ -3,7 +3,7 @@
 # Keyless: no secrets required; every upstream is public and the app degrades
 # gracefully when one is unreachable.
 
-app = "overview"
+app = "cryptoscope-overview"
 primary_region = "iad"
 
 [build]

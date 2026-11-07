@@ -17,7 +17,7 @@ SIBLINGS = [
     {
         "chain": None,
         "name": "Cryptoscope",
-        "url": "https://overview.fly.dev"
+        "url": "https://cryptoscope-overview.fly.dev"
     },
     {
         "chain": "ethereum",

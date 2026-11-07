@@ -8,8 +8,11 @@
 # What it does, per scope (ethscope, sepoliascope, optimismscope, gnosisscope,
 # solscope, bitscope, walletscope, usdtscope, usdcscope, daiscope, usdescope,
 # fdusdsscope, pyusdsscope, tusdscope, usddscope, overview):
-#   1. Creates the Fly app named exactly after the scope, if it does not
-#      already exist under this account/team.
+#   1. Creates the Fly app named in that scope's fly.toml, if it does not
+#      already exist under this account/team. The Fly app name is the
+#      fly.toml `app` value, NOT the directory name: "overview" on fly.dev
+#      belongs to an unrelated planner app, so the overview scope deploys
+#      as "cryptoscope-overview".
 #   2. Deploys it from the app directory with a remote builder
 #      (fly deploy --remote-only; no local Docker needed).
 #
@@ -48,21 +51,25 @@ fi
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
 for scope in "${SCOPES[@]}"; do
-  echo "=== $scope ==="
+  # Fly app name comes from the scope's own fly.toml, not the directory
+  # name (overview deploys as cryptoscope-overview — see header).
+  app=$(grep '^app =' "$scope/fly.toml" | cut -d'"' -f2)
+  [ -n "$app" ] || fail "no app name in $scope/fly.toml"
+  echo "=== $scope (Fly app: $app) ==="
 
   # Does this account/team already own an app of this name?
-  if flyctl apps list --json 2>/dev/null | grep -q "\"name\": *\"$scope\""; then
-    echo "App '$scope' already exists; deploying into it."
+  if flyctl apps list --json 2>/dev/null | grep -q "\"Name\": *\"$app\""; then
+    echo "App '$app' already exists; deploying into it."
   else
-    echo "Creating app '$scope'..."
+    echo "Creating app '$app'..."
     # If the name is taken by someone else (or creation fails for any other
     # reason), stop right here and say so — never rename, never continue.
-    if ! flyctl apps create "$scope" 2>&1 | tee "/tmp/fly-create-$scope.log"; then
-      fail "could not create Fly app '$scope' (see /tmp/fly-create-$scope.log). If the name is taken by another account, pick a resolution by hand — do not rename the scope."
+    if ! flyctl apps create "$app" 2>&1 | tee "/tmp/fly-create-$app.log"; then
+      fail "could not create Fly app '$app' (see /tmp/fly-create-$app.log). If the name is taken by another account, pick a resolution by hand — do not rename the scope."
     fi
     # Double-check the app we now own really is the one just created.
-    flyctl apps list --json 2>/dev/null | grep -q "\"name\": *\"$scope\"" \
-      || fail "app '$scope' was not found after creation; refusing to deploy."
+    flyctl apps list --json 2>/dev/null | grep -q "\"Name\": *\"$app\"" \
+      || fail "app '$app' was not found after creation; refusing to deploy."
   fi
 
   # Deploy from the app directory so fly.toml + Dockerfile resolve locally.
@@ -71,4 +78,4 @@ for scope in "${SCOPES[@]}"; do
 done
 
 echo "All ${#SCOPES[@]} scopes deployed."
-echo "Verify each: https://<scope>.fly.dev/healthz should return {\"status\":\"ok\"}."
+echo "Verify each: https://<app>.fly.dev/healthz should return {\"status\":\"ok\"}."

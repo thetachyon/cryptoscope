@@ -13,7 +13,7 @@ window.SCOPE_CONFIG = {
     {
       "chain": null,
       "name": "Cryptoscope",
-      "url": "https://overview.fly.dev"
+      "url": "https://cryptoscope-overview.fly.dev"
     },
     {
       "chain": "ethereum",
