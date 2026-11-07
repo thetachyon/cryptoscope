@@ -12,7 +12,7 @@ const CFG = window.SCOPE_CONFIG || {};
 const SCOPE = CFG.scope || "overview";
 const TITLE = CFG.title || "Cryptoscope";
 const API = CFG.apiPrefix || "/api/overview";
-const WALLET_URL = CFG.walletUrl || "https://walletscope.vercel.app";
+const WALLET_URL = CFG.walletUrl || "https://walletscope.fly.dev";
 const SIBLINGS = Array.isArray(CFG.siblings) ? CFG.siblings : [];
 
 /* ---------------- helpers ---------------- */
@@ -204,7 +204,7 @@ function renderPegLeaderboard(lb) {
       <td class="r">${offCell(r.off_peg_365d)}</td>
       <td>${recCell(r.episodes_365d)}</td>
       <td class="r">${r.volatility_30d_pct != null ? Number(r.volatility_30d_pct).toFixed(2) + "%/day" : "—"}</td>
-      <td class="r">${r.scope ? scopeLink("https://" + r.scope + ".vercel.app/#/", "Open →") : "—"}</td>
+      <td class="r">${r.scope ? scopeLink("https://" + r.scope + ".fly.dev/#/", "Open →") : "—"}</td>
     </tr>`).join("")}
   </tbody></table></div>
   <div style="padding:12px 16px" class="muted">${esc(lb.episode_rule || "")}<br>${esc(lb.volatility_note || "")}<br>${esc(lb.caveat || "")}</div>`;

@@ -48,7 +48,7 @@ SECTION_TTL = 300  # seconds, for the slower sections (bridges, movers)
 # ---------------------------------------------------------------- scope urls
 # Expected Vercel domains, same pattern as every app's config.py SIBLINGS.
 def _scope_url(scope: str) -> str:
-    return f"https://{scope}.vercel.app"
+    return f"https://{scope}.fly.dev"
 
 
 CHAIN_SCOPE = {
@@ -1305,7 +1305,7 @@ _OV_DOCS = [
     ("GET", "/freeze", "Freeze & blacklist rollup across all 8 stablecoin scopes (feature 10): per-coin freeze capability, frozen supply (LOWER-BOUND ESTIMATE — the blacklist is not enumerable on-chain), freeze/blacklist event counts in the scanned window, destroyed black funds, and sanctions matches. Standalone (not in /overview) — the per-coin log scans and Multicall3 balance batches are slow. The total frozen supply sums only coins with a measured estimate and is itself a lower bound.", [], "/freeze"),
     ("GET", "/issuer-risk", "Issuer risk rollup across all 8 stablecoin scopes (feature 11): per-coin 0-100 issuer risk score (higher = riskier) with band and the six input sub-scores (depeg risk, reserve transparency, issuance direction, concentration, freeze exposure, adoption), ranked by score ascending — rank 1 is the least risky issuer. Standalone (not in /overview) — the per-coin freeze log scans and activity scans are slow. Reserve transparency scores attestation recency/credibility, not live reserves (no keyless API exposes them); frozen supply is a lower-bound estimate; concentration and freeze figures are primary-chain only.", [], "/issuer-risk"),
     ("GET", "/issuer-risk/detail", "Issuer risk API (phase 3, item 6): the 8-issuer ranking PLUS the full per-issuer payload for every coin — all six input sub-scores with their evidence (depeg risk, reserve transparency, issuance direction, concentration, freeze exposure, adoption) — in one call, ranked by score ascending (rank 1 = least risky issuer). Ranking and breakdowns are derived from a single evaluation of the 8 composite scores, so a coin's ranking score and its breakdown score always agree. Weights (depeg 25%, reserve transparency 25%, issuance 15%, concentration 15%, freeze exposure 15%, adoption 5%), direction (higher = riskier) and bands (low <25, moderate 25–<50, elevated 50–<75, high >=75) are stated in every response, with methodology and honest limits. Reserve transparency scores attestation recency/credibility, not live reserves (no keyless API exposes them); frozen supply is a lower-bound estimate; concentration and freeze figures are primary-chain only; weights are this implementation's stated choice (no Par spec, no backtest against issuer failures). The per-coin score alone is GET /api/<scope>/issuer-risk; the ranking alone (sub-scores, truncated evidence) is GET /api/overview/issuer-risk. Standalone (not in /overview) — the per-coin freeze log scans and activity scans are slow. Rendered at #/issuer-risk. The example_response below shows the full ranking plus the full payloads for 2 of the 8 issuers (USDC, FDUSD); the live response carries all 8 in `issuers` in rank order.", [], "/issuer-risk/detail", {"paid_api": True, "example_response": {'ranking': [{'scope': 'daiscope',
-              'scope_url': 'https://daiscope.vercel.app',
+              'scope_url': 'https://daiscope.fly.dev',
               'symbol': 'DAI',
               'name': 'Dai',
               'issuer': 'MakerDAO / Sky',
@@ -1347,7 +1347,7 @@ _OV_DOCS = [
               'error': None,
               'rank': 1},
              {'scope': 'usddscope',
-              'scope_url': 'https://usddscope.vercel.app',
+              'scope_url': 'https://usddscope.fly.dev',
               'symbol': 'USDD',
               'name': 'Decentralized USD',
               'issuer': 'TRON DAO Reserve',
@@ -1389,7 +1389,7 @@ _OV_DOCS = [
               'error': None,
               'rank': 2},
              {'scope': 'usdtscope',
-              'scope_url': 'https://usdtscope.vercel.app',
+              'scope_url': 'https://usdtscope.fly.dev',
               'symbol': 'USDT',
               'name': 'Tether USD',
               'issuer': 'Tether',
@@ -1431,7 +1431,7 @@ _OV_DOCS = [
               'error': None,
               'rank': 3},
              {'scope': 'tusdscope',
-              'scope_url': 'https://tusdscope.vercel.app',
+              'scope_url': 'https://tusdscope.fly.dev',
               'symbol': 'TUSD',
               'name': 'TrueUSD',
               'issuer': 'TrueUSD (Techteryx)',
@@ -1473,7 +1473,7 @@ _OV_DOCS = [
               'error': None,
               'rank': 4},
              {'scope': 'usdcscope',
-              'scope_url': 'https://usdcscope.vercel.app',
+              'scope_url': 'https://usdcscope.fly.dev',
               'symbol': 'USDC',
               'name': 'USD Coin',
               'issuer': 'Circle',
@@ -1515,7 +1515,7 @@ _OV_DOCS = [
               'error': None,
               'rank': 5},
              {'scope': 'pyusdsscope',
-              'scope_url': 'https://pyusdsscope.vercel.app',
+              'scope_url': 'https://pyusdsscope.fly.dev',
               'symbol': 'PYUSD',
               'name': 'PayPal USD',
               'issuer': 'PayPal (issued by Paxos)',
@@ -1557,7 +1557,7 @@ _OV_DOCS = [
               'error': None,
               'rank': 6},
              {'scope': 'usdescope',
-              'scope_url': 'https://usdescope.vercel.app',
+              'scope_url': 'https://usdescope.fly.dev',
               'symbol': 'USDe',
               'name': 'Ethena USDe',
               'issuer': 'Ethena Labs',
@@ -1599,7 +1599,7 @@ _OV_DOCS = [
               'error': None,
               'rank': 7},
              {'scope': 'fdusdsscope',
-              'scope_url': 'https://fdusdsscope.vercel.app',
+              'scope_url': 'https://fdusdsscope.fly.dev',
               'symbol': 'FDUSD',
               'name': 'First Digital USD',
               'issuer': 'First Digital Labs',
@@ -2096,7 +2096,7 @@ _OV_DOCS = [
          '50 moderate, < 75 elevated, >= 75 high.',
  'as_of': 1794006952}, "free_tier": 'Free tier today: keyless, no auth, no rate limit of our own. One full 8-issuer evaluation per call; the response is cached 300s server-side, so repeat calls inside the window are served from cache. A cold call runs the per-coin freeze log scans and activity scans for all 8 coins and can take ~4 minutes. Upstream rate limits (Blockscout, DeFiLlama, DexScreener) apply — expect occasional 502s on slow calls.', "paid_tier": 'Paid tier (planned): API key required; calls metered per detail call. Higher rate limits, a stored score history (so the composite is available historically instead of live-only), per-coin webhooks on band changes, and batch / export (CSV / JSON). No auth, metering, or billing is enforced yet — this endpoint is free and keyless today.'}),
     ("GET", "/attestations", "Attestation monitor API (phase 3, item 7): all 8 stablecoin scopes' attestation status in one call — the feature-3 tracker (GET /api/<scope>/reserves -> attestation_tracker) reused wholesale per coin, embedded verbatim, with headline fields copied from it (auditor, cadence, last verified attestation + source, days since, status, next expected reporting date, overdue flag + overdue-by days, reserve-to-supply and reserve-to-outstanding ratios where a dated figure was verified, source links, alerts). Coins are ordered overdue first. Current-status-only: no auditor-change history exists (the tracker holds current status only; past auditors appear solely as prose in a coin's note) and none is invented — a stored history is a planned paid-tier feature. 'Overdue' means past the next reporting date per cadence, not past a publication deadline. Reserve figures are dated published figures from the named attestation only, never live or estimated. Standalone (not in /overview) — the per-coin reserves evaluations are slow. Rendered at #/attestations. The example_response below shows 2 of the 8 coins in full (FDUSD and USDC); the live response carries all 8 in `coins`, overdue first.", [], "/attestations", {"paid_api": True, "example_response": {'coins': [{'scope': 'fdusdsscope',
-                'scope_url': 'https://fdusdsscope.vercel.app',
+                'scope_url': 'https://fdusdsscope.fly.dev',
                 'symbol': 'FDUSD',
                 'name': 'First Digital USD',
                 'issuer': 'First Digital Labs',
@@ -2200,7 +2200,7 @@ _OV_DOCS = [
                                            'outstanding stated in the same attestation.'},
                 'error': None},
                {'scope': 'usdcscope',
-                'scope_url': 'https://usdcscope.vercel.app',
+                'scope_url': 'https://usdcscope.fly.dev',
                 'symbol': 'USDC',
                 'name': 'USD Coin',
                 'issuer': 'Circle',

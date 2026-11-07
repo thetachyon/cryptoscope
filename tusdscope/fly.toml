@@ -1,0 +1,28 @@
+# tusdscope on Fly.io — one Fly app per Cryptoscope scope.
+# Deploy with scripts/fly-deploy.sh (or: fly deploy --remote-only from this dir).
+# Keyless: no secrets required; every upstream is public and the app degrades
+# gracefully when one is unreachable.
+
+app = "tusdscope"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "30s"
+    timeout = "5s"
+    method = "GET"
+    path = "/healthz"

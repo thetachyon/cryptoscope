@@ -194,12 +194,12 @@ function primarySupplyDenominator() {
 function extAddrLink(addr, chain) {
   if (!addr) return '<span class="muted">—</span>';
   if (chain === "tron") return `<a class="mono" href="https://tronscan.org/#/address/${esc(addr)}" target="_blank" rel="noopener">${esc(shortH(addr))}</a>`;
-  return `<a class="mono" href="https://ethscope.vercel.app/#/address/${esc(addr)}" target="_blank" rel="noopener">${esc(shortH(addr))}</a>`;
+  return `<a class="mono" href="https://ethscope.fly.dev/#/address/${esc(addr)}" target="_blank" rel="noopener">${esc(shortH(addr))}</a>`;
 }
 function extTxLink(hash, chain) {
   if (!hash) return '<span class="muted">—</span>';
   if (chain === "tron") return `<a class="mono" href="https://tronscan.org/#/transaction/${esc(hash)}" target="_blank" rel="noopener">${esc(shortH(hash))}</a>`;
-  return `<a class="mono" href="https://ethscope.vercel.app/#/tx/${esc(hash)}" target="_blank" rel="noopener">${esc(shortH(hash))}</a>`;
+  return `<a class="mono" href="https://ethscope.fly.dev/#/tx/${esc(hash)}" target="_blank" rel="noopener">${esc(shortH(hash))}</a>`;
 }
 
 function bandBadge(band) {
@@ -316,7 +316,7 @@ function issuerRiskCard(d) {
     ${rows.map(([label, v, ev]) => `<tr><td>${esc(label)}</td><td style="text-align:right">${v ? Math.round(v.weight * 100) + "%" : "—"}</td><td style="text-align:right">${v ? scoreCell(v.score) : "—"}</td><td class="muted">${ev || '<span class="muted">unknown — could not be measured; weight redistributed to the other inputs</span>'}</td></tr>`).join("")}
     </tbody></table>
     <div class="notice" style="margin-top:12px">${esc(d.methodology || "")}</div>
-    <div style="margin-top:10px"><a href="https://overview.vercel.app/#/issuer-risk" target="_blank" rel="noopener">Compare all 8 issuers with full breakdowns →</a> <span class="muted">(ranking + per-issuer input breakdowns in the overview app — GET /api/overview/issuer-risk/detail)</span></div>
+    <div style="margin-top:10px"><a href="https://overview.fly.dev/#/issuer-risk" target="_blank" rel="noopener">Compare all 8 issuers with full breakdowns →</a> <span class="muted">(ranking + per-issuer input breakdowns in the overview app — GET /api/overview/issuer-risk/detail)</span></div>
   </div>`;
 }
 
@@ -442,7 +442,7 @@ function mintBurnCard(mb) {
     <div class="card-head" style="margin-top:16px">Issuance as a demand signal</div>
     <div style="margin-top:6px">${esc(ds.summary || "")}</div>
     <div class="notice" style="margin-top:12px">${esc(ds.caveat || "")}</div>
-    <div style="margin-top:10px"><a href="https://overview.vercel.app/#/supply-feed?coin=${esc(mb.symbol || "")}" target="_blank" rel="noopener">Supply &amp; flow feed →</a> <span class="muted">(daily net-issuance series + large on-chain events across all 8 coins — GET /api/overview/supply-feed; this coin's own feed: <span class="mono">GET /api/${esc(SCOPE)}/supply-feed</span>)</span></div>
+    <div style="margin-top:10px"><a href="https://overview.fly.dev/#/supply-feed?coin=${esc(mb.symbol || "")}" target="_blank" rel="noopener">Supply &amp; flow feed →</a> <span class="muted">(daily net-issuance series + large on-chain events across all 8 coins — GET /api/overview/supply-feed; this coin's own feed: <span class="mono">GET /api/${esc(SCOPE)}/supply-feed</span>)</span></div>
   </div>`;
 }
 
@@ -496,7 +496,7 @@ function whalesCard(w) {
       </tbody></table></div>`
       : `<div class="empty">No transfer ≥ ${usdBig(lt.threshold_usd)} in the last ${num(lt.scanned_transfers)} transfers scanned${lt.scan_earliest ? ` (${dateTimeStr(lt.scan_earliest)} → ${dateTimeStr(lt.scan_latest)})` : ""}.</div>`}
     <div class="muted" style="margin-top:8px">${esc(lt.chain_scope_note || "")}${lts.length ? ` Scanned ${num(lt.scanned_transfers)} transfers${lt.scan_earliest ? ` (${dateTimeStr(lt.scan_earliest)} → ${dateTimeStr(lt.scan_latest)})` : ""}; showing latest ${num(lts.length)}.` : ""}${w.price_assumed_1_usd ? " USD values assume $1.00 (no live price available)." : ""}</div>
-    <div style="margin-top:10px"><a href="https://overview.vercel.app/#/whale-feed?coin=${esc(w.symbol || "")}" target="_blank" rel="noopener">Whale feed →</a> <span class="muted">(large transfers across all 8 coins — GET /api/overview/whale-feed; this coin's own feed: <span class="mono">GET /api/${esc(SCOPE)}/whale-feed</span>)</span></div>
+    <div style="margin-top:10px"><a href="https://overview.fly.dev/#/whale-feed?coin=${esc(w.symbol || "")}" target="_blank" rel="noopener">Whale feed →</a> <span class="muted">(large transfers across all 8 coins — GET /api/overview/whale-feed; this coin's own feed: <span class="mono">GET /api/${esc(SCOPE)}/whale-feed</span>)</span></div>
     <div class="notice" style="margin-top:12px">${esc(w.methodology || "")}</div>
   </div>`;
 }
@@ -691,14 +691,14 @@ function freezeCard(f) {
       </tbody></table></div>`
       : `<div class="empty">${evs.status === "not_applicable" ? "No freeze function — no freeze events exist to list." : `No freeze/blacklist events in the scanned window${win.window_days ? ` (${num(win.window_days)} days)` : ""}.`}</div>`}
     <div class="muted" style="margin-top:8px">${dst.note ? esc(dst.note) : ""}</div>
-    <div class="muted" style="margin-top:8px">Full paginated feed for ${esc(f.symbol || "")} — and every issuer, filterable by event type, address and time window: <a href="https://walletscope.vercel.app/#/freeze-feed?coin=${esc(f.symbol || "")}" target="_blank" rel="noopener">Freeze event feed \u2192</a></div>
+    <div class="muted" style="margin-top:8px">Full paginated feed for ${esc(f.symbol || "")} — and every issuer, filterable by event type, address and time window: <a href="https://walletscope.fly.dev/#/freeze-feed?coin=${esc(f.symbol || "")}" target="_blank" rel="noopener">Freeze event feed \u2192</a></div>
     <div class="card-head" style="margin-top:16px">Check an address <span class="muted">(is this address frozen for ${esc(f.symbol || "")}?)</span></div>
     <form id="freeze-watch-form" class="search" autocomplete="off" style="max-width:640px;margin-top:10px">
       <input id="freeze-watch-input" type="text" placeholder="0x… Ethereum address" aria-label="Address to check for a freeze">
       <button type="submit" title="Check freeze status">Check</button>
     </form>
     <div id="freeze-watch-result" style="margin-top:10px"></div>
-    <div class="muted" style="margin-top:6px">Live read probe + freeze events naming the address in the scanned window above. The issuer blacklist is not enumerable on-chain — “not frozen” cannot prove the address was never frozen before the window. For other coins, or a Solana address, use the <a href="https://walletscope.vercel.app/#/freeze-watch" target="_blank" rel="noopener">freeze watch in WalletScope →</a></div>
+    <div class="muted" style="margin-top:6px">Live read probe + freeze events naming the address in the scanned window above. The issuer blacklist is not enumerable on-chain — “not frozen” cannot prove the address was never frozen before the window. For other coins, or a Solana address, use the <a href="https://walletscope.fly.dev/#/freeze-watch" target="_blank" rel="noopener">freeze watch in WalletScope →</a></div>
     <div class="card-head" style="margin-top:16px">Sanctions exposure <span class="muted">(OFAC SDN list, ${esc((san.sdn || {}).date || "")} · ${(san.sdn || {}).labels_total != null ? num(san.sdn.labels_total) + " labels" : ""})</span></div>
     <div style="margin-top:6px">${esc(san.summary || "")}</div>
     ${matches.length ? `<div style="overflow-x:auto"><table class="tbl" style="margin-top:10px"><thead><tr><th>Address</th><th>Name (OFAC)</th><th>Program</th><th>Found as</th></tr></thead><tbody>
