@@ -47,8 +47,14 @@ SECTION_TTL = 300  # seconds, for the slower sections (bridges, movers)
 
 # ---------------------------------------------------------------- scope urls
 # Expected Vercel domains, same pattern as every app's config.py SIBLINGS.
+# Fly app names differ from scope names where the scope name is taken:
+# "overview" on fly.dev belongs to an unrelated planner app, so the
+# overview scope deploys as "cryptoscope-overview".
+_FLY_APP_NAMES = {"overview": "cryptoscope-overview"}
+
+
 def _scope_url(scope: str) -> str:
-    return f"https://{scope}.fly.dev"
+    return f"https://{_FLY_APP_NAMES.get(scope, scope)}.fly.dev"
 
 
 CHAIN_SCOPE = {
