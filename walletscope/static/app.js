@@ -799,6 +799,31 @@ function throughputSeries(blocks) {
   return { bps, tps };
 }
 
+/* Per-block network stats from a /blocks page: gas utilization (% of the
+   gas limit used), average block time (trailing 5-block mean of the
+   intervals between blocks) and base fee (gas price, gwei). One fetch
+   seeds ~10 minutes of history; every poll slides it forward. The
+   block-time series starts only once a full 5-interval window exists,
+   so the left edge is a true average, never a partial one. */
+function blockStatsSeries(blocks) {
+  const rows = (blocks || []).map((b) => ({
+    t: Date.parse(b.timestamp),
+    util: Number(b.gas_used_pct),
+    fee: Number(b.base_fee_gwei),
+  })).filter((r) => Number.isFinite(r.t)).sort((a, b) => a.t - b.t);
+  if (rows.length < 2) return { util: [], blockTime: [], gasPrice: [] };
+  const label = (t) => new Date(t).toLocaleTimeString("en-US", { hour12: false });
+  const util = rows.filter((r) => Number.isFinite(r.util)).map((r) => ({ x: label(r.t), y: r.util }));
+  const gasPrice = rows.filter((r) => Number.isFinite(r.fee)).map((r) => ({ x: label(r.t), y: r.fee }));
+  const blockTime = [];
+  for (let i = 5; i < rows.length; i++) {
+    let sum = 0, n = 0;
+    for (let j = i - 4; j <= i; j++) { sum += (rows[j].t - rows[j - 1].t) / 1000; n++; }
+    blockTime.push({ x: label(rows[i].t), y: sum / n });
+  }
+  return { util, blockTime, gasPrice };
+}
+
 async function home() {
   clearPoll();
   const myHash = location.hash || "#/";
@@ -830,6 +855,25 @@ async function home() {
         <div class="chart-wrap" id="tps-chart"><div class="spinner">Loading…</div></div>
         <div class="muted" style="font-size:12px;padding:0 14px 12px">Trailing 5-minute rate, from transactions in each block. Updates every 10s.</div>
       </div>
+    </div>` : ""}
+    ${SCOPE === "ethscope" ? `<div class="cols2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head">Network Utilization <span class="spacer"></span><span class="badge info">live</span></div>
+        <div class="chart-wrap" id="util-chart"><div class="spinner">Loading…</div></div>
+        <div class="muted" style="font-size:12px;padding:0 14px 12px">Gas used as % of the gas limit, per block. Updates every 10s.</div>
+      </div>
+      <div class="card">
+        <div class="card-head">Average Block Time <span class="spacer"></span><span class="badge info">live</span></div>
+        <div class="chart-wrap" id="blocktime-chart"><div class="spinner">Loading…</div></div>
+        <div class="muted" style="font-size:12px;padding:0 14px 12px">Trailing 5-block average of the time between blocks. Updates every 10s.</div>
+      </div>
+    </div>` : ""}
+    ${SCOPE === "ethscope" ? `<div class="cols2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head">Gas Price <span class="spacer"></span><span class="badge info">live</span></div>
+        <div class="chart-wrap" id="gasprice-chart"><div class="spinner">Loading…</div></div>
+        <div class="muted" style="font-size:12px;padding:0 14px 12px">Base fee per block, in gwei. Updates every 10s.</div>
+      </div>
     </div>` : ""}`);
   // A single slow upstream must not blank the page or stick a red banner
   // on it: render whatever came back, and only warn after 2 failures in
@@ -848,6 +892,11 @@ async function home() {
       const bpsEl = $("#bps-chart"), tpsEl = $("#tps-chart");
       if (bpsEl) bpsEl.innerHTML = svgChart(bps, { label: "Blocks per second, trailing 5 min", fmtY: (v) => Number(v).toFixed(3) });
       if (tpsEl) tpsEl.innerHTML = svgChart(tps, { label: "Transactions per second, trailing 5 min", fmtY: (v) => Number(v).toFixed(1) });
+      const { util, blockTime, gasPrice } = blockStatsSeries(bl.value.items || []);
+      const utilEl = $("#util-chart"), btEl = $("#blocktime-chart"), gpEl = $("#gasprice-chart");
+      if (utilEl) utilEl.innerHTML = svgChart(util, { label: "Network utilization, % of gas limit", fmtY: (v) => Number(v).toFixed(1) + "%" });
+      if (btEl) btEl.innerHTML = svgChart(blockTime, { label: "Average block time, trailing 5 blocks", fmtY: (v) => Number(v).toFixed(1) + "s" });
+      if (gpEl) gpEl.innerHTML = svgChart(gasPrice, { label: "Base fee, gwei", fmtY: (v) => Number(v).toFixed(2) });
     }
     const failed = [s, bl, tx].filter((r) => r.status === "rejected");
     if (!failed.length) { liveFailStreak = 0; banner(null); return; }
