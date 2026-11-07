@@ -24,6 +24,12 @@ function walletHref(addr) {
 function preflightHref(addr) {
   return WALLET_ONLY ? "#/preflight/" + addr : WALLET_URL + "/#/preflight/" + addr;
 }
+function screenHref(addr) {
+  return WALLET_ONLY ? "#/screen/" + addr : WALLET_URL + "/#/screen/" + addr;
+}
+function tokenSecurityHref(chain, addr) {
+  return WALLET_ONLY ? "#/token-security/" + chain + "/" + addr : WALLET_URL + "/#/token-security/" + chain + "/" + addr;
+}
 function allowanceHref(owner) {
   return WALLET_ONLY ? "#/allowance?owner=" + encodeURIComponent(owner || "") : WALLET_URL + "/#/allowance?owner=" + encodeURIComponent(owner || "");
 }
@@ -32,6 +38,12 @@ function trackHref(chain, hash) {
 }
 function receiptHref(chain, hash) {
   return WALLET_ONLY ? "#/receipt/" + chain + "/" + hash : WALLET_URL + "/#/receipt/" + chain + "/" + hash;
+}
+function txScreenHref(chain, hash) {
+  return WALLET_ONLY ? "#/txscreen/" + chain + "/" + hash : WALLET_URL + "/#/txscreen/" + chain + "/" + hash;
+}
+function explainHref(chain, hash) {
+  return WALLET_ONLY ? "#/explain/" + chain + "/" + hash : WALLET_URL + "/#/explain/" + chain + "/" + hash;
 }
 
 /* ---------------- chain state ---------------- */
@@ -867,6 +879,8 @@ async function txPage(h, retried) {
       ${detailRow("Status", statusBadge(t.status))}
       ${detailRow("Block", t.block != null ? `${linkBlock(t.block)} <span class="muted">(${num(t.confirmations)} confirmations)</span>` : '<span class="badge info">Pending</span>')}
       ${WALLET_URL ? detailRow("Settlement", `<a href="${esc(trackHref(CHAIN, t.hash))}">Track settlement &amp; receipt →</a> <span class="muted">timeline, confirmations, bridge leg</span>`) : ""}
+      ${WALLET_URL ? detailRow("Screen transaction", `<a href="${esc(txScreenHref(CHAIN, t.hash))}">Screen this transaction →</a> <span class="muted">sanctions score over its counterparties</span>`) : ""}
+      ${WALLET_URL ? detailRow("Plain-English", `<a href="${esc(explainHref(CHAIN, t.hash))}">Explain this transaction →</a> <span class="muted">one sentence + token flows, via the API</span>`) : ""}
       ${detailRow("Timestamp", `${esc(t.age || "")} <span class="muted">(${esc(utc(t.timestamp))})</span>`)}
       ${detailRow("From", `${linkAddr(t.from, true)} ${copyBtn(t.from ? t.from.hash : "")}`)}
       ${detailRow("To", toCell)}
@@ -924,7 +938,13 @@ async function txPage(h, retried) {
 }
 
 /* ---------------- explain card (Feature 3, tx pages) ---------------- */
-function explainCardHtml(e) {
+/* opts.chain (walletscope #/explain demo only) makes the flow-row
+   address links chain-aware (linkAddrC into the sibling Scope app)
+   and labels native flows with that chain's native coin; without it
+   the card renders exactly as on the single-chain tx pages. */
+function explainCardHtml(e, opts) {
+  const chain = (opts && opts.chain) || null;
+  const linkA = (a) => (chain ? linkAddrC(chain, a) : linkAddr(a));
   const kindLabel = {
     native_transfer: "Native transfer", erc20_transfer: "Token transfer",
     approval: "Approval", swap: "Swap", nft_transfer: "NFT transfer",
@@ -935,12 +955,12 @@ function explainCardHtml(e) {
   }[e.kind] || e.kind || "Transaction";
   const flowRows = (e.flows || []).map((f) => {
     const tok = f.kind === "native"
-      ? nativeSym()
+      ? (chain ? chainNativeSym(chain) : nativeSym())
       : f.kind === "nft"
         ? (f.token && (f.token.symbol || f.token.name)) || "NFT"
         : (f.token && (f.token.symbol || f.token.name || (f.token.address ? shortH(f.token.address) : "—"))) || "—";
-    const fromCell = f.from ? linkAddr(f.from) : '<span class="muted">—</span>';
-    const toCell = f.to ? linkAddr(f.to) : '<span class="muted">—</span>';
+    const fromCell = f.from ? linkA(f.from) : '<span class="muted">—</span>';
+    const toCell = f.to ? linkA(f.to) : '<span class="muted">—</span>';
     return `<tr><td>${esc(tok)}</td><td class="r mono">${esc(String(f.amount ?? "—"))}</td><td>${fromCell}</td><td>${toCell}</td></tr>`;
   }).join("");
   return `<div class="card">
@@ -1076,11 +1096,11 @@ function securityCardHtml(s) {
     return `<tr><td><b>${esc(c.label || c.id)}</b><div class="muted" style="font-size:12.5px;margin-top:2px">${esc(c.detail || "")}</div></td><td style="white-space:nowrap"><span class="badge ${stBadge[st] || "grey"}">${esc(stLabel[st] || st)}</span></td></tr>`;
   }).join("");
   return `<div class="card risk-card risk-${esc(lvl)}">
-    <div class="card-head">Security <span class="spacer"></span><span class="badge ${badgeCls}">${esc(lvl)} risk</span></div>
+    <div class="card-head">Security <span class="spacer"></span>${s.chain && s.token ? `<a href="${tokenSecurityHref(s.chain, s.token)}" title="Open the token-security API demo for this token">Full scan →</a> ` : ""}<span class="badge ${badgeCls}">${esc(lvl)} risk</span></div>
     <div style="padding:14px 16px">
       <table class="tbl"><tbody>${rows}</tbody></table>
       <div class="muted" style="font-size:12px;margin-top:10px">${esc(s.method || "")}</div>
-      <div class="muted" style="font-size:12px;margin-top:4px">${esc(s.limits || "")}</div>
+      ${(Array.isArray(s.limits) ? s.limits : [s.limits]).filter(Boolean).map((l) => `<div class="muted" style="font-size:12px;margin-top:4px">${esc(l)}</div>`).join("")}
     </div>
   </div>`;
 }
@@ -1094,6 +1114,79 @@ function loadSecurityCard(addr) {
     const el = document.getElementById("security-card");
     if (el) el.innerHTML = `<div class="card"><div style="padding:12px 16px" class="muted">Security scan unavailable: ${esc(e.message)}</div></div>`;
   });
+}
+
+/* ---------------- token security demo (walletscope only, phase 3 item 12) ---------------- */
+/* Backend: GET /api/walletscope/token/security?chain=&address=.
+   The feature-2 scanner (common/security.py) as a documented
+   standalone paid-API contract — see common/security_api.py. This page
+   reuses the token-page security card (securityCardHtml) and adds the
+   API contract card below it; it does not build a parallel scanner UI.
+   A cold scan fans out to Blockscout, the public RPC and DexScreener
+   (~15s live); the client timeout is 90s. */
+let tokenSecurityRun = 0;
+const TOKEN_SECURITY_CHAINS = ["ethereum", "sepolia", "optimism", "gnosis", "solana"];
+
+function tokenSecurityChainOptions(selected) {
+  const chains = CHAINS.filter((c) => TOKEN_SECURITY_CHAINS.includes(c.id));
+  const list = chains.length ? chains : FALLBACK_CHAINS.filter((c) => TOKEN_SECURITY_CHAINS.includes(c.id));
+  return list.map((c) => `<option value="${esc(c.id)}" ${c.id === selected ? "selected" : ""}>${esc(c.label)}</option>`).join("");
+}
+
+async function tokenSecurityPage(chain, address) {
+  clearPoll();
+  const run = ++tokenSecurityRun;
+  const alive = () => run === tokenSecurityRun && document.getElementById("token-security-root");
+  document.title = "Token security — " + TITLE;
+  render(`
+    <div id="token-security-root">
+    <div class="pagehead"><h2>🛡️ Token Security</h2></div>
+    <div class="card"><div style="padding:16px">
+      <p class="muted" style="margin-top:0">One token contract in, a security verdict out: owner powers, holder concentration, buy/sell tax, honeypot simulation and liquidity (EVM), or mint/freeze authority plus holder concentration (Solana — the EVM checks are labelled EVM-only, never pretended to have run). A low verdict is a heuristic screening signal, not an audit and not proof a token is safe. Tax is "not detectable" when no standard tax function exists — never an invented 0%. Liquidity totals cover DexScreener-tracked pairs on this chain only. Nothing here creates or signs a transaction. API: <a href="#/api-docs">GET /api/walletscope/token/security</a> (Paid API — free &amp; keyless today).</p>
+      <form id="token-security-form" autocomplete="off">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+          <label class="field">Chain<select id="ts-chain">${tokenSecurityChainOptions(chain || "ethereum")}</select></label>
+          <label class="field" style="grid-column:span 3">Token contract address / SPL mint<input type="text" id="ts-address" placeholder="0x… (EVM) · base58 mint (Solana)" value="${esc(address || "")}"></label>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button class="btn" type="submit">Scan token</button>
+          <span class="muted" style="font-size:12px">Try: <a href="#/token-security/ethereum/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48">USDC (Ethereum)</a> · <a href="#/token-security/ethereum/0xdAC17F958D2ee523a2206206994597C13D831ec7">USDT (Ethereum)</a> · <a href="#/token-security/solana/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v">USDC (Solana)</a></span>
+        </div>
+      </form>
+    </div></div>
+    <div id="token-security-results"></div>
+    </div>`);
+  const runScan = async () => {
+    const addr = $("#ts-address").value.trim();
+    const ch = $("#ts-chain").value;
+    if (!addr) {
+      $("#token-security-results").innerHTML = `<div class="card"><div class="empty">Enter a token contract address first.</div></div>`;
+      return;
+    }
+    history.replaceState(null, "", "#/token-security/" + ch + "/" + addr);
+    $("#token-security-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Scanning… (Blockscout + public RPC + DexScreener, up to ~90s)</div></div></div>`;
+    let d;
+    try {
+      const qs = new URLSearchParams({ chain: ch, address: addr });
+      d = await fetchJson(API + "/token/security?" + qs.toString(), null, 90000);
+    } catch (err) {
+      if (!alive()) return;
+      $("#token-security-results").innerHTML = `<div class="card"><div class="empty">Scan failed: ${esc(err.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    // EVM scopes share this SPA's #/token/ route; SolScope's token
+    // pages live in its own frontend, so no scope link there.
+    const scopeLink = (ch !== "solana" && scopeUrl(ch)) ? `<a href="${esc(scopeUrl(ch))}#/token/${esc(addr)}" target="_blank" rel="noopener">View token on ${esc(d.chain_label || ch)} →</a>` : "";
+    $("#token-security-results").innerHTML = securityCardHtml(d) + `
+    <div class="card"><div class="card-head">🔌 Token security API <span class="spacer"></span><span class="badge info">keyless today</span></div>
+      <div style="padding:14px 16px">
+        <div style="margin:4px 0">This page calls <span class="mono">GET ${esc(d.api_url || "")}</span> — the full scan in one call · verdict: <b>${esc(d.level || "")}</b> (${esc(String(d.points))} point${d.points === 1 ? "" : "s"}). <a href="${esc(d.api_url || "")}" target="_blank" rel="noopener">View raw JSON →</a> · <a href="#/api-docs">API docs →</a>${scopeLink ? ` · ${scopeLink}` : ""}</div>
+      </div>
+    </div>`;
+  };
+  $("#token-security-form").addEventListener("submit", (e) => { e.preventDefault(); runScan(); });
+  if (address) runScan();
 }
 
 /* ---------------- address page ---------------- */
@@ -1124,7 +1217,7 @@ async function addressPage(h) {
     : "";
   const tc = a._txcount;
   render(`
-    <div class="pagehead"><h2>Address</h2> <a class="btn" href="${walletHref(a.hash)}" title="Cross-chain portfolio: balances, holdings, history, PnL, NFTs, activity">💼 Wallet Dashboard</a> <a class="btn" href="${preflightHref(a.hash)}" title="Pre-flight compliance check before sending to this address">🛡️ Pre-flight check</a></div>
+    <div class="pagehead"><h2>Address</h2> <a class="btn" href="${walletHref(a.hash)}" title="Cross-chain portfolio: balances, holdings, history, PnL, NFTs, activity">💼 Wallet Dashboard</a> <a class="btn" href="${screenHref(a.hash)}" title="Screen this address: OFAC SDN score, reasons, hop exposure">🛡️ Screen address</a> <a class="btn" href="${preflightHref(a.hash)}" title="Pre-flight compliance check before sending to this address">🛡️ Pre-flight check</a></div>
     <div class="card">
       <div style="padding:14px 16px;border-bottom:1px solid var(--line)">
         <div class="addr-title"><span class="mono" style="font-size:15px">${esc(a.hash)}</span> ${copyBtn(a.hash)}${labelPill(a.hash)}</div>
@@ -1659,18 +1752,23 @@ async function apiDocsPage() {
   }
   const groups = {};
   for (const e of byKey.values()) {
-    const g = docsGroup(e.path);
+    // Paid-API entries (phase 3) group together at the top, whatever
+    // their path prefix is.
+    const g = e.paid_api ? "Paid API" : docsGroup(e.path);
     (groups[g] = groups[g] || []).push(e);
   }
-  const order = ["Chain & Gas", "Blocks", "Transactions", "Addresses", "Wallet", "Tokens", "Contracts", "Charts", "Pending", "Search", "Meta", "Other"];
+  const order = ["Paid API", "Chain & Gas", "Blocks", "Transactions", "Addresses", "Wallet", "Tokens", "Contracts", "Charts", "Pending", "Search", "Meta", "Other"];
   const shown = order.filter((g) => groups[g]).concat(Object.keys(groups).filter((g) => !order.includes(g)));
   $("#docs-body").innerHTML = `
     <div class="explainer"><b>Fair use:</b> this API is keyless and needs no auth — it proxies the public Blockscout API, public RPCs, and CoinGecko’s keyless tier, all of which are rate-limited upstream. Please cache responses, keep request rates modest, and expect occasional 502s when an upstream is slow. Nothing here is authenticated or billed.</div>
-    ${shown.map((g) => `<div class="docgroup"><h3>${esc(g)}</h3>${groups[g].map((e) => `
+    ${shown.map((g) => `<div class="docgroup"><h3>${esc(g)}${g === "Paid API" ? ` <span class="badge info">keyed &amp; metered in the paid tier — free &amp; keyless today</span>` : ""}</h3>${groups[g].map((e) => `
       <div class="docitem">
         <span class="method ${e.method.toLowerCase()}">${esc(e.method)}</span><span class="dpath">${esc(e.path)}</span>
         <div class="ddesc">${esc(e.description)}</div>
         <div class="dmeta">${e.params && e.params.length ? `Params: ${e.params.map((p) => `<code>${esc(p)}</code>`).join(", ")}<br>` : ""}Example: <code>${esc(e.example)}</code></div>
+        ${e.example_response != null ? `<div class="dmeta" style="margin-top:6px">Example response:<pre class="mono" style="white-space:pre-wrap;word-break:break-word;margin:4px 0 0;font-size:12px">${esc(typeof e.example_response === "string" ? e.example_response : JSON.stringify(e.example_response, null, 2))}</pre></div>` : ""}
+        ${e.free_tier ? `<div class="dmeta" style="margin-top:6px"><b>Free tier today:</b> ${esc(e.free_tier)}</div>` : ""}
+        ${e.paid_tier ? `<div class="dmeta" style="margin-top:6px"><b>Paid tier (planned):</b> ${esc(e.paid_tier)}</div>` : ""}
       </div>`).join("")}</div>`).join("")}`;
 }
 
@@ -1709,13 +1807,13 @@ function walletLanding() {
   render(`
     <div class="pagehead"><h2>💼 Wallet Dashboard</h2></div>
     <div class="card"><div style="padding:18px 16px">
-      <p class="muted" style="margin-top:0">One address, five chains — native balances, token holdings with USD values, portfolio history, estimated realized PnL, NFTs, activity, and a finance-grade accounting export (USD at time of transaction + FIFO cost basis). Solana included (SOL + SPL holdings). No API keys; data from Blockscout, the public Solana RPC, DexScreener + CoinGecko's keyless tier.</p>
+      <p class="muted" style="margin-top:0">One address, five chains — native balances, token holdings with USD values, portfolio history, estimated realized PnL, NFTs, activity, and a finance-grade accounting export (USD at time of transaction + FIFO cost basis, also available as the <a href="#/api-docs">Accounting API</a>). Solana included (SOL + SPL holdings). No API keys; data from Blockscout, the public Solana RPC, DexScreener + CoinGecko's keyless tier.</p>
       <form id="wallet-form" class="search" autocomplete="off" style="max-width:640px">
         <input id="wallet-input" type="text" placeholder="Address (0x… / Solana) or ENS name (vitalik.eth)">
         <button type="submit" title="Open wallet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
       </form>
       <p style="margin:14px 0 0">Try: <a href="#/wallet/vitalik.eth">vitalik.eth</a> · <a href="#/wallet/vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg">a Solana wallet</a></p>
-      <p style="margin:10px 0 0">Moving funds? Compare swap &amp; bridge routes first: <a href="#/quote">Quote →</a> · Sending to a new recipient? <a href="#/preflight">Pre-flight check →</a> · Is an address frozen? <a href="#/freeze-watch">Freeze watch →</a> · Getting paid? <a href="#/invoices">Reconcile invoices →</a> · <a href="#/watchlist">Receipt watchlist →</a> · Paying on a schedule? <a href="#/recurring">Recurring payments →</a> · Will a swap need an approval? <a href="#/allowance">Allowance check →</a></p>
+      <p style="margin:10px 0 0">Moving funds? Compare swap &amp; bridge routes first: <a href="#/quote">Quote →</a> · Sending to a new recipient? <a href="#/preflight">Pre-flight check →</a> · Screen any address: <a href="#/screen">Address screening →</a> · Screen a transaction: <a href="#/txscreen">Transaction screening →</a> · Explain a transaction: <a href="#/explain">Plain-English explanation →</a> · Is an address frozen? <a href="#/freeze-watch">Freeze watch →</a> · Browse freeze events: <a href="#/freeze-feed">Freeze event feed →</a> · Scan a token: <a href="#/token-security">Token security →</a> · Getting paid? <a href="#/invoices">Reconcile invoices →</a> · <a href="#/watchlist">Receipt watchlist →</a> · Paying on a schedule? <a href="#/recurring">Recurring payments →</a> · Will a swap need an approval? <a href="#/allowance">Allowance check →</a></p>
     </div></div>`);
   $("#wallet-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -1725,10 +1823,15 @@ function walletLanding() {
 }
 
 /* ---------------- quote & route comparison (walletscope only) ---------------- */
-/* Backend: GET /api/walletscope/quote/tokens (token list) and
-   GET /api/walletscope/quote?from_chain=&from_token=&to_chain=&to_token=&amount=
-   (&from_address= optional). All figures are estimates: the quote is
-   cached 30s server-side and goes stale fast. */
+/* Backend: GET /api/walletscope/quote/tokens (token list) and the
+   Quote & route API (phase 3, item 11)
+   GET /api/walletscope/quote/with-guard?from_chain=&from_token=&to_chain=&to_token=&amount=
+   (&from_address= optional) — the P1 quote engine (/quote) plus the
+   P3 peg/volatility guard (/quote/guard) for both legs, in one call.
+   This page is the API's demo: it fetches the combined endpoint and
+   renders the routes plus the embedded guard banners. All figures
+   are estimates: the quote is cached 30s server-side and goes stale
+   fast. */
 let quoteRun = 0;
 let QUOTE_TOKENS = null;
 
@@ -1852,12 +1955,13 @@ async function quotePage() {
     <div id="quote-root">
     <div class="pagehead"><h2>🔀 Quote &amp; Route Comparison</h2><span class="sample-badge">ESTIMATE</span></div>
     <div class="card"><div style="padding:16px">
-      <p class="muted" style="margin-top:0">Ranked swap &amp; bridge routes for one transfer — expected amount out, all-in fees, time to finality, and minimum received. Sources: LI.FI (EVM chains) plus a computed Circle CCTP estimate for USDC → USDC. Quotes are cached 30 seconds and go stale fast; nothing here creates or signs a transaction.</p>
+      <p class="muted" style="margin-top:0">Ranked swap &amp; bridge routes for one transfer — expected amount out, all-in fees, time to finality, and minimum received — with the peg / volatility guard verdict for both legs in the same call. Sources: LI.FI (EVM chains) plus a computed Circle CCTP estimate for USDC → USDC. Quotes are cached 30 seconds and go stale fast; nothing here creates or signs a transaction. This page is the demo for the <a href="#/api-docs">Quote &amp; route API</a> (<span class="mono">GET /api/walletscope/quote/with-guard</span>) — keyless today, keyed &amp; metered in the paid tier.</p>
       <div id="quote-form-wrap"><div class="spinner">Loading token list…</div></div>
     </div></div>
     <div id="quote-guard"></div>
     <div id="quote-results"></div>
     <div id="quote-allowance"></div>
+    <div id="quote-api"></div>
     </div>`);
   let tok;
   try { tok = await loadQuoteTokens(); }
@@ -1911,11 +2015,17 @@ async function quotePage() {
       return;
     }
     $("#quote-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Fetching routes…</div></div></div>`;
+    $("#quote-guard").innerHTML = "";
+    $("#quote-api").innerHTML = "";
     let d;
     try {
       const qs = new URLSearchParams({ from_chain: fc, from_token: ft, to_chain: tc, to_token: tt, amount });
       if (addr) qs.set("from_address", addr);
-      d = await fetchJson(API + "/quote?" + qs.toString(), null, 30000);
+      // Quote & route API (phase 3, item 11): routes + both guard
+      // verdicts in one call. The guard rides along, so a slow
+      // guard can delay the routes — the 90s timeout matches the
+      // standalone guard fetch.
+      d = await fetchJson(API + "/quote/with-guard?" + qs.toString(), null, 90000);
     } catch (err) {
       if (!alive()) return;
       $("#quote-results").innerHTML = `<div class="card"><div class="empty">Quote failed: ${esc(err.message)}</div></div>`;
@@ -1947,11 +2057,33 @@ async function quotePage() {
       ${(d.notes || []).length ? `<div class="notice">${d.notes.map((n) => esc(n)).join("<br>")}</div>` : ""}
       <div style="padding:0 16px 14px" class="muted"><span style="font-size:12px">${esc(d.disclaimer || "")}</span></div>
       </div>`;
-    // Peg / volatility guard (P3): runs after the routes render, so a
-    // slow guard never blocks the quote. Best route's rate-vs-spot is
-    // the slippage input for volatility-mode guards.
+    // Peg / volatility guard (P3): embedded in the Quote API
+    // response — render the banners from it, no second fetch. Best
+    // route's rate-vs-spot was the guard's slippage input. Falls
+    // back to the standalone guard endpoint if the combined
+    // response carries no guard block (e.g. an older server).
     const best = (d.routes || [])[0];
-    loadQuoteGuards(fc, ft, tc, tt, amount, best ? best.vs_spot_pct : null);
+    if (d.guard && (d.guard.from_leg || d.guard.to_leg)) {
+      const legs = [{ g: d.guard.from_leg, role: "You pay" }];
+      const sameLeg = ft.toLowerCase() === tt.toLowerCase() && fc === tc;
+      if (d.guard.to_leg && !sameLeg) legs.push({ g: d.guard.to_leg, role: "You receive" });
+      const el = document.getElementById("quote-guard");
+      if (el) el.innerHTML = legs.map((l) => quoteGuardBanner(l.g, l.role)).join("");
+    } else {
+      loadQuoteGuards(fc, ft, tc, tt, amount, best ? best.vs_spot_pct : null);
+    }
+    // Quote API contract card: the endpoint behind this page, its
+    // method/limits, and the raw JSON link.
+    const apiEl = document.getElementById("quote-api");
+    if (apiEl) {
+      const sum = d.guard_summary || {};
+      apiEl.innerHTML = `<div class="card"><div class="card-head">🔌 Quote &amp; route API <span class="spacer"></span><span class="badge info">keyless today</span></div>
+      <div style="padding:12px 16px">
+        <div style="margin:4px 0">This page calls <span class="mono">GET ${esc(d.api_url || "")}</span> — routes + both guard verdicts in one call${sum.worst_verdict ? ` · worst guard verdict: <b>${esc(sum.worst_verdict)}</b>${sum.blocked ? " (blocked — do not pay in that coin)" : ""}` : ""}. <a href="${esc(d.api_url || "")}" target="_blank" rel="noopener">View raw JSON →</a> · <a href="#/api-docs">API docs →</a></div>
+        ${d.method ? `<div class="muted" style="font-size:12.5px;margin-top:6px">${esc(d.method)}</div>` : ""}
+        ${(d.limits || []).length ? `<ul class="risk-reasons muted" style="font-size:12px">${d.limits.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
+      </div></div>`;
+    }
     // Allowance badges (P4): one live allowance read per distinct
     // route spender, never blocking the quote.
     loadQuoteAllowances(fc, ft, amount, addr, d.routes || []);
@@ -2242,12 +2374,440 @@ async function preflightPage(param) {
   if (param) runCheck();
 }
 
+/* ---------------- address screening (walletscope only, phase 3 item 1) ---------------- */
+/* Backend: GET /api/walletscope/screen/address?address= (&chain= for
+   EVM). One address in, score + band + reasons + hop exposure out.
+   Reuses the OFAC SDN risk walk (common/risk.py) — nothing here is
+   a new check, only a dedicated endpoint. The sanctions walk fans
+   out upstream, so the client timeout is 90s. A clear verdict is a
+   screening signal, not proof the address is clean. */
+let screenRun = 0;
+
+function screenResultHtml(d) {
+  const v = String(d.verdict || "review").toLowerCase();
+  const badgeCls = { clear: "ok", review: "warn", block: "fail" }[v] || "grey";
+  const vLabel = { clear: "CLEAR — nothing found", review: "REVIEW — sanctioned exposure 2-3 hops out", block: "BLOCK — do not transact" }[v] || v;
+  const lab = labelFor(d.address, "ethereum");
+  const ex = d.exposure || {};
+  const hitsByHop = ex.sanctioned_hits_by_hop || {};
+  const hopRows = [1, 2, 3].map((h) => {
+    const n = hitsByHop[String(h)] || 0;
+    return `<tr><td><b>Hop ${h}</b></td><td class="r">${n} sanctioned counterparty${n === 1 ? "" : "ies"}</td></tr>`;
+  }).join("");
+  const limits = (d.limits || []).map((l) => `<li>${esc(l)}</li>`).join("");
+  return `
+  <div class="card risk-card risk-${esc(String(d.level || "low"))}">
+    <div class="card-head">Screening verdict <span class="spacer"></span><span class="badge ${badgeCls}">${esc(vLabel)}</span></div>
+    <div style="padding:14px 16px">
+      <div class="addr-title"><span class="mono" style="font-size:15px">${esc(d.address)}</span> ${copyBtn(d.address)}${lab ? ` <span class="label-pill" title="Curated label (labels.json)">${esc(lab)}</span>` : ""}</div>
+      <div class="muted" style="margin-top:6px">${esc(d.resolved_from ? `Resolved from “${d.resolved_from}” · ` : "")}${esc(d.chain_label || d.chain || "")} · ${esc(d.family || "")}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="risk-score">${esc(String(d.score))}</span><span class="muted">/ 100 · ${esc(String(d.level || ""))}</span></div>
+      <p style="margin:10px 0 0"><b>${esc(d.verdict_reason || "")}</b></p>
+      <div style="margin-top:12px"><b>Hop exposure</b> <span class="muted" style="font-size:12px">(sanctioned counterparties found at each hop of the funder walk)</span></div>
+      <table class="tbl" style="margin-top:6px"><tbody>
+        ${hopRows}
+        <tr><td><b>Counterparties checked</b></td><td class="r">${esc(String(ex.counterparties_checked != null ? ex.counterparties_checked : "—"))}</td></tr>
+        <tr><td><b>Transactions scanned</b></td><td class="r">${esc(String(ex.txs_scanned != null ? ex.txs_scanned : "—"))}</td></tr>
+        <tr><td><b>Max hop</b></td><td class="r">${esc(String(ex.max_hop != null ? ex.max_hop : "—"))}${ex.walk_partial ? ` <span class="badge warn">partial walk</span>` : ""}</td></tr>
+      </tbody></table>
+      ${ex.note ? `<div class="muted" style="font-size:12px;margin-top:8px">${esc(ex.note)}</div>` : ""}
+      <div class="muted" style="font-size:12px;margin-top:10px">${esc(d.method || "")}</div>
+      ${limits ? `<ul class="risk-reasons muted" style="font-size:12px">${limits}</ul>` : ""}
+    </div>
+  </div>
+  ${d.risk ? `<div id="screen-risk">${riskCardHtml(d.risk)}</div>` : ""}
+  <div class="card"><div style="padding:12px 16px">
+    <span class="muted" style="font-size:12.5px">Sending to this address? Run the full <a href="${preflightHref(d.address)}">pre-flight check →</a> (EOA vs contract, frozen status, activity) · <a href="${walletHref(d.address)}">Open the wallet dashboard →</a></span>
+  </div></div>`;
+}
+
+async function screenPage(param) {
+  clearPoll();
+  const run = ++screenRun;
+  const alive = () => run === screenRun && document.getElementById("screen-root");
+  document.title = "Screen address — " + TITLE;
+  render(`
+    <div id="screen-root">
+    <div class="pagehead"><h2>🛡️ Screen an Address</h2></div>
+    <div class="card"><div style="padding:16px">
+      <p class="muted" style="margin-top:0">One address in, score + reasons + hop exposure out: direct OFAC SDN match (100/critical), N-hop proximity to a sanctioned address via a bounded funder walk, and sanctioned-mixer interaction. Works for EVM, Solana and Bitcoin addresses and ENS names. A clear verdict is a screening signal, not proof the address is clean (see the limits under every result). API: <a href="#/api-docs">GET /api/walletscope/screen/address</a>. Browse the whole list: <a href="#/sanctions">OFAC sanctions list →</a>.</p>
+      <form id="screen-form" autocomplete="off">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+          <label class="field" style="grid-column:1/-1">Address<input type="text" id="sc-address" placeholder="0x… / Solana / Bitcoin / vitalik.eth" value="${esc(param || "")}"></label>
+          <label class="field">EVM chain<select id="sc-chain"><option value="ethereum">Ethereum</option><option value="sepolia">Sepolia</option><option value="optimism">Optimism</option><option value="gnosis">Gnosis</option></select></label>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button class="btn" type="submit">Screen address</button>
+          <span class="muted" style="font-size:12px">Try: <a href="#/screen/vitalik.eth">vitalik.eth</a> · <a href="#/screen/0x0330070fd38ec3bb94f58fa55d40368271e9e54a">an OFAC SDN address (AMNOKGANG)</a></span>
+        </div>
+      </form>
+    </div></div>
+    <div id="screen-results"></div>
+    </div>`);
+  const runCheck = async () => {
+    const addr = $("#sc-address").value.trim();
+    if (!addr) {
+      $("#screen-results").innerHTML = `<div class="card"><div class="empty">Enter an address first.</div></div>`;
+      return;
+    }
+    const chain = $("#sc-chain").value;
+    $("#screen-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Screening… (sanctions walk can take up to a minute)</div></div></div>`;
+    let d;
+    try {
+      const qs = new URLSearchParams({ address: addr });
+      if (chain) qs.set("chain", chain);
+      d = await fetchJson(API + "/screen/address?" + qs.toString(), null, 90000);
+    } catch (err) {
+      if (!alive()) return;
+      $("#screen-results").innerHTML = `<div class="card"><div class="empty">Screening failed: ${esc(err.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    $("#screen-results").innerHTML = screenResultHtml(d);
+  };
+  $("#screen-form").addEventListener("submit", (e) => { e.preventDefault(); runCheck(); });
+  if (param) runCheck();
+}
+
+/* ---------------- transaction screening (walletscope only, phase 3 item 2) ---------------- */
+/* Backend: GET /api/walletscope/screen/transaction?chain=&hash=.
+   One transaction in, score + band + reasons + hop exposure out,
+   with the settlement summary (value, USD at execution,
+   confirmations). Reuses the settlement tracker for the tx data
+   and the OFAC SDN risk walk per counterparty — nothing here is a
+   new check, only a dedicated endpoint. The counterparty walks fan
+   out upstream, so the client timeout is 180s. A clear verdict is
+   a screening signal, not proof the transaction is clean. */
+let txScreenRun = 0;
+
+function txScreenResultHtml(d) {
+  const v = String(d.verdict || "review").toLowerCase();
+  const badgeCls = { clear: "ok", review: "warn", block: "fail" }[v] || "grey";
+  const vLabel = { clear: "CLEAR — nothing found", review: "REVIEW — sanctioned exposure 2-3 hops out", block: "BLOCK — do not accept" }[v] || v;
+  const s = d.settlement || {};
+  const amt = s.amount || {};
+  const ex = d.exposure || {};
+  const hitsByHop = ex.sanctioned_hits_by_hop || {};
+  const hopRows = [1, 2, 3].map((h) => {
+    const n = hitsByHop[String(h)] || 0;
+    return `<tr><td><b>Hop ${h}</b></td><td class="r">${n} sanctioned counterparty${n === 1 ? "" : "ies"}</td></tr>`;
+  }).join("");
+  const reasons = (d.reasons || []).map((r) => `<li>${esc(r)}</li>`).join("");
+  const cpRows = (d.counterparties || []).map((c) => {
+    const dh = c.direct_hit;
+    return `<tr><td class="mono">${esc(c.address ? String(c.address).slice(0, 10) + "…" + String(c.address).slice(-4) : "—")}</td><td>${esc(c.role || "")}</td><td>${dh ? `<span class="badge fail">SDN: ${esc(dh.name || "")}</span>` : '<span class="muted">—</span>'}</td><td>${c.walked ? "yes" : (c.walk_error ? `<span class="badge warn" title="${esc(c.walk_error)}">failed</span>` : "no — direct check only")}</td><td class="r">${c.risk_score != null ? esc(String(c.risk_score)) + " / " + esc(String(c.risk_level || "")) : '<span class="muted">—</span>'}</td><td class="r">${c.nearest_hop_from_counterparty != null ? "hop " + esc(String(c.nearest_hop_from_counterparty)) : '<span class="muted">—</span>'}</td></tr>`;
+  }).join("");
+  const hitRows = (d.hits || []).map((h) => `<tr><td class="r">${esc(String(h.tx_hop))}</td><td class="mono">${esc(h.address ? String(h.address).slice(0, 10) + "…" + String(h.address).slice(-4) : "—")}</td><td>${esc(h.name || "")} <span class="muted">${esc(h.program || "")}</span></td><td>${h.mixer ? '<span class="badge warn">mixer</span>' : '<span class="muted">—</span>'}</td><td class="r">${esc(String(h.score))}</td><td class="mono">${esc(h.via_counterparty ? String(h.via_counterparty).slice(0, 10) + "…" : "—")}</td></tr>`).join("");
+  const limits = (d.limits || []).map((l) => `<li>${esc(l)}</li>`).join("");
+  const bridge = s.bridge;
+  return `
+  <div class="card risk-card risk-${esc(String(d.level || "low"))}">
+    <div class="card-head">Screening verdict <span class="spacer"></span><span class="badge ${badgeCls}">${esc(vLabel)}</span></div>
+    <div style="padding:14px 16px">
+      <div class="addr-title"><span class="mono" style="font-size:15px">${esc(d.tx_hash)}</span> ${copyBtn(d.tx_hash)}</div>
+      <div class="muted" style="margin-top:6px">${esc(d.chain_label || d.chain || "")} · ${esc(d.kind || "")}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="risk-score">${esc(String(d.score))}</span><span class="muted">/ 100 · ${esc(String(d.level || ""))}</span></div>
+      <p style="margin:10px 0 0"><b>${esc(d.verdict_reason || "")}</b></p>
+      <ul class="risk-reasons">${reasons}</ul>
+      <div style="margin-top:12px"><b>Hop exposure</b> <span class="muted" style="font-size:12px">(sanctioned counterparties found at each hop from this transaction)</span></div>
+      <table class="tbl" style="margin-top:6px"><tbody>
+        ${hopRows}
+        <tr><td><b>Counterparties checked</b></td><td class="r">${esc(String(ex.counterparties_checked != null ? ex.counterparties_checked : "—"))} <span class="muted">(${esc(String(ex.counterparties_walked != null ? ex.counterparties_walked : "—"))} walked)</span></td></tr>
+        <tr><td><b>Transactions scanned</b></td><td class="r">${esc(String(ex.txs_scanned != null ? ex.txs_scanned : "—"))}</td></tr>
+        <tr><td><b>Max hop</b></td><td class="r">${esc(String(ex.max_hop != null ? ex.max_hop : "—"))}${ex.walk_partial ? ` <span class="badge warn">partial walk</span>` : ""}</td></tr>
+        ${d.hits_beyond_scope ? `<tr><td><b>Beyond scored scope</b></td><td class="r">${esc(String(d.hits_beyond_scope))} sanctioned counterparties 4 hops out (not scored)</td></tr>` : ""}
+      </tbody></table>
+      ${ex.note ? `<div class="muted" style="font-size:12px;margin-top:8px">${esc(ex.note)}</div>` : ""}
+      <div class="muted" style="font-size:12px;margin-top:10px">${esc(d.method || "")}</div>
+      ${limits ? `<ul class="risk-reasons muted" style="font-size:12px">${limits}</ul>` : ""}
+    </div>
+  </div>
+  <div class="card"><div class="card-head">Settlement — ${esc(s.status || "")}</div><div style="padding:14px 16px">
+    ${detailRow("Status", `${esc(s.status || "—")}${s.economically_final ? ' <span class="badge ok">Economically final</span>' : ""}`)}
+    ${detailRow("Confirmations", s.confirmations != null ? `<span class="mono">${esc(String(s.confirmations))} ${esc(s.confirmations_unit || "confirmations")}</span> <span class="muted">(finality threshold ${esc(String(s.finality_threshold))})</span>` : '<span class="badge info">Pending</span>')}
+    ${detailRow("Amount", amountHtml(amt))}
+    ${detailRow("From", s.from ? `<span class="mono">${esc(s.from)}</span> ${copyBtn(s.from)} <a class="btn" href="${screenHref(s.from)}">🛡️ Screen address</a>` : '<span class="muted">—</span>')}
+    ${detailRow("To", s.to ? `<span class="mono">${esc(s.to)}</span> ${copyBtn(s.to)} <a class="btn" href="${screenHref(s.to)}">🛡️ Screen address</a>` : '<span class="muted">—</span>')}
+    ${bridge ? detailRow("Bridge", `${esc(bridge.bridge || bridge.kind || "")} → ${esc(bridge.to_chain || "")}`) : ""}
+    ${detailRow("Explorer", s.explorer_url ? `<a href="${esc(s.explorer_url)}" target="_blank" rel="noopener">${esc(s.explorer_url)}</a>` : '<span class="muted">—</span>')}
+    ${detailRow("Track", `<a href="${esc(trackHref(d.chain, d.tx_hash))}">Track settlement &amp; receipt →</a>`)}
+  </div></div>
+  ${cpRows ? `<div class="card"><div class="card-head">Counterparties checked</div><table class="tbl"><thead><tr><th>Address</th><th>Role</th><th>Direct SDN hit</th><th>Walked</th><th class="r">Counterparty risk</th><th class="r">Nearest sanctioned</th></tr></thead><tbody>${cpRows}</tbody></table><div style="padding:8px 16px" class="muted"><span style="font-size:12px">“Counterparty risk” is that address's own address-screening score (common/risk.py); the transaction score shifts its hits by one hop. Addresses not walked got the direct SDN check only.</span></div></div>` : ""}
+  ${hitRows ? `<div class="card"><div class="card-head">Sanctioned hits</div><table class="tbl"><thead><tr><th class="r">Tx hop</th><th>Address</th><th>Name</th><th>Mixer</th><th class="r">Score</th><th>Via counterparty</th></tr></thead><tbody>${hitRows}</tbody></table></div>` : ""}`;
+}
+
+async function txScreenPage(chain, hash) {
+  clearPoll();
+  const run = ++txScreenRun;
+  const alive = () => run === txScreenRun && document.getElementById("txscreen-root");
+  document.title = "Screen a transaction — " + TITLE;
+  render(`
+    <div id="txscreen-root">
+    <div class="pagehead"><h2>🛡️ Screen a Transaction</h2></div>
+    <div class="card"><div style="padding:16px">
+      <p class="muted" style="margin-top:0">One transaction in, score + reasons + hop exposure out: every counterparty is checked directly against the OFAC SDN list (a direct counterparty on the list scores 100/critical), and up to 4 counterparties get the full funder walk, with hits shifted by one hop. Works for Ethereum, Sepolia, Optimism, Gnosis, Solana and Bitcoin — before settlement too (a pending transaction screens on the counterparties visible now). A clear verdict is a screening signal, not proof the transaction is clean (see the limits under every result). API: <a href="#/api-docs">GET /api/walletscope/screen/transaction</a>.</p>
+      <form id="txscreen-form" autocomplete="off">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+          <label class="field">Chain<select id="txs-chain">${settleChainOptions(chain || "ethereum")}</select></label>
+          <label class="field" style="grid-column:span 3">Transaction hash / signature / txid<input type="text" id="txs-hash" placeholder="0x… (EVM) · base58 signature (Solana) · 64-hex txid (Bitcoin)" value="${esc(hash || "")}"></label>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button class="btn" type="submit">Screen transaction</button>
+          <span class="muted" style="font-size:12px">Try: <a href="#/txscreen/ethereum/0xf992b18ed585ddb7b68da195edac950af078d61c64959b63ed666439954d1f37">an Ethereum transaction</a></span>
+        </div>
+      </form>
+    </div></div>
+    <div id="txscreen-results"></div>
+    </div>`);
+  const runCheck = async () => {
+    const c = $("#txs-chain") ? $("#txs-chain").value : (chain || "ethereum");
+    const h = ($("#txs-hash") ? $("#txs-hash").value : (hash || "")).trim();
+    if (!h) {
+      $("#txscreen-results").innerHTML = `<div class="card"><div class="empty">Enter a transaction hash first.</div></div>`;
+      return;
+    }
+    history.replaceState(null, "", "#/txscreen/" + c + "/" + h);
+    $("#txscreen-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Screening… (counterparty walks can take up to two minutes)</div></div></div>`;
+    let d;
+    try {
+      const qs = new URLSearchParams({ chain: c, hash: h });
+      d = await fetchJson(API + "/screen/transaction?" + qs.toString(), null, 180000);
+    } catch (err) {
+      if (!alive()) return;
+      $("#txscreen-results").innerHTML = `<div class="card"><div class="empty">Screening failed: ${esc(err.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    $("#txscreen-results").innerHTML = txScreenResultHtml(d);
+  };
+  $("#txscreen-form").addEventListener("submit", (e) => { e.preventDefault(); runCheck(); });
+  if (hash) runCheck();
+}
+
+/* ---------------- plain-English transaction API demo (walletscope only, phase 3 item 13) ---------------- */
+/* Backend: GET /api/walletscope/explain?chain=&hash=. One transaction
+   in, one sentence ("What happened") plus the token-flow summary
+   out — the feature-3 explainer (common/explain.py) as a productized
+   paid-API contract. The result reuses explainCardHtml — the same
+   "What happened" card the tx pages show — with {chain} so the flow
+   links point at the right Scope app; nothing is re-rendered in
+   parallel. Unknown methods are reported honestly ("not in the
+   signature database"), multicall inner calls are not decoded, and
+   swap amounts come from the token transfers — see the limits under
+   every result. */
+let explainRun = 0;
+
+async function explainPage(chain, hash) {
+  clearPoll();
+  const run = ++explainRun;
+  const alive = () => run === explainRun && document.getElementById("explain-root");
+  document.title = "Explain a transaction — " + TITLE;
+  render(`
+    <div id="explain-root">
+    <div class="pagehead"><h2>💬 Explain a Transaction</h2></div>
+    <div class="card"><div style="padding:16px">
+      <p class="muted" style="margin-top:0">One transaction in, one plain-English sentence out — plus the token flows (token, amount, from → to). Works for Ethereum, Sepolia, Optimism, Gnosis, Solana and Bitcoin. Method names come from a local canonical signature map, then the keyless 4byte.directory API (only curated names are accepted); swap amounts come from the transaction's token transfers, never from the call's minimum-out arguments. An undecodable method is reported honestly as "not in the signature database", never invented. Multicall inner calls and proxy / meta-tx internals are not decoded — the sentence says so. API: <a href="#/api-docs">GET /api/walletscope/explain</a> (Paid API — free &amp; keyless today).</p>
+      <form id="explain-form" autocomplete="off">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+          <label class="field">Chain<select id="ex-chain">${settleChainOptions(chain || "ethereum")}</select></label>
+          <label class="field" style="grid-column:span 3">Transaction hash / signature / txid<input type="text" id="ex-hash" placeholder="0x… (EVM) · base58 signature (Solana) · 64-hex txid (Bitcoin)" value="${esc(hash || "")}"></label>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button class="btn" type="submit">Explain transaction</button>
+          <span class="muted" style="font-size:12px">Try: <a href="#/explain/ethereum/0x88a0447fc9d143097e83a982fb12a8298d2f28edc66404cdc74fc0a654fb6c2e">plain ETH transfer (0.00185 ETH)</a> · <a href="#/explain/ethereum/0x19d0c4b4e276c201bac776b09ca25ba89cf07770ac01545e266ed4f887fdbb01">ERC-20 transfer (548 USDT)</a> · <a href="#/explain/ethereum/0xf992b18ed585ddb7b68da195edac950af078d61c64959b63ed666439954d1f37">Uniswap swap (0.03 ETH → Gato)</a> · <a href="#/explain/ethereum/0x5fc9184647a3ae5ae25b47db7219bab8a99f509c82f566501fb93dc71cba023a">approval (20 USDC)</a> · <a href="#/explain/ethereum/0xb37711ba2051e745b84d79d9b9ad0ff0a80f628c8619372f0a456917034c390a">unknown method (honest "not in the database")</a> · <a href="#/explain/solana/soGqMCJjgJV2qRLdmatifdt5yJ6QDdhWF7KCKk1Tn4f8rrN7E7FxCiCtZ8nQTVsGAdJv4WSMZuSE4NTnddLS3WF">Solana tx</a> · <a href="#/explain/bitcoin/45a0754629399f1487e988a4421cb98d993571f02c899f1ee11d79b80a6ba606">Bitcoin coinbase</a></span>
+        </div>
+      </form>
+    </div></div>
+    <div id="explain-results"></div>
+    </div>`);
+  const runCheck = async () => {
+    const c = $("#ex-chain") ? $("#ex-chain").value : (chain || "ethereum");
+    const h = ($("#ex-hash") ? $("#ex-hash").value : (hash || "")).trim();
+    if (!h) {
+      $("#explain-results").innerHTML = `<div class="card"><div class="empty">Enter a transaction hash first.</div></div>`;
+      return;
+    }
+    history.replaceState(null, "", "#/explain/" + c + "/" + h);
+    $("#explain-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Explaining…</div></div></div>`;
+    let d;
+    try {
+      const qs = new URLSearchParams({ chain: c, hash: h });
+      d = await fetchJson(API + "/explain?" + qs.toString(), null, 60000);
+    } catch (err) {
+      if (!alive()) return;
+      $("#explain-results").innerHTML = `<div class="card"><div class="empty">Explanation failed: ${esc(err.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    const explorerLink = c === "solana"
+      ? `<a href="https://solscan.io/tx/${esc(h)}" target="_blank" rel="noopener">View on Solscan →</a>`
+      : c === "bitcoin"
+        ? `<a href="https://mempool.space/tx/${esc(h)}" target="_blank" rel="noopener">View on mempool.space →</a>`
+        : (scopeUrl(c) ? `<a href="${esc(scopeUrl(c))}/#/tx/${esc(h)}" target="_blank" rel="noopener">View on ${esc(d.chain_label || c)} →</a>` : "");
+    const limits = (d.limits || []).map((l) => `<li>${esc(l)}</li>`).join("");
+    // The paid-API contract renames the decoded signature to
+    // method_signature (method is the contract description); map it
+    // back so the shared card shows the signature, as on tx pages.
+    $("#explain-results").innerHTML = explainCardHtml({ ...d, method: d.method_signature }, { chain: c }) + `
+    <div class="card"><div class="card-head">🔌 Plain-English transaction API <span class="spacer"></span><span class="badge info">keyless today</span></div>
+      <div style="padding:14px 16px">
+        <div style="margin:4px 0">This page calls <span class="mono">GET ${esc(d.api_url || "")}</span> — the full explanation in one call · kind: <b>${esc(d.kind || "")}</b>${d.method_signature ? ` · method: <span class="mono">${esc(d.method_signature)}</span>${d.method_source ? ` <span class="muted">(via ${esc(d.method_source)})</span>` : ""}` : ""}. <a href="${esc(d.api_url || "")}" target="_blank" rel="noopener">View raw JSON →</a> · <a href="#/api-docs">API docs →</a>${explorerLink ? ` · ${explorerLink}` : ""}</div>
+        <div class="muted" style="font-size:12px;margin-top:8px">${esc(d.method || "")}</div>
+        ${limits ? `<ul class="risk-reasons muted" style="font-size:12px">${limits}</ul>` : ""}
+      </div>
+    </div>`;
+  };
+  $("#explain-form").addEventListener("submit", (e) => { e.preventDefault(); runCheck(); });
+  if (hash) runCheck();
+}
+
+/* ---------------- sanctions list browser (walletscope only, phase 3 item 3) ---------------- */
+/* Backend: GET /api/walletscope/sanctions?program=&family=&name=&page=&page_size=.
+   The vendored OFAC SDN crypto-address set (514 addresses, snapshot
+   2026-11-05) as a queryable list — nothing is re-parsed, the
+   endpoint reuses common/risk.py wholesale. Served from memory, so
+   the client timeout is short. The list is a dated snapshot, not
+   the live OFAC list; the page says so, and the response's changes
+   block says the committed snapshot IS the baseline (no
+   newly-listed / delisted history before 2026-11-05). */
+let sanctionsRun = 0;
+let sanctionsMeta = null; // programs / families / counts from the first load
+
+function sanctionsRowsHtml(d) {
+  const rows = (d.entries || []).map((e) => `
+    <tr>
+      <td><span class="mono" style="word-break:break-all">${esc(e.address)}</span> ${copyBtn(e.address)}</td>
+      <td>${esc(e.currency)}</td>
+      <td>${esc(e.family)}${e.mixer ? ` <span class="badge warn" title="Sanctioned mixer service (Blender.io / Sinbad)">mixer</span>` : ""}</td>
+      <td>${esc(e.name)}</td>
+      <td>${(e.programs || []).map((p) => `<span class="mono">${esc(p)}</span>`).join(" ")}</td>
+      <td><a class="btn" href="#/screen/${encodeURIComponent(e.address)}" title="Screen this address: OFAC SDN score, reasons, hop exposure">🛡️ Screen</a></td>
+    </tr>`).join("");
+  return rows || `<tr><td colspan="6"><div class="empty">No entries match these filters.</div></td></tr>`;
+}
+
+function sanctionsResultsHtml(d) {
+  const c = d.counts || {};
+  const bf = c.by_family || {};
+  const bp = c.by_program || {};
+  const ch = d.changes || {};
+  const from = d.total_filtered ? (d.page - 1) * d.page_size + 1 : 0;
+  const to = Math.min(d.total_filtered, d.page * d.page_size);
+  const topPrograms = Object.entries(bp).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([p, n]) => `${esc(p)} (${esc(String(n))})`).join(" · ");
+  const limits = (d.limits || []).map((l) => `<li>${esc(l)}</li>`).join("");
+  return `
+  <div class="card"><div style="padding:14px 16px">
+    <div style="display:flex;flex-wrap:wrap;gap:18px">
+      <span><b>${esc(String(d.total))}</b> <span class="muted">addresses in the vendored set</span></span>
+      <span><b>${esc(String(bf.evm ?? "—"))}</b> <span class="muted">EVM</span></span>
+      <span><b>${esc(String(bf.bitcoin ?? "—"))}</b> <span class="muted">Bitcoin</span></span>
+      <span><b>${esc(String(bf.solana ?? "—"))}</b> <span class="muted">Solana</span></span>
+      <span><b>${esc(String(bf.other ?? "—"))}</b> <span class="muted">other chains</span></span>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:8px">Source: ${esc((d.sdn || {}).source || "")} · snapshot ${esc((d.sdn || {}).date || "")} · ${esc(String((d.sdn || {}).labels_total ?? ""))} labels. ${esc(ch.note || "")}</div>
+    <div class="muted" style="font-size:12px;margin-top:4px">${esc(d.method || "")}</div>
+    ${limits ? `<ul class="risk-reasons muted" style="font-size:12px">${limits}</ul>` : ""}
+  </div></div>
+  <div class="card"><div class="card-head">Sanctioned addresses <span class="spacer"></span><span class="muted" style="font-size:12px">${esc(String(d.total_filtered))} matching · showing ${esc(String(from))}–${esc(String(to))} · page ${esc(String(d.page))} of ${esc(String(d.total_pages))}</span></div>
+    <table class="tbl"><thead><tr><th>Address</th><th>Currency</th><th>Family</th><th>SDN name</th><th>Programs</th><th></th></tr></thead><tbody>${sanctionsRowsHtml(d)}</tbody></table>
+    <div style="padding:10px 16px;display:flex;gap:8px;align-items:center">
+      <button class="btn" id="sanc-prev" ${d.page <= 1 ? "disabled" : ""}>← Prev</button>
+      <button class="btn" id="sanc-next" ${d.page >= d.total_pages ? "disabled" : ""}>Next →</button>
+      <span class="muted" style="font-size:12px">Largest programs: ${topPrograms} — program counts overlap (one address can carry several tags).</span>
+    </div>
+  </div>`;
+}
+
+async function sanctionsPage() {
+  clearPoll();
+  const run = ++sanctionsRun;
+  const alive = () => run === sanctionsRun && document.getElementById("sanctions-root");
+  document.title = "Sanctions list — " + TITLE;
+  const state = { program: "", family: "", name: "", page: 1, page_size: 50 };
+  const programOptions = (sel) => `<option value="">All programs</option>` + ((sanctionsMeta && sanctionsMeta.programs) || []).map((p) =>
+    `<option value="${esc(p)}"${p === sel ? " selected" : ""}>${esc(p)} (${esc(String((sanctionsMeta.counts.by_program || {})[p] ?? ""))})</option>`).join("");
+  render(`
+    <div id="sanctions-root">
+    <div class="pagehead"><h2>📋 OFAC Sanctions List</h2></div>
+    <div class="card"><div style="padding:16px">
+      <p class="muted" style="margin-top:0">Every crypto address on the vendored OFAC SDN list, browsable: filter by sanctions program, chain family, or SDN name. An address here scores 100/critical on <a href="#/screen">address screening</a> — click 🛡️ Screen on any row to run the full check. API: <a href="#/api-docs">GET /api/walletscope/sanctions</a>.</p>
+      <form id="sanctions-form" autocomplete="off">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+          <label class="field">Program<select id="sanc-program">${programOptions("")}</select></label>
+          <label class="field">Chain family<select id="sanc-family"><option value="">All families</option><option value="evm">EVM</option><option value="bitcoin">Bitcoin</option><option value="solana">Solana</option><option value="other">Other chains</option></select></label>
+          <label class="field" style="grid-column:span 2">SDN name<input type="text" id="sanc-name" placeholder="e.g. LAZARUS"></label>
+          <label class="field">Page size<select id="sanc-size"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option></select></label>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button class="btn" type="submit">Apply filters</button>
+          <span class="muted" style="font-size:12px">Try: <a href="#/sanctions" data-sanc-try="DPRK3">DPRK3</a> · <a href="#/sanctions" data-sanc-try="LAZARUS">LAZARUS</a></span>
+        </div>
+      </form>
+    </div></div>
+    <div id="sanctions-results"><div class="card"><div style="padding:16px"><div class="spinner">Loading sanctions list…</div></div></div></div>
+    </div>`);
+  const load = async () => {
+    if (!alive()) return;
+    $("#sanctions-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Loading sanctions list…</div></div></div>`;
+    let d;
+    try {
+      const qs = new URLSearchParams({ page: String(state.page), page_size: String(state.page_size) });
+      if (state.program) qs.set("program", state.program);
+      if (state.family) qs.set("family", state.family);
+      if (state.name) qs.set("name", state.name);
+      d = await fetchJson(API + "/sanctions?" + qs.toString(), null, 15000);
+    } catch (err) {
+      if (!alive()) return;
+      $("#sanctions-results").innerHTML = `<div class="card"><div class="empty">Sanctions list failed to load: ${esc(err.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    if (!sanctionsMeta) {
+      sanctionsMeta = { programs: d.programs || [], counts: d.counts || {} };
+      const sel = $("#sanc-program");
+      if (sel) sel.innerHTML = programOptions(state.program);
+    }
+    $("#sanctions-results").innerHTML = sanctionsResultsHtml(d);
+    const prev = $("#sanc-prev"), next = $("#sanc-next");
+    if (prev) prev.addEventListener("click", () => { if (state.page > 1) { state.page--; load(); } });
+    if (next) next.addEventListener("click", () => { if (state.page < d.total_pages) { state.page++; load(); } });
+  };
+  $("#sanctions-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    state.program = $("#sanc-program").value;
+    state.family = $("#sanc-family").value;
+    state.name = $("#sanc-name").value.trim();
+    state.page_size = Number($("#sanc-size").value) || 50;
+    state.page = 1;
+    load();
+  });
+  document.querySelectorAll("[data-sanc-try]").forEach((a) => a.addEventListener("click", (e) => {
+    e.preventDefault();
+    const v = a.dataset.sancTry;
+    if (/^[A-Z0-9-]+$/.test(v) && (sanctionsMeta || {}).programs && sanctionsMeta.programs.includes(v)) {
+      $("#sanc-program").value = v; state.program = v; state.name = "";
+    } else {
+      $("#sanc-name").value = v; state.name = v; state.program = "";
+    }
+    state.family = ""; $("#sanc-family").value = "";
+    state.page = 1; load();
+  }));
+  load();
+}
+
 /* ---------------- settlement tracker & receipt (walletscope only, Q1) ---------------- */
 /* Backend: GET /api/walletscope/settle?chain=&hash= (timeline + receipt
    fields + bridge leg) and GET /api/walletscope/receipt?chain=&hash=
    (&format=json). "Economically final" is a convention (see the notes
    under every result), USD at execution uses the execution-day price
-   where available and is labelled estimate-current otherwise. */
+   where available and is labelled estimate-current otherwise.
+   Settlement verification API (phase 3, item 9): GET
+   /api/walletscope/verify?chain=&hash= — the tracker payload plus
+   the receipt plus an explicit verdict (verified-final /
+   confirmed-not-final / pending / failed). The #/track and #/verify
+   pages below call /verify and render the verdict card on top of the
+   tracker result (common/verify.py). */
 let settleRun = 0;
 let lastReceiptJson = null;
 
@@ -2290,6 +2850,29 @@ function amountHtml(a) {
   return `<b class="mono">${esc(String(a.value ?? "—"))} ${esc(a.symbol || a.token_address || "")}</b>${usd}${a.note ? `<div class="muted" style="font-size:12px;margin-top:4px">${esc(a.note)}</div>` : ""}`;
 }
 
+function verifyVerdictHtml(d) {
+  /* Verification verdict card (phase 3, item 9): the /verify answer
+     up front — verdict, finality stated against the threshold, USD
+     at execution with its price basis. d is the /verify payload,
+     which carries every /settle field plus verdict / finality /
+     value_usd_at_execution / receipt. */
+  const f = d.finality || {};
+  const badgeCls = d.verdict === "verified-final" ? "ok" : d.verdict === "failed" ? "fail" : "info";
+  const verdictLabel = { "verified-final": "✓ Verified — economically final", "confirmed-not-final": "Confirmed — not yet final", "pending": "Pending — not yet mined", "failed": "Failed" }[d.verdict] || esc(d.verdict || "—");
+  return `
+  <div class="card" style="border-color:#c9a7eb;background:#faf7ff">
+    <div class="card-head">Verification verdict <span class="spacer"></span><span class="badge ${badgeCls}">${verdictLabel}</span> <span class="badge info">Paid API</span></div>
+    <div style="padding:14px 16px">
+      ${detailRow("Verdict", esc(d.verdict_reason || ""))}
+      ${detailRow("Finality", f.confirmations != null ? `<b>${num(f.confirmations)} ${esc(f.confirmations_unit || "confirmations")}</b> <span class="muted">vs threshold ${num(f.threshold)} ${esc(f.confirmations_unit || "confirmations")} — ${f.economically_final ? "economically final" : "not yet final"}</span>` : '<span class="muted">No confirmations yet</span>')}
+      ${detailRow("Value at execution", d.value_usd_at_execution != null ? `<b>≈ $${esc(String(d.value_usd_at_execution))}</b> <span class="muted">(${esc(d.price_basis === "estimate-current" ? "ESTIMATE — live price, execution-day price unavailable" : d.price_basis === "at-execution" ? "execution-day price" : String(d.price_basis || ""))})</span>` : '<span class="muted">USD unavailable — no price for this transaction</span>')}
+      ${d.bridge && d.bridge.kind === "cctp" ? detailRow("CCTP attestation", `<span class="badge ${d.bridge.attestation_status === "complete" ? "ok" : "info"}">${esc(d.bridge.attestation_status || "unknown")}</span> <span class="muted">Circle iris-api · mint ${d.bridge.attestation_status === "complete" ? "claimable" : "not yet claimable"} on ${esc(d.bridge.to_chain || "destination")} · destination mint tx not linked (no keyless source maps a Circle message hash to it)</span>`) : ""}
+      ${detailRow("Receipt", `<a href="${esc(receiptHref(d.chain, d.hash))}">Shareable receipt →</a> <span class="muted">(JSON exportable, generated at call time)</span>`)}
+      ${detailRow("API", `<a href="#/api-docs">GET /api/walletscope/verify?chain=${esc(d.chain)}&amp;hash=${esc(d.hash)}</a> <span class="muted">— one call: verdict + finality + USD at execution + receipt</span>`)}
+    </div>
+  </div>`;
+}
+
 function settleResultHtml(d) {
   const final = d.confirmations != null && d.finality_threshold != null && d.confirmations >= d.finality_threshold;
   const notes = (d.notes || []).map((n) => `<li>${esc(n)}</li>`).join("");
@@ -2309,6 +2892,7 @@ function settleResultHtml(d) {
       ${detailRow("Fee", d.fee && d.fee.value != null ? `<span class="mono">${esc(String(d.fee.value))} ${esc(d.fee.symbol || "")}</span>${d.fee.usd_value != null ? ` <span class="muted">≈ $${esc(String(d.fee.usd_value))}${d.fee.price_basis === "estimate-current" ? " (ESTIMATE)" : ""}</span>` : ""}${d.fee.fee_rate_sat_vb != null ? ` <span class="muted">· ${esc(String(d.fee.fee_rate_sat_vb))} sat/vB</span>` : ""}` : '<span class="muted">Unknown until mined</span>')}
       ${detailRow("Explorer", `<a href="${esc(d.explorer_url)}" target="_blank" rel="noopener">${esc(d.explorer_url)}</a>`)}
       ${detailRow("Receipt", `<a href="${esc(receiptHref(d.chain, d.hash))}">Shareable receipt →</a> <span class="muted">(JSON exportable)</span>`)}
+      ${detailRow("Screen transaction", `<a href="${esc(txScreenHref(d.chain, d.hash))}">Screen this transaction →</a> <span class="muted">sanctions score over its counterparties</span>`)}
     </div>
   </div>
   <div class="card"><div class="card-head">Timeline</div><div style="padding:8px 16px 14px">${timelineHtml(d.timeline)}</div></div>
@@ -2317,26 +2901,39 @@ function settleResultHtml(d) {
   ${notes ? `<div class="card"><div style="padding:12px 16px"><div class="muted" style="font-size:12px">Honest limits</div><ul class="risk-reasons muted" style="font-size:12px">${notes}</ul></div></div>` : ""}`;
 }
 
-async function trackPage(chain, hash) {
+async function trackPage(chain, hash, mode) {
+  /* mode "verify" (#/verify) is the settlement-verification demo for
+     the phase 3 item 9 paid API; mode "track" (#/track, default) is
+     the Q1 tracker. Both call GET /api/walletscope/verify and render
+     the verdict card above the tracker result — one page, not a
+     parallel tracker UI. */
+  const verifyMode = mode === "verify";
   clearPoll();
   const run = ++settleRun;
   const alive = () => run === settleRun && document.getElementById("track-root");
-  document.title = "Track settlement — " + TITLE;
+  document.title = (verifyMode ? "Verify settlement — " : "Track settlement — ") + TITLE;
+  const demoExamples = [
+    ["Ethereum swap (verified-final)", "ethereum", "0xf992b18ed585ddb7b68da195edac950af078d61c64959b63ed666439954d1f37", "0.03 WETH · $67.13 at execution"],
+    ["Ethereum → Solana CCTP (attestation complete)", "ethereum", "0x805869eccc1db8f80bc71b1ea167d01ef4cc021582f3d52ba771f7ddf4a06de1", "200,015.55 USDC · $199,940.86 at execution"],
+    ["Bitcoin (confirmed, not yet final)", "bitcoin", "e0f5e2944723f02d2165d59a1dd3343fa2f830eda80a450589e7027fa42db220", "largest output 4.59 BTC · 1 confirmation"],
+    ["Solana SPL transfer (verified-final)", "solana", "vN28GitN38GVwzG2knsVz9hyKGZmqC54u1gvyMLeaHMZKiMAwKBR6Pv77LCXTD5y3REy9S9j8k9UE4ju2YKCZ5n", "token transfer · USD unpriced (no keyless SPL price)"],
+  ];
   render(`
     <div id="track-root">
-    <div class="pagehead"><h2>🧾 Settlement Tracker</h2></div>
+    <div class="pagehead"><h2>${verifyMode ? "✅ Settlement Verification" : "🧾 Settlement Tracker"}</h2></div>
     <div class="card"><div style="padding:16px">
-      <p class="muted" style="margin-top:0">Paste a transaction hash and watch it settle: submitted → confirmed → economically final, plus the bridge leg (Circle CCTP attestation or Wormhole mint) when the transfer bridges. Works for Ethereum, Sepolia, Optimism, Gnosis, Solana and Bitcoin. Nothing here creates or signs a transaction.</p>
+      <p class="muted" style="margin-top:0">${verifyMode ? "One transaction hash in, a verification verdict out: confirmation status, finality stated against the per-chain threshold, USD value at execution with its price basis, the Circle CCTP attestation where applicable, and the shareable receipt — in a single call to <a href=\"#/api-docs\">GET /api/walletscope/verify</a> (Paid API — free &amp; keyless today). Works for Ethereum, Sepolia, Optimism, Gnosis, Solana and Bitcoin. Nothing here creates or signs a transaction." : "Paste a transaction hash and watch it settle: submitted → confirmed → economically final, plus the bridge leg (Circle CCTP attestation or Wormhole mint) when the transfer bridges. Works for Ethereum, Sepolia, Optimism, Gnosis, Solana and Bitcoin. Nothing here creates or signs a transaction."}</p>
       <form id="track-form" autocomplete="off">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
           <label class="field">Chain<select id="tr-chain">${settleChainOptions(chain || "ethereum")}</select></label>
           <label class="field" style="grid-column:span 3">Transaction hash / signature / txid<input type="text" id="tr-hash" placeholder="0x… (EVM) · base58 signature (Solana) · 64-hex txid (Bitcoin)" value="${esc(hash || "")}"></label>
         </div>
         <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
-          <button class="btn" type="submit">Track settlement</button>
+          <button class="btn" type="submit">${verifyMode ? "Verify settlement" : "Track settlement"}</button>
           <span class="muted" style="font-size:12px">“Economically final” is a convention (see the notes under every result).</span>
         </div>
       </form>
+      <div class="muted" style="font-size:12px;margin-top:10px">Try a verified example: ${demoExamples.map(([label, c, h, note]) => `<a href="#/verify/${c}/${h}">${esc(label)}</a> <span class="muted">(${esc(note)})</span>`).join(" · ")}</div>
     </div></div>
     <div id="track-results"></div>
     </div>`);
@@ -2347,19 +2944,19 @@ async function trackPage(chain, hash) {
       $("#track-results").innerHTML = `<div class="card"><div class="empty">Enter a transaction hash first.</div></div>`;
       return;
     }
-    history.replaceState(null, "", "#/track/" + c + "/" + h);
-    $("#track-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Tracking settlement… (bridge checks can take a few seconds)</div></div></div>`;
+    history.replaceState(null, "", "#/" + (verifyMode ? "verify" : "track") + "/" + c + "/" + h);
+    $("#track-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Verifying settlement… (bridge checks can take a few seconds)</div></div></div>`;
     let d;
     try {
       const qs = new URLSearchParams({ chain: c, hash: h });
-      d = await fetchJson(API + "/settle?" + qs.toString(), null, 60000);
+      d = await fetchJson(API + "/verify?" + qs.toString(), null, 60000);
     } catch (err) {
       if (!alive()) return;
-      $("#track-results").innerHTML = `<div class="card"><div class="empty">Tracking failed: ${esc(err.message)}</div></div>`;
+      $("#track-results").innerHTML = `<div class="card"><div class="empty">Verification failed: ${esc(err.message)}</div></div>`;
       return;
     }
     if (!alive()) return;
-    $("#track-results").innerHTML = settleResultHtml(d);
+    $("#track-results").innerHTML = verifyVerdictHtml(d) + settleResultHtml(d);
   };
   $("#track-form").addEventListener("submit", (e) => { e.preventDefault(); runTrack(); });
   if (hash) runTrack();
@@ -2946,7 +3543,7 @@ async function freezeWatchPage(param) {
   render(`
     <div class="pagehead"><h2>🧊 Freeze Watch</h2></div>
     <div class="card"><div style="padding:18px 16px">
-      <p class="muted" style="margin-top:0">Is this address currently frozen or blacklisted by a stablecoin issuer — and does any freeze event name it? EVM addresses are checked with the live on-chain read probe (<span class="mono">isBlacklisted</span> / <span class="mono">isBlackListed</span> / <span class="mono">isFrozen</span> / <span class="mono">frozen</span>) plus the freeze/blacklist events naming the address in the scanned window; Solana addresses are checked against the SPL mint's freeze authority and the token account's current state. The issuer blacklist is <b>not</b> enumerable on-chain — “not frozen” means the probe says not frozen and no event in the window names the address; it cannot prove the address was never frozen before the window. TUSD has no on-chain read function, so its state is event-derived, never live-verified. Nothing here creates or signs a transaction.</p>
+      <p class="muted" style="margin-top:0">Is this address currently frozen or blacklisted by a stablecoin issuer — and does any freeze event name it? EVM addresses are checked with the live on-chain read probe (<span class="mono">isBlacklisted</span> / <span class="mono">isBlackListed</span> / <span class="mono">isFrozen</span> / <span class="mono">frozen</span>) plus the freeze/blacklist events naming the address in the scanned window; Solana addresses are checked against the SPL mint's freeze authority and the token account's current state. The issuer blacklist is <b>not</b> enumerable on-chain — “not frozen” means the probe says not frozen and no event in the window names the address; it cannot prove the address was never frozen before the window. TUSD has no on-chain read function, so its state is event-derived, never live-verified. Nothing here creates or signs a transaction. Browse every freeze event instead: <a href="#/freeze-feed">Freeze event feed →</a></p>
       <form id="fw-form" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
         <label class="field" style="flex:2;min-width:280px">Address<input type="text" id="fw-address" placeholder="0x… / Solana address, or ENS name" value="${esc(param || "")}"></label>
         <label class="field">Coin<select id="fw-coin"><option value="">No coin — check USDC + USDT</option>${FREEZE_WATCH_COINS.map((c) => `<option value="${esc(c)}">${esc(c)} (Ethereum)</option>`).join("")}<option value="SOL-USDC">USDC (Solana)</option><option value="SOL-USDT">USDT (Solana)</option></select></label>
@@ -2999,6 +3596,129 @@ async function freezeWatchPage(param) {
   if (param) runCheck();
 }
 
+/* ---------------- freeze event feed (walletscope only, phase 3 item 4) ---------------- */
+/* Backend: GET /api/walletscope/freeze/feed?coin=&kind=&address=&from=
+   &to=&days=&page=&page_size= — polling feed of freeze/blacklist/pause
+   events per issuer across the freezable stablecoins (USDC, USDT, PYUSD,
+   FDUSD, TUSD), built on common/freeze.py (feature 10) wholesale. DAI /
+   USDe have no freeze function and USDD none observed on Tron — they
+   appear in the `coins` coverage block as not_applicable, never as
+   silent empty feeds. Frozen state is a LOWER-BOUND ESTIMATE (the
+   blacklist is not enumerable on-chain); event windows are limited by
+   log-scan depth. A cold load scans up to 5 coins' logs and can take
+   ~30s; repeat loads are served from the 300s server cache. */
+const FREEZE_FEED_COINS = ["USDC", "USDT", "PYUSD", "FDUSD", "TUSD", "DAI", "USDe", "USDD"];
+const FREEZE_FEED_KINDS = ["blacklisted", "unblacklisted", "destroyed", "frozen", "unfrozen", "wiped", "blacklist_set", "paused", "unpaused"];
+const FREEZE_FEED_KIND_LABELS = { blacklisted: "Blacklisted", unblacklisted: "Unblacklisted", destroyed: "Black funds destroyed", frozen: "Frozen", unfrozen: "Unfrozen", wiped: "Frozen funds wiped", blacklist_set: "Blacklist set", paused: "Paused (all transfers)", unpaused: "Unpaused" };
+let freezeFeedRun = 0;
+
+function freezeFeedResultsHtml(d) {
+  const countsCoin = Object.entries(d.counts_by_coin || {}).map(([c, v]) => `${esc(c)}: ${num(v)}`).join(" · ") || "none";
+  const countsKind = Object.entries(d.counts_by_kind || {}).map(([k, v]) => `${esc(FREEZE_FEED_KIND_LABELS[k] || k)}: ${num(v)}`).join(" · ") || "none";
+  const coverage = (d.coins || []).map((c) => {
+    if (c.status === "not_applicable") return `<div class="detail"><div class="dk">${esc(c.symbol)}</div><div class="dv"><span class="badge grey">No freeze function</span> <span class="muted">${esc(c.reason || "")}</span></div></div>`;
+    return `<div class="detail"><div class="dk">${esc(c.symbol)} <span class="muted">(${esc(c.issuer || "")})</span></div><div class="dv">${num(c.events_in_window)} event(s) in ${num(c.window_days)}d${c.extended_lookback ? " (5-year lookback — silent for a year)" : ""} · ${num(c.currently_frozen_addresses)} address(es) currently frozen${c.scan_status && c.scan_status !== "ok" ? ` · <span class="badge warn">scan ${esc(c.scan_status)}</span>${c.scan_note ? ` ${esc(c.scan_note)}` : ""}` : ""}</div></div>`;
+  }).join("");
+  const rows = (d.events || []).map((e) => `<tr><td class="mono">${esc(e.date ? e.date.slice(0, 19).replace("T", " ") + " UTC" : "—")}</td><td><b>${esc(e.coin || "")}</b> <span class="muted">${esc(e.issuer || "")}</span></td><td><span class="badge ${e.event_type === "blacklisted" || e.event_type === "frozen" || e.event_type === "blacklist_set" || e.event_type === "paused" ? "fail" : e.event_type === "destroyed" || e.event_type === "wiped" ? "warn" : "ok"}">${esc(FREEZE_FEED_KIND_LABELS[e.event_type] || e.event_type || "—")}</span></td><td class="mono">${e.address ? esc(e.address.slice(0, 10)) + "…" + esc(e.address.slice(-4)) + " " + copyBtn(e.address) : '<span class="muted">— (global)</span>'}${e.currently_frozen === true ? ' <span class="badge fail" title="The scanned window\'s freeze events show this address as currently frozen (lower-bound estimate)">frozen now</span>' : e.currently_frozen === false ? ' <span class="badge ok" title="The scanned window\'s freeze events show this address as no longer frozen">unfrozen</span>' : ""}</td><td class="r mono">${e.amount != null ? `${esc(String(e.amount))} ${esc(e.coin || "")}${e.amount_usd != null ? ` (${usd(e.amount_usd)})` : ""}` : "—"}</td><td>${e.tx_hash ? linkTxC("ethereum", e.tx_hash) : "—"}</td></tr>`).join("");
+  return `
+  <div class="card"><div style="padding:14px 16px">
+    <div style="margin-bottom:8px"><b>${num(d.total_filtered)}</b> event(s) match${d.total_filtered !== d.total_events ? ` (of ${num(d.total_events)} in the scanned window)` : ""} · page ${num(d.page)} of ${num(d.total_pages)}</div>
+    <div class="muted" style="font-size:12px">By coin: ${countsCoin} · By event: ${countsKind}</div>
+    <div style="margin-top:10px">${coverage}</div>
+  </div></div>
+  <div class="card">${d.events && d.events.length ? `<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Time (UTC)</th><th>Coin</th><th>Event</th><th>Address</th><th class="r">Amount</th><th>Tx</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div style="padding:12px 16px;display:flex;gap:8px;align-items:center"><button class="btn" id="ff-prev"${d.page <= 1 ? " disabled" : ""}>← Prev</button><button class="btn" id="ff-next"${d.page >= d.total_pages ? " disabled" : ""}>Next →</button><span class="muted" style="font-size:12px">Page ${num(d.page)} of ${num(d.total_pages)} · ${num(d.total_filtered)} event(s)</span></div>`
+  : `<div class="empty">${d.coins && d.coins.some((c) => c.status === "not_applicable" && (d.filters.coins || []).includes(c.symbol)) ? "No freeze events: the selected coin has no freeze function (see the coverage note above) — reported as not applicable, not as zero." : "No freeze events match these filters in the scanned window."}</div>`}</div>
+  <div class="card"><div style="padding:12px 16px"><div class="muted" style="font-size:12px">Honest limits</div><ul class="risk-reasons muted" style="font-size:12px">${(d.limits || []).map((n) => `<li>${esc(n)}</li>`).join("")}</ul><div class="muted" style="font-size:12px;margin-top:6px">${esc(d.method || "")}</div></div></div>`;
+}
+
+async function freezeFeedPage() {
+  clearPoll();
+  const run = ++freezeFeedRun;
+  const alive = () => run === freezeFeedRun && document.getElementById("freeze-feed-root");
+  document.title = "Freeze Event Feed — " + TITLE;
+  const q = new URLSearchParams((location.hash.split("?")[1] || ""));
+  const state = {
+    coin: q.get("coin") || "",
+    kind: q.get("kind") || "",
+    address: q.get("address") || "",
+    from: q.get("from") || "",
+    to: q.get("to") || "",
+    days: q.get("days") || "",
+    page: 1, page_size: 50,
+  };
+  const coinOptions = (sel) => `<option value="">All freezable coins</option>` + FREEZE_FEED_COINS.map((c) => `<option value="${esc(c)}"${c === sel ? " selected" : ""}>${esc(c)}${["DAI", "USDe", "USDD"].includes(c) ? " (no freeze function)" : ""}</option>`).join("");
+  const kindOptions = (sel) => `<option value="">All event types</option>` + FREEZE_FEED_KINDS.map((k) => `<option value="${esc(k)}"${k === sel ? " selected" : ""}>${esc(FREEZE_FEED_KIND_LABELS[k] || k)}</option>`).join("");
+  render(`
+    <div id="freeze-feed-root">
+    <div class="pagehead"><h2>🧊 Freeze Event Feed</h2></div>
+    <div class="card"><div style="padding:16px">
+      <p class="muted" style="margin-top:0">Every freeze, blacklist, unfreeze and destroyed-funds event the issuers have emitted on Ethereum — USDC, USDT, PYUSD, FDUSD, TUSD — newest first, filterable by coin, event type, address and time window. DAI and USDe have no freeze function and USDD none observed on Tron: pick one and the feed says so plainly instead of showing an empty list. Frozen state is a <b>lower-bound estimate</b> — the issuer blacklist is not enumerable on-chain, so addresses frozen before the scanned window (365 days; 5 years for silent TUSD) are missed. API: <a href="#/api-docs">GET /api/walletscope/freeze/feed</a>. Checking one address? <a href="#/freeze-watch">Freeze watch →</a></p>
+      <form id="ff-form" autocomplete="off">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+          <label class="field">Coin<select id="ff-coin">${coinOptions(state.coin)}</select></label>
+          <label class="field">Event type<select id="ff-kind">${kindOptions(state.kind)}</select></label>
+          <label class="field" style="grid-column:span 2">Address<input type="text" id="ff-address" placeholder="0x… holder address" value="${esc(state.address)}"></label>
+          <label class="field">From<input type="date" id="ff-from" value="${esc(state.from)}"></label>
+          <label class="field">To<input type="date" id="ff-to" value="${esc(state.to)}"></label>
+          <label class="field">Last N days<input type="number" id="ff-days" min="1" max="1825" placeholder="e.g. 30" value="${esc(state.days)}"></label>
+          <label class="field">Page size<select id="ff-size"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option></select></label>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button class="btn" type="submit">Apply filters</button>
+          <span class="muted" style="font-size:12px">Try: <a href="#/freeze-feed" data-ff-try="kind:destroyed">destroyed funds</a> · <a href="#/freeze-feed" data-ff-try="address:0x5227f603c1ee34ce3c06efe6477003bdfccb2f8c">largest frozen USDC address</a> · <a href="#/freeze-feed" data-ff-try="days:30">last 30 days</a></span>
+        </div>
+      </form>
+    </div></div>
+    <div id="ff-results"><div class="card"><div style="padding:16px"><div class="spinner">Loading freeze events… (a cold load scans 5 coins' logs and can take ~30s)</div></div></div></div>
+    </div>`);
+  const load = async () => {
+    if (!alive()) return;
+    $("#ff-results").innerHTML = `<div class="card"><div style="padding:16px"><div class="spinner">Loading freeze events… (a cold load scans 5 coins' logs and can take ~30s)</div></div></div>`;
+    let d;
+    try {
+      const qs = new URLSearchParams({ page: String(state.page), page_size: String(state.page_size) });
+      if (state.coin) qs.set("coin", state.coin);
+      if (state.kind) qs.set("kind", state.kind);
+      if (state.address) qs.set("address", state.address);
+      if (state.from) qs.set("from", String(Math.floor(new Date(state.from + "T00:00:00Z").getTime() / 1000)));
+      if (state.to) qs.set("to", String(Math.floor(new Date(state.to + "T23:59:59Z").getTime() / 1000)));
+      if (state.days) qs.set("days", state.days);
+      d = await fetchJson(API + "/freeze/feed?" + qs.toString(), null, 120000);
+    } catch (err) {
+      if (!alive()) return;
+      $("#ff-results").innerHTML = `<div class="card"><div class="empty">Freeze feed failed to load: ${esc(err.message)}</div></div>`;
+      return;
+    }
+    if (!alive()) return;
+    $("#ff-results").innerHTML = freezeFeedResultsHtml(d);
+    const prev = $("#ff-prev"), next = $("#ff-next");
+    if (prev) prev.addEventListener("click", () => { if (state.page > 1) { state.page--; load(); } });
+    if (next) next.addEventListener("click", () => { if (state.page < d.total_pages) { state.page++; load(); } });
+  };
+  $("#ff-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    state.coin = $("#ff-coin").value;
+    state.kind = $("#ff-kind").value;
+    state.address = $("#ff-address").value.trim();
+    state.from = $("#ff-from").value;
+    state.to = $("#ff-to").value;
+    state.days = $("#ff-days").value.trim();
+    state.page_size = Number($("#ff-size").value) || 50;
+    state.page = 1;
+    load();
+  });
+  document.querySelectorAll("[data-ff-try]").forEach((a) => a.addEventListener("click", (e) => {
+    e.preventDefault();
+    const v = a.dataset.ffTry;
+    if (v.startsWith("kind:")) { state.kind = v.slice(5); $("#ff-kind").value = state.kind; }
+    else if (v.startsWith("address:")) { state.address = v.slice(8); $("#ff-address").value = state.address; }
+    else if (v.startsWith("days:")) { state.days = v.slice(5); $("#ff-days").value = state.days; }
+    state.page = 1; load();
+  }));
+  load();
+}
+
 async function walletPage(param) {
   clearPoll();
   const run = ++walletRun;
@@ -3011,7 +3731,7 @@ async function walletPage(param) {
     <div class="card"><div class="card-head">Holdings <span class="spacer"></span><label class="muted" style="font-weight:400;font-size:12px"><input type="checkbox" id="w-dust"> Show dust (&lt; $1)</label></div><div id="w-holdings"><div class="spinner">Loading token holdings…</div></div></div>
     <div class="card"><div class="card-head">Portfolio Value — Estimate <span class="sample-badge">ESTIMATE</span><span class="spacer"></span><span class="daybtns" id="w-hist-btns"><button class="btn" data-days="7">7D</button><button class="btn active" data-days="30">30D</button><button class="btn" data-days="90">90D</button></span></div><div id="w-history"><div class="spinner">Loading history…</div></div></div>
     <div class="card"><div class="card-head">Estimated Realized PnL <span class="sample-badge">ESTIMATE</span></div><div id="w-pnl"><div class="spinner">Loading PnL…</div></div></div>
-    <div class="card"><div class="card-head">Accounting Export <span class="sample-badge">ESTIMATE</span></div><div id="w-accounting"><div class="spinner">Loading…</div></div></div>
+    <div class="card"><div class="card-head">Accounting Export <span class="sample-badge">ESTIMATE</span> <span class="badge info">Paid API</span></div><div id="w-accounting"><div class="spinner">Loading…</div></div></div>
     <div class="card"><div class="card-head">NFTs <span class="spacer"></span><span id="w-nft-count" class="badge grey">…</span></div><div id="w-nfts"><div class="spinner">Loading NFTs…</div></div></div>
     <div class="card"><div class="card-head">Activity — EVM Chains</div><div id="w-activity"><div class="spinner">Loading activity…</div></div></div>
     </div>`);
@@ -3035,25 +3755,79 @@ async function walletPage(param) {
   const addrHref = SOL_ADDR_RE.test(addr)
     ? `https://solscan.io/account/${addr}`
     : ((WALLET_ONLY && scopeUrl("ethereum")) ? scopeUrl("ethereum") + "/#/address/" + addr : "#/address/" + addr);
-  if (addrEl) addrEl.innerHTML = `<a class="mono" href="${addrHref}"${SOL_ADDR_RE.test(addr) ? ' target="_blank" rel="noopener"' : ""}>${esc(addr)}</a>${ensName ? ` <span class="badge info">${esc(ensName)}</span>` : ""} ${copyBtn(addr)} <a class="btn" href="#/preflight/${esc(addr)}" title="Pre-flight compliance check before sending to this address">🛡️ Pre-flight check</a> <a class="btn" href="${allowanceHref(addr)}" title="Check what this address has already approved spenders to spend">✅ Allowance check</a> <a class="btn" href="#/recurring/${esc(addr)}" title="Detect repeating payments for this address">🔁 Recurring payments</a>`;
+  if (addrEl) addrEl.innerHTML = `<a class="mono" href="${addrHref}"${SOL_ADDR_RE.test(addr) ? ' target="_blank" rel="noopener"' : ""}>${esc(addr)}</a>${ensName ? ` <span class="badge info">${esc(ensName)}</span>` : ""} ${copyBtn(addr)} <a class="btn" href="#/screen/${esc(addr)}" title="Screen this address: OFAC SDN score, reasons, hop exposure">🛡️ Screen address</a> <a class="btn" href="#/preflight/${esc(addr)}" title="Pre-flight compliance check before sending to this address">🛡️ Pre-flight check</a> <a class="btn" href="${allowanceHref(addr)}" title="Check what this address has already approved spenders to spend">✅ Allowance check</a> <a class="btn" href="#/recurring/${esc(addr)}" title="Detect repeating payments for this address">🔁 Recurring payments</a>`;
 
-  /* ---- accounting export (Q2): direct-download links + journal mapping ---- */
+  /* ---- accounting export (Q2) + Accounting API demo (phase 3, item 10) ----
+     The card is the demo for GET /api/walletscope/accounting: it fetches
+     the new endpoint live (format=json) and renders the summary, the
+     first 10 ledger rows, the per-coin FIFO summary and any per-chain
+     errors — the download links point at the same endpoint (format=csv
+     returns the same CSV bytes as the Q2 /accounting/export backing).
+     No parallel export UI: this card IS the demo. */
   const accEl = $("w-accounting");
   if (accEl) {
-    const csvUrl = API + "/accounting/export?address=" + encodeURIComponent(addr) + "&format=csv";
-    const jsonUrl = API + "/accounting/export?address=" + encodeURIComponent(addr) + "&format=json";
+    const csvUrl = API + "/accounting?address=" + encodeURIComponent(addr) + "&format=csv";
+    const jsonUrl = API + "/accounting?address=" + encodeURIComponent(addr) + "&format=json";
+    const legacyUrl = API + "/accounting/export?address=" + encodeURIComponent(addr) + "&format=csv";
     const explorerCsv = SOL_ADDR_RE.test(addr) ? "" :
       `<p style="margin:8px 0 0">Single-chain list without USD values: the explorer's per-chain CSV is on the <a href="${esc(addrHref)}" target="_blank" rel="noopener">address page</a> (Export CSV buttons for transactions / token transfers).</p>`;
     accEl.innerHTML = `<div style="padding:14px 16px">
-      <p style="margin:0">Finance-grade export for bookkeeping: every send/receive across all chains with USD value at time of transaction, FIFO cost basis and realized gain per send, and QuickBooks/Xero general-journal columns (debit/credit accounts + legs, memo with hash).</p>
+      <p style="margin:0">Finance-grade export for bookkeeping: every send/receive across all chains with USD value at time of transaction, FIFO cost basis and realized gain per send, and QuickBooks/Xero general-journal columns (debit/credit accounts + legs, memo with hash). <span class="badge info">Paid API</span> <a href="#/api-docs">GET /api/walletscope/accounting</a></p>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
         <a class="btn primary" href="${esc(csvUrl)}" download>⬇ Download CSV</a>
         <a class="btn" href="${esc(jsonUrl)}" download>⬇ Download JSON</a>
       </div>
+      <div id="w-accounting-live"><div class="spinner">Loading ledger…</div></div>
       <p class="muted" style="margin:12px 0 0;font-size:12.5px">Journal mapping — receive: Debit <span class="mono">Crypto Assets:{COIN}</span> / Credit <span class="mono">Other Income:Crypto Received</span> (= amount_usd). Send: Debit <span class="mono">Cost of Goods Sold:Crypto Disposed</span> / Credit <span class="mono">Crypto Assets:{COIN}</span> (= cost_basis_usd). Realized gain is reported per send row for separate posting.</p>
-      <p class="muted" style="margin:8px 0 0;font-size:12.5px">Sampled window: first page per chain (50 native txs + 50 token transfers per EVM chain, 10 Solana signatures, 25 Bitcoin txs). Rows priced at the live price are labelled <span class="mono">estimate-current</span>; rows with no price have null USD values, never invented. Token-transfer rows carry no fee (paid in native coin on the parent tx). This is an estimate, not tax advice.</p>
+      <p class="muted" style="margin:8px 0 0;font-size:12.5px">Sampled window: first page per chain (50 native txs + 50 token transfers per EVM chain, 10 Solana signatures, first page of Bitcoin txs). Rows priced at the live price are labelled <span class="mono">estimate-current</span>; rows with no price have null USD values, never invented. Token-transfer rows carry no fee (paid in native coin on the parent tx). This is an estimate, not tax advice. Same CSV is also served by the Q2 endpoint <a href="${esc(legacyUrl)}" download>/accounting/export</a>.</p>
       ${explorerCsv}
     </div>`;
+    (async () => {
+      const liveEl = $("w-accounting-live");
+      if (!liveEl) return;
+      let d;
+      try {
+        // Cold export fans out to 4 EVM chains + pricing series; 120s.
+        d = await fetchJson(jsonUrl, null, 120000);
+      } catch (e) {
+        if (liveEl.isConnected) liveEl.innerHTML = `<div class="empty">Ledger preview failed to load: ${esc(e.message)} — the CSV / JSON downloads above still work (they hit the same endpoint).</div>`;
+        return;
+      }
+      if (!liveEl.isConnected) return;
+      const s = d.summary || {};
+      const pb = d.price_basis_counts || {};
+      const cov = d.coverage || {};
+      const errs = cov.errors || d.errors || {};
+      const errHtml = Object.keys(errs).length
+        ? `<div class="notice" style="margin:12px 0 0;color:var(--red)">Some chains failed in this export — the ledger below is PARTIAL until they clear: ${Object.entries(errs).map(([c, msgs]) => `<b>${esc(c)}</b>: ${esc((msgs || []).join("; "))}`).join(" · ")} <span class="muted">(coverage.complete = false)</span></div>`
+        : `<div class="muted" style="margin:12px 0 0;font-size:12.5px">Coverage: complete — no chain errored in this export.</div>`;
+      const rows = (d.rows || []).slice(0, 10);
+      const fifo = d.fifo || [];
+      liveEl.innerHTML = `
+      <div style="margin-top:14px;display:flex;gap:18px;flex-wrap:wrap">
+        <div><div class="k">Ledger rows</div><div class="v" style="font-size:17px"><b>${num(s.rows)}</b> <span class="muted" style="font-size:13px">(${num(s.receives)} receives · ${num(s.sends)} sends)</span></div></div>
+        <div><div class="k">Received</div><div class="v" style="font-size:17px"><b>${usd(s.total_received_usd)}</b></div></div>
+        <div><div class="k">Sent</div><div class="v" style="font-size:17px"><b>${usd(s.total_sent_usd)}</b></div></div>
+        <div><div class="k">Fees</div><div class="v" style="font-size:17px"><b>${usd(s.total_fees_usd)}</b></div></div>
+        <div><div class="k">Cost basis (FIFO)</div><div class="v" style="font-size:17px"><b>${usd(s.total_cost_basis_usd)}</b></div></div>
+        <div><div class="k">Realized gain</div><div class="v" style="font-size:17px"><b>${s.total_realized_gain_usd != null ? (Number(s.total_realized_gain_usd) >= 0 ? "+" : "") + usd(s.total_realized_gain_usd) : "—"}</b></div></div>
+      </div>
+      <p class="muted" style="margin:10px 0 0;font-size:12.5px">Price basis: ${num(pb["at-time"])} at-time (daily close on the tx date) · ${num(pb["estimate-current"])} estimate-current (live-price fallback) · ${num(pb.unavailable)} unavailable (USD null, never invented). Chains: ${esc((s.chains || []).join(", ") || "—")} · Coins: ${esc((s.coins || []).join(", ") || "—")}</p>
+      ${errHtml}
+      ${rows.length ? `<table class="tbl" style="margin-top:12px"><thead><tr><th>Date</th><th>Chain</th><th>Coin</th><th>Type</th><th class="r">Amount</th><th class="r">USD</th><th>Price basis</th><th class="r">Cost basis</th><th class="r">Gain</th></tr></thead><tbody>${rows.map((r) => `<tr>
+        <td class="mono">${esc((r.date || "").slice(0, 10))}</td><td>${esc(r.chain || "")}</td><td>${esc(r.coin || "")}</td>
+        <td>${r.type === "receive" ? "↓ Receive" : "↑ Send"}</td>
+        <td class="r mono">${esc(r.amount || "")}</td><td class="r">${r.amount_usd != null ? usd(r.amount_usd) : '<span class="muted">—</span>'}</td>
+        <td>${r.price_basis === "estimate-current" ? '<span class="badge info">estimate-current</span>' : r.price_basis === "unavailable" ? '<span class="badge grey">unavailable</span>' : esc(r.price_basis || "")}</td>
+        <td class="r">${r.cost_basis_usd != null ? usd(r.cost_basis_usd) : '<span class="muted">—</span>'}</td>
+        <td class="r">${r.realized_gain_usd != null ? usd(r.realized_gain_usd) : '<span class="muted">—</span>'}</td></tr>`).join("")}</tbody></table>
+      <p class="muted" style="margin:6px 0 0;font-size:12.5px">Showing ${rows.length} of ${num(s.rows)} rows — full ledger in the CSV / JSON downloads above. FIFO lots per send are in the JSON (<span class="mono">fifo_lots</span> / <span class="mono">fifo_lots_detail</span>).</p>` : `<div class="empty">No send/receive rows in the sampled window for this address.</div>`}
+      ${fifo.length ? `<p style="margin:12px 0 0"><b>FIFO per coin</b> <span class="muted" style="font-size:12.5px">(oldest-first; lots remaining after the window)</span></p>
+      <table class="tbl" style="margin-top:6px"><thead><tr><th>Coin</th><th>Chain</th><th class="r">Transfers</th><th class="r">Proceeds</th><th class="r">Cost</th><th class="r">Realized PnL</th><th class="r">Lots left</th></tr></thead><tbody>${fifo.map((f) => `<tr>
+        <td>${esc(f.coin || "")}</td><td>${esc(f.chain || "")}</td><td class="r">${num(f.transfers)}</td>
+        <td class="r">${usd(f.proceeds_usd)}</td><td class="r">${usd(f.cost_usd)}</td><td class="r">${usd(f.realized_pnl_usd)}</td>
+        <td class="r">${num((f.lots_remaining || []).length)}${(f.transfers_unmatched || 0) ? ` <span class="muted">(${num(f.transfers_unmatched)} unmatched)</span>` : ""}</td></tr>`).join("")}</tbody></table>` : ""}`;
+    })();
   }
 
 
@@ -3325,12 +4099,24 @@ const routes = WALLET_ONLY ? [
   [/^#\/allowance(\?.*)?$/, () => allowancePage()],
   [/^#\/preflight$/, () => preflightPage()],
   [/^#\/preflight\/(.+)$/, (m) => preflightPage(decodeURIComponent(m[1]))],
+  [/^#\/screen$/, () => screenPage()],
+  [/^#\/screen\/(.+)$/, (m) => screenPage(decodeURIComponent(m[1]))],
+  [/^#\/txscreen$/, () => txScreenPage()],
+  [/^#\/txscreen\/([^/]+)\/(.+)$/, (m) => txScreenPage(decodeURIComponent(m[1]), decodeURIComponent(m[2]))],
+  [/^#\/explain$/, () => explainPage()],
+  [/^#\/explain\/([^/]+)\/(.+)$/, (m) => explainPage(decodeURIComponent(m[1]), decodeURIComponent(m[2]))],
+  [/^#\/sanctions$/, () => sanctionsPage()],
   [/^#\/freeze-watch$/, () => freezeWatchPage()],
   [/^#\/freeze-watch\/(.+)$/, (m) => freezeWatchPage(decodeURIComponent(m[1]))],
+  [/^#\/freeze-feed(\?.*)?$/, () => freezeFeedPage()],
+  [/^#\/token-security$/, () => tokenSecurityPage()],
+  [/^#\/token-security\/([^/]+)\/(.+)$/, (m) => tokenSecurityPage(decodeURIComponent(m[1]), decodeURIComponent(m[2]))],
   [/^#\/recurring$/, () => recurringPage()],
   [/^#\/recurring\/(.+)$/, (m) => recurringPage(decodeURIComponent(m[1]))],
   [/^#\/track$/, () => trackPage()],
   [/^#\/track\/([^/]+)\/(.+)$/, (m) => trackPage(decodeURIComponent(m[1]), decodeURIComponent(m[2]))],
+  [/^#\/verify$/, () => trackPage(undefined, undefined, "verify")],
+  [/^#\/verify\/([^/]+)\/(.+)$/, (m) => trackPage(decodeURIComponent(m[1]), decodeURIComponent(m[2]), "verify")],
   [/^#\/receipt\/([^/]+)\/(.+)$/, (m) => receiptPage(decodeURIComponent(m[1]), decodeURIComponent(m[2]))],
   [/^#\/watchlist$/, () => watchlistPage()],
   [/^#\/invoices$/, () => invoicesPage()],
@@ -3345,12 +4131,24 @@ const routes = WALLET_ONLY ? [
   [/^#\/allowance(\?.*)?$/, (m) => { window.location.href = WALLET_URL + "/#/allowance" + (m[1] || ""); }],
   [/^#\/preflight$/, () => { window.location.href = WALLET_URL + "/#/preflight"; }],
   [/^#\/preflight\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/preflight/" + encodeURIComponent(decodeURIComponent(m[1])); }],
+  [/^#\/screen$/, () => { window.location.href = WALLET_URL + "/#/screen"; }],
+  [/^#\/screen\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/screen/" + encodeURIComponent(decodeURIComponent(m[1])); }],
+  [/^#\/txscreen$/, () => { window.location.href = WALLET_URL + "/#/txscreen"; }],
+  [/^#\/txscreen\/([^/]+)\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/txscreen/" + encodeURIComponent(decodeURIComponent(m[1])) + "/" + encodeURIComponent(decodeURIComponent(m[2])); }],
+  [/^#\/explain$/, () => { window.location.href = WALLET_URL + "/#/explain"; }],
+  [/^#\/explain\/([^/]+)\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/explain/" + encodeURIComponent(decodeURIComponent(m[1])) + "/" + encodeURIComponent(decodeURIComponent(m[2])); }],
+  [/^#\/sanctions$/, () => { window.location.href = WALLET_URL + "/#/sanctions"; }],
   [/^#\/freeze-watch$/, () => { window.location.href = WALLET_URL + "/#/freeze-watch"; }],
   [/^#\/freeze-watch\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/freeze-watch/" + encodeURIComponent(decodeURIComponent(m[1])); }],
+  [/^#\/freeze-feed(\?.*)?$/, (m) => { window.location.href = WALLET_URL + "/#/freeze-feed" + (m[1] || ""); }],
+  [/^#\/token-security$/, () => { window.location.href = WALLET_URL + "/#/token-security"; }],
+  [/^#\/token-security\/([^/]+)\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/token-security/" + encodeURIComponent(decodeURIComponent(m[1])) + "/" + encodeURIComponent(decodeURIComponent(m[2])); }],
   [/^#\/recurring$/, () => { window.location.href = WALLET_URL + "/#/recurring"; }],
   [/^#\/recurring\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/recurring/" + encodeURIComponent(decodeURIComponent(m[1])); }],
   [/^#\/track$/, () => { window.location.href = WALLET_URL + "/#/track"; }],
   [/^#\/track\/([^/]+)\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/track/" + encodeURIComponent(decodeURIComponent(m[1])) + "/" + encodeURIComponent(decodeURIComponent(m[2])); }],
+  [/^#\/verify$/, () => { window.location.href = WALLET_URL + "/#/verify"; }],
+  [/^#\/verify\/([^/]+)\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/verify/" + encodeURIComponent(decodeURIComponent(m[1])) + "/" + encodeURIComponent(decodeURIComponent(m[2])); }],
   [/^#\/receipt\/([^/]+)\/(.+)$/, (m) => { window.location.href = WALLET_URL + "/#/receipt/" + encodeURIComponent(decodeURIComponent(m[1])) + "/" + encodeURIComponent(decodeURIComponent(m[2])); }],
   [/^#\/watchlist$/, () => { window.location.href = WALLET_URL + "/#/watchlist"; }],
   [/^#\/invoices$/, () => { window.location.href = WALLET_URL + "/#/invoices"; }],
@@ -3404,7 +4202,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const si = document.getElementById("search-input");
     if (si) si.placeholder = "Search by Address / ENS name";
   } else {
-    ["nav-quote", "footer-quote", "nav-allowance", "footer-allowance", "nav-preflight", "footer-preflight", "nav-freeze-watch", "footer-freeze-watch", "nav-recurring", "footer-recurring", "nav-track", "footer-track", "nav-invoices", "footer-invoices"].forEach((id) => {
+    ["nav-quote", "footer-quote", "nav-allowance", "footer-allowance", "nav-preflight", "footer-preflight", "nav-screen", "footer-screen", "nav-txscreen", "footer-txscreen", "nav-sanctions", "footer-sanctions", "nav-freeze-watch", "footer-freeze-watch", "nav-freeze-feed", "footer-freeze-feed", "nav-recurring", "footer-recurring", "nav-track", "footer-track", "nav-verify", "footer-verify", "nav-invoices", "footer-invoices"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.style.display = "none";
     });
