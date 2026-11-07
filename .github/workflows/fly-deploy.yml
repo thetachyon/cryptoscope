@@ -5,6 +5,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# One run at a time: a new push cancels any older run still deploying, so
+# stacked pushes can't trip over each other deploying the same app twice.
+# Without this, 6 overlapping runs (09:05–09:38) each deployed the same 16
+# apps concurrently and none of the later ones cut over.
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -45,6 +53,13 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: Deploy ${{ matrix.scope }}
         working-directory: ${{ matrix.scope }}
-        run: flyctl deploy --remote-only
+        # Retry transient Fly failures (deploy-lease conflicts, remote
+        # builder hiccups) instead of failing the whole job on the first try.
+        run: |
+          for i in 1 2 3; do
+            flyctl deploy --remote-only && break
+            echo "deploy attempt $i failed, retrying in 60s..."
+            sleep 60
+          done
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
