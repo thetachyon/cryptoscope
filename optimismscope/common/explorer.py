@@ -10,6 +10,7 @@ DOCS_BASE is the single literal source of truth for the API docs; see
 """
 import json
 import re
+from datetime import datetime, timezone
 
 import httpx
 
@@ -29,8 +30,10 @@ from common.clients import (
     rpc,
 )
 from common.formatting import (
+    _hex_int,
     _instance_short,
     addr_info,
+    age,
     block_short,
     decode_input,
     gwei,
@@ -195,7 +198,11 @@ async def _block_txs(chain, n, params):
 async def _tx(chain, h):
     d = await bs(chain, f"/transactions/{h}")
     if d is None:
-        return JSONResponse({"error": "Transaction not found"}, status_code=404)
+        # Blockscout's detail endpoint lags its own list by ~1 min for
+        # fresh txs (verified live 2026-11-07: the list showed the tx,
+        # detail 404'd, then 200'd 45s later). A click from Latest
+        # Transactions must not 404, so build the page from the RPC.
+        return await _tx_from_rpc(chain, h)
     fee = d.get("fee") or {}
     raw = d.get("raw_input") or "0x"
     out = tx_short(d)
@@ -225,6 +232,86 @@ async def _tx(chain, h):
             "token_transfers": [token_transfer_short(tt) for tt in (d.get("token_transfers") or [])],
             "token_transfers_overflow": bool(d.get("token_transfers_overflow")),
             "historic_eth_price_usd": d.get("historic_exchange_rate"),
+        }
+    )
+    return out
+
+
+async def _tx_from_rpc(chain, h):
+    """Tx detail from the public RPC when Blockscout has not indexed the
+    tx yet. Same response shape as _tx; Blockscout-only enrichment
+    (token transfers, decoded input, historic price) is empty and the
+    response is flagged `indexing` while the tx is confirmed but not
+    indexed yet, so the frontend can say so instead of showing a
+    "not found". A hash the RPC does not know either still 404s, so
+    the frontend's block-hash fallback keeps working."""
+    tx = await rpc(chain, "eth_getTransactionByHash", [h])
+    if not isinstance(tx, dict) or not tx.get("hash"):
+        return JSONResponse({"error": "Transaction not found"}, status_code=404)
+    try:
+        rc = await rpc(chain, "eth_getTransactionReceipt", [h])
+    except UpstreamError:
+        rc = None
+    if not isinstance(rc, dict):
+        rc = {}
+    block_no = _hex_int(tx.get("blockNumber")) if tx.get("blockNumber") else None
+    # Timestamp + base fee from the block header (confirmed txs only).
+    ts_iso = None
+    base_fee = None
+    if block_no:
+        try:
+            blk = await rpc(chain, "eth_getBlockByNumber", [hex(block_no), False])
+        except UpstreamError:
+            blk = None
+        if isinstance(blk, dict):
+            ts_raw = _hex_int(blk.get("timestamp"))
+            if ts_raw:
+                ts_iso = datetime.fromtimestamp(ts_raw, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+            if blk.get("baseFeePerGas"):
+                base_fee = _hex_int(blk.get("baseFeePerGas"))
+    # Confirmations from the chain head.
+    confirmations = None
+    if block_no:
+        try:
+            head = await rpc(chain, "eth_blockNumber", [])
+        except UpstreamError:
+            head = None
+        if head:
+            confirmations = max(0, _hex_int(head) - block_no + 1)
+    gas_used = _hex_int(rc.get("gasUsed")) if rc.get("gasUsed") else None
+    eff_price = _hex_int(rc.get("effectiveGasPrice")) if rc.get("effectiveGasPrice") else _hex_int(tx.get("gasPrice"))
+    fee_wei = gas_used * eff_price if gas_used and eff_price else 0
+    raw = tx.get("input") or "0x"
+    out = rpc_tx_short(tx)
+    out.update(
+        {
+            "block": block_no,
+            "timestamp": ts_iso,
+            "age": age(ts_iso) if ts_iso else "",
+            "status": "success" if rc.get("status") == "0x1" else ("failed" if rc.get("status") == "0x0" else "pending"),
+            "confirmations": confirmations,
+            "gas_limit": _hex_int(tx.get("gas")),
+            "gas_used": gas_used,
+            "gas_price_gwei": gwei(eff_price) if eff_price else "0.00",
+            "max_fee_per_gas_gwei": gwei(_hex_int(tx.get("maxFeePerGas"))) if tx.get("maxFeePerGas") else "0.00",
+            "max_priority_fee_gwei": gwei(_hex_int(tx.get("maxPriorityFeePerGas"))) if tx.get("maxPriorityFeePerGas") else "0.00",
+            "base_fee_per_gas_gwei": gwei(base_fee) if base_fee else None,
+            "fee_eth": wei_to_eth(fee_wei),
+            "fee_type": str(_hex_int(tx.get("type"))) if tx.get("type") is not None else None,
+            "burnt_fee_eth": wei_to_eth(gas_used * base_fee) if gas_used and base_fee else None,
+            "revert_reason": None,
+            "created_contract": rc.get("contractAddress"),
+            "input": raw,
+            "input_truncated": len(raw) > 2000,
+            "input_utf8": decode_input(raw),
+            "has_decoded_input": False,
+            "decoded_method": None,
+            "token_transfers": [],
+            "token_transfers_overflow": False,
+            "historic_eth_price_usd": None,
+            "type": _hex_int(tx.get("type")) if tx.get("type") is not None else None,
+            "position": _hex_int(tx.get("transactionIndex")) if tx.get("transactionIndex") else None,
+            "indexing": bool(block_no),
         }
     )
     return out
