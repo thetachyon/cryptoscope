@@ -316,7 +316,7 @@ function issuerRiskCard(d) {
     ${rows.map(([label, v, ev]) => `<tr><td>${esc(label)}</td><td style="text-align:right">${v ? Math.round(v.weight * 100) + "%" : "—"}</td><td style="text-align:right">${v ? scoreCell(v.score) : "—"}</td><td class="muted">${ev || '<span class="muted">unknown — could not be measured; weight redistributed to the other inputs</span>'}</td></tr>`).join("")}
     </tbody></table>
     <div class="notice" style="margin-top:12px">${esc(d.methodology || "")}</div>
-    <div style="margin-top:10px"><a href="https://overview.fly.dev/#/issuer-risk" target="_blank" rel="noopener">Compare all 8 issuers with full breakdowns →</a> <span class="muted">(ranking + per-issuer input breakdowns in the overview app — GET /api/overview/issuer-risk/detail)</span></div>
+    <div style="margin-top:10px"><a href="https://cryptoscope-overview.fly.dev/#/issuer-risk" target="_blank" rel="noopener">Compare all 8 issuers with full breakdowns →</a> <span class="muted">(ranking + per-issuer input breakdowns in the overview app — GET /api/overview/issuer-risk/detail)</span></div>
   </div>`;
 }
 
@@ -442,7 +442,7 @@ function mintBurnCard(mb) {
     <div class="card-head" style="margin-top:16px">Issuance as a demand signal</div>
     <div style="margin-top:6px">${esc(ds.summary || "")}</div>
     <div class="notice" style="margin-top:12px">${esc(ds.caveat || "")}</div>
-    <div style="margin-top:10px"><a href="https://overview.fly.dev/#/supply-feed?coin=${esc(mb.symbol || "")}" target="_blank" rel="noopener">Supply &amp; flow feed →</a> <span class="muted">(daily net-issuance series + large on-chain events across all 8 coins — GET /api/overview/supply-feed; this coin's own feed: <span class="mono">GET /api/${esc(SCOPE)}/supply-feed</span>)</span></div>
+    <div style="margin-top:10px"><a href="https://cryptoscope-overview.fly.dev/#/supply-feed?coin=${esc(mb.symbol || "")}" target="_blank" rel="noopener">Supply &amp; flow feed →</a> <span class="muted">(daily net-issuance series + large on-chain events across all 8 coins — GET /api/overview/supply-feed; this coin's own feed: <span class="mono">GET /api/${esc(SCOPE)}/supply-feed</span>)</span></div>
   </div>`;
 }
 
@@ -496,7 +496,7 @@ function whalesCard(w) {
       </tbody></table></div>`
       : `<div class="empty">No transfer ≥ ${usdBig(lt.threshold_usd)} in the last ${num(lt.scanned_transfers)} transfers scanned${lt.scan_earliest ? ` (${dateTimeStr(lt.scan_earliest)} → ${dateTimeStr(lt.scan_latest)})` : ""}.</div>`}
     <div class="muted" style="margin-top:8px">${esc(lt.chain_scope_note || "")}${lts.length ? ` Scanned ${num(lt.scanned_transfers)} transfers${lt.scan_earliest ? ` (${dateTimeStr(lt.scan_earliest)} → ${dateTimeStr(lt.scan_latest)})` : ""}; showing latest ${num(lts.length)}.` : ""}${w.price_assumed_1_usd ? " USD values assume $1.00 (no live price available)." : ""}</div>
-    <div style="margin-top:10px"><a href="https://overview.fly.dev/#/whale-feed?coin=${esc(w.symbol || "")}" target="_blank" rel="noopener">Whale feed →</a> <span class="muted">(large transfers across all 8 coins — GET /api/overview/whale-feed; this coin's own feed: <span class="mono">GET /api/${esc(SCOPE)}/whale-feed</span>)</span></div>
+    <div style="margin-top:10px"><a href="https://cryptoscope-overview.fly.dev/#/whale-feed?coin=${esc(w.symbol || "")}" target="_blank" rel="noopener">Whale feed →</a> <span class="muted">(large transfers across all 8 coins — GET /api/overview/whale-feed; this coin's own feed: <span class="mono">GET /api/${esc(SCOPE)}/whale-feed</span>)</span></div>
     <div class="notice" style="margin-top:12px">${esc(w.methodology || "")}</div>
   </div>`;
 }
