@@ -801,16 +801,22 @@ async function home() {
       </div>
     </div>`);
   wireSearch($("#hero-search"), $("#hero-input"), $("#hero-suggest"));
+  // A single slow upstream must not blank the page or stick a red banner
+  // on it: render whatever came back, and only warn after 2 failures in
+  // a row. A later success clears the banner again.
+  let liveFailStreak = 0;
   async function refresh() {
-    try {
-      const [s, bl, tx] = await Promise.all([get("/stats"), get("/blocks"), get("/txs")]);
-      renderStats(s);
-      const lb = $("#lb"), lt = $("#lt");
-      if (lb) lb.innerHTML = bl.items.slice(0, 10).map((b) =>
-        `<tr><td><span class="cell-clip">${linkBlock(b.height)}</span></td><td class="muted" style="white-space:nowrap">${esc(b.age || "")}</td><td><span class="addr-cell">${linkAddr(b.miner)}</span></td><td class="r">${num(b.tx_count)}</td><td class="r">${b.gas_used_pct}%</td></tr>`).join("");
-      if (lt) lt.innerHTML = tx.items.slice(0, 10).map((t) =>
-        `<tr><td><span class="cell-clip">${linkTx(t.hash)}</span></td><td><span class="addr-cell">${linkAddr(t.from)}</span></td><td><span class="addr-cell">${linkAddr(t.to)}</span></td><td class="r mono">${ethFmt(t.value_eth)}</td></tr>`).join("");
-    } catch (e) { banner("Live update failed on " + chainLabel() + ": " + e.message); }
+    const [s, bl, tx] = await Promise.allSettled([get("/stats"), get("/blocks"), get("/txs")]);
+    if (s.status === "fulfilled") renderStats(s.value);
+    const lb = $("#lb"), lt = $("#lt");
+    if (bl.status === "fulfilled" && lb) lb.innerHTML = bl.value.items.slice(0, 10).map((b) =>
+      `<tr><td><span class="cell-clip">${linkBlock(b.height)}</span></td><td class="muted" style="white-space:nowrap">${esc(b.age || "")}</td><td><span class="addr-cell">${linkAddr(b.miner)}</span></td><td class="r">${num(b.tx_count)}</td><td class="r">${b.gas_used_pct}%</td></tr>`).join("");
+    if (tx.status === "fulfilled" && lt) lt.innerHTML = tx.value.items.slice(0, 10).map((t) =>
+      `<tr><td><span class="cell-clip">${linkTx(t.hash)}</span></td><td><span class="addr-cell">${linkAddr(t.from)}</span></td><td><span class="addr-cell">${linkAddr(t.to)}</span></td><td class="r mono">${ethFmt(t.value_eth)}</td></tr>`).join("");
+    const failed = [s, bl, tx].filter((r) => r.status === "rejected");
+    if (!failed.length) { liveFailStreak = 0; banner(null); return; }
+    liveFailStreak += 1;
+    if (liveFailStreak >= 2) banner("Live update failed on " + chainLabel() + ": " + (failed[0].reason && failed[0].reason.message ? failed[0].reason.message : "upstream error"));
   }
   await refresh();
   if ((location.hash || "#/") === myHash) pollTimer = setInterval(refresh, 10000);
