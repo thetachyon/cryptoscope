@@ -915,6 +915,7 @@ async function txPage(h, retried) {
     : (t.created_contract ? `Contract created: <a class="mono" href="#/address/${esc(t.created_contract)}">${esc(shortH(t.created_contract))}</a> · ${linkContract(t.created_contract)}` : '<span class="muted">—</span>');
   render(`
     <div class="pagehead"><h2>Transaction Details</h2> ${statusBadge(t.status)}</div>
+    ${t.indexing ? `<div class="card"><div style="padding:12px 16px" class="muted">This transaction is only minutes old — the indexer hasn't finished with it yet, so token transfers, logs and the decoded method will appear shortly. The details below come from the chain directly.</div></div>` : ""}
     <div id="explain-card"><div class="card"><div style="padding:12px 16px" class="muted">Explaining transaction…</div></div></div>
     <div class="card">
       ${detailRow("Transaction Hash", `<span class="mono">${esc(t.hash)}</span> ${copyBtn(t.hash)}`)}
@@ -961,11 +962,22 @@ async function txPage(h, retried) {
     ttBody.innerHTML = t.token_transfers.map(ttRow).join("");
     $("#tt-count").textContent = t.token_transfers.length + (t.token_transfers_overflow ? "+" : "");
     if (t.token_transfers_overflow) ttBody.insertAdjacentHTML("afterend", '<div class="empty">More transfers exist — showing first page.</div>');
+  } else if (t.indexing) {
+    ttBody.innerHTML = '<tr><td colspan="6"><div class="empty">Still indexing — token transfers will appear shortly.</div></td></tr>';
+    $("#tt-count").textContent = "…";
   } else {
     ttBody.innerHTML = '<tr><td colspan="6"><div class="empty">No token transfers</div></td></tr>';
     $("#tt-count").textContent = "0";
   }
-  // logs + internal in parallel
+  // logs + internal in parallel — skipped while the tx is still being
+  // indexed (Blockscout 404s them for ~1 min); the page says so instead
+  // of flashing a red "failed to load" banner.
+  if (t.indexing) {
+    $("#log-count").textContent = "…";
+    $("#logs").innerHTML = '<div class="empty">Still indexing — logs will appear shortly.</div>';
+    $("#in-count").textContent = "…";
+    $("#inx").innerHTML = '<tr><td colspan="6"><div class="empty">Still indexing — internal transactions will appear shortly.</div></td></tr>';
+  } else {
   try {
     const [logs, ix] = await Promise.all([get(`/tx/${h}/logs`), get(`/tx/${h}/internal`)]);
     $("#log-count").textContent = logs.items.length;
@@ -977,6 +989,7 @@ async function txPage(h, retried) {
     $("#in-count").textContent = ix.items.length;
     $("#inx").innerHTML = ix.items.length ? ix.items.map(internalRow).join("") : '<tr><td colspan="6"><div class="empty">No internal transactions</div></td></tr>';
   } catch (e) { banner("Failed to load logs/internal txs: " + e.message); }
+  }
 }
 
 /* ---------------- explain card (Feature 3, tx pages) ---------------- */
