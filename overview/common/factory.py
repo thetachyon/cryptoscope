@@ -66,6 +66,7 @@ from common.wallet import (
     _wallet_tokens,
 )
 from common.accounting import accounting_csv, accounting_export
+from common.accounting_api import accounting_api
 from common.bitcoin import is_bitcoin_address
 from common.risk import bitcoin_risk, evm_risk, solana_risk
 from common.crosschain import bitcoin_crosschain, evm_crosschain, solana_crosschain
@@ -117,16 +118,29 @@ from common.stablecoin import (
     sc_whales,
 )
 from common.freeze import freeze_watch, freeze_watch_any, sc_freeze
+from common.freezefeed import freeze_feed, freeze_feed_scope
+from common.supplyfeed import supply_feed, supply_feed_scope
+from common.whalefeed import whale_feed, whale_feed_scope
 from common.preflight import preflight
+from common.screen import screen_address
+from common.txscreen import screen_transaction
+from common.sanctions import list_sanctions
 from common.received import monitor_aftermath
 from common.recurring import detect_recurring
 from common.settlement import receipt, track_settlement
+from common.verify import verify_settlement
+from common.explain_api import explain_transaction
+from common.security_api import token_security_api
 from common.issuer_risk import sc_issuer_risk
+from common.issuer_risk_api import ov_issuer_risk_detail
+from common.attestation_monitor import ov_attestation_monitor
 from common.payments_readiness import sc_payments_readiness
 from common.quotes import get_quote, quote_tokens_payload
+from common.quote_api import quote_api
 from common.allowance import check_allowance
 from common.guard import quote_guard, stablecoin_guard
 from common.stablecoin_score import sc_depeg_score
+from common.depeg_history import sc_depeg_score_history
 from common.overview import (
     ov_activity,
     ov_bridges,
@@ -399,6 +413,34 @@ def create_wallet_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
             return JSONResponse({"error": payload["error"]}, status_code=400)
         return payload
 
+    @app.get(api + "/quote/with-guard")
+    async def api_quote_with_guard(request: Request):
+        # Quote & route API (phase 3, item 11): the P1 quote engine
+        # plus the P3 peg/volatility guard for both legs, in one
+        # call — the productized paid-API contract. A new dedicated
+        # endpoint, not a rename: /quote stays the engine backing
+        # and /quote/guard the standalone guard check, while
+        # /quote/with-guard is the one-call contract (routes +
+        # guard verdicts + guard summary). Built on
+        # common/quotes.py get_quote and common/guard.py
+        # quote_guard wholesale; see common/quote_api.py. The
+        # #/quote page calls this endpoint and renders the routes
+        # plus the embedded guard banners.
+        p = dict(request.query_params)
+        from_chain = p.get("from_chain", "")
+        to_chain = p.get("to_chain", "")
+        if from_chain not in WALLET_CHAINS or to_chain not in WALLET_CHAINS:
+            return JSONResponse({"error": "Unknown chain (from_chain / to_chain)"}, status_code=400)
+        if not p.get("amount") or not p.get("from_token") or not p.get("to_token"):
+            return JSONResponse({"error": "amount, from_token and to_token are required"}, status_code=400)
+        payload = await quote_api(
+            from_chain, p["from_token"], to_chain, p["to_token"],
+            p["amount"], p.get("from_address"),
+        )
+        if payload.get("error"):
+            return JSONResponse({"error": payload["error"]}, status_code=400)
+        return payload
+
     @app.get(api + "/allowance")
     async def api_allowance(request: Request):
         p = dict(request.query_params)
@@ -444,6 +486,87 @@ def create_wallet_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
         except UpstreamError as e:
             return JSONResponse({"error": e.msg}, status_code=e.status)
 
+    @app.get(api + "/freeze/feed")
+    async def api_freeze_feed(request: Request):
+        # Freeze event feed (phase 3, item 4): polling feed of
+        # freeze/blacklist/pause events across the freezable
+        # stablecoins (USDC, USDT, PYUSD, FDUSD, TUSD), paginated
+        # and filterable by coin (?coin=USDC, comma-separated),
+        # event type (?kind=blacklisted), address (?address=0x…),
+        # and time window (?from= / ?to= epoch, ?days=N). DAI/USDe
+        # have no freeze function and USDD none observed on Tron —
+        # they appear in the `coins` coverage block as
+        # not_applicable, never as silent empty feeds. Built on
+        # common/freeze.py (feature 10) wholesale; see
+        # common/freezefeed.py. Rendered at #/freeze-feed.
+        try:
+            return await freeze_feed(dict(request.query_params))
+        except UpstreamError as e:
+            return JSONResponse({"error": e.msg}, status_code=e.status)
+
+    @app.get(api + "/token/security")
+    async def api_token_security(request: Request):
+        # Token security API (phase 3, item 12): one token contract
+        # in, a security verdict out — owner powers, holder
+        # concentration, buy/sell tax, honeypot simulation and
+        # liquidity (EVM), or mint/freeze authority plus holder
+        # concentration (Solana). A new dedicated endpoint, not a
+        # rename of the per-scope scanner: GET
+        # /api/<scope>/token/{h}/security stays exactly as it is (the
+        # token-page security card's backing), while /token/security
+        # is the productized paid-API contract — the same scan
+        # (common/security.py, reused wholesale) plus the contract
+        # fields, with cross-chain dispatch on ?chain=. See
+        # common/security_api.py. Rendered at #/token-security.
+        p = dict(request.query_params)
+        chain = (p.get("chain") or "").strip()
+        address = (p.get("address") or "").strip()
+        if not chain or not address:
+            return JSONResponse({"error": "chain and address are required"}, status_code=400)
+        return await token_security_api(chain, address)
+
+    @app.get(api + "/screen/address")
+    async def api_screen_address(request: Request):
+        # Address screening (phase 3, item 1): one address in, score +
+        # band + reasons + hop exposure out. Cross-chain — the family
+        # (EVM / Solana / Bitcoin) is detected from the address, and
+        # ENS names resolve on Ethereum mainnet. ?chain= picks the EVM
+        # chain for the walk (default ethereum).
+        p = dict(request.query_params)
+        address = (p.get("address") or "").strip()
+        if not address:
+            return JSONResponse({"error": "address is required"}, status_code=400)
+        return await screen_address(address, chain=p.get("chain"))
+
+    @app.get(api + "/screen/transaction")
+    async def api_screen_transaction(request: Request):
+        # Transaction screening (phase 3, item 2): one tx in, score +
+        # band + reasons + hop exposure out, with the settlement
+        # summary (value, USD at execution, confirmations). Reuses
+        # common/settlement.py for the tx data and common/risk.py
+        # for the sanctions walk (see common/txscreen.py). ?chain=
+        # is the tx's chain (ethereum / sepolia / optimism / gnosis /
+        # solana / bitcoin); ?hash= the tx hash / signature / txid.
+        p = dict(request.query_params)
+        chain = (p.get("chain") or "").strip()
+        h = (p.get("hash") or "").strip()
+        if not chain or not h:
+            return JSONResponse({"error": "chain and hash are required"}, status_code=400)
+        return await screen_transaction(chain, h)
+
+    @app.get(api + "/sanctions")
+    async def api_sanctions(request: Request):
+        # Sanctions list API (phase 3, item 3): the vendored OFAC SDN
+        # crypto-address set as a queryable list — filter by program
+        # (?program=DPRK3), chain family (?family=evm / bitcoin /
+        # solana / other), SDN-name substring (?name=LAZARUS), with
+        # pagination (?page=, ?page_size=, default 50, max 100).
+        # Reuses common/risk.py wholesale (see common/sanctions.py);
+        # the response also carries source metadata, per-chain and
+        # per-program counts, and a diff against the committed
+        # baseline snapshot (empty until a rebuild changes the set).
+        return list_sanctions(dict(request.query_params))
+
     @app.get(api + "/preflight")
     async def api_preflight(request: Request):
         p = dict(request.query_params)
@@ -471,6 +594,44 @@ def create_wallet_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
             return JSONResponse({"error": "chain and hash are required"}, status_code=400)
         return await receipt(chain, h)
 
+    @app.get(api + "/verify")
+    async def api_verify(request: Request):
+        # Settlement verification API (phase 3, item 9): one tx in,
+        # verdict + finality + USD at execution + receipt out. A new
+        # dedicated endpoint, not a rename of /settle: /settle stays
+        # the Q1 tracker backing and /receipt the shareable receipt,
+        # while /verify is the productized paid-API contract — the
+        # tracker payload (common/settlement.py track_settlement)
+        # plus the receipt (common/settlement.py receipt) plus the
+        # verdict, reused wholesale; see common/verify.py. Rendered
+        # at #/verify (the #/track page calls this endpoint).
+        p = dict(request.query_params)
+        chain = (p.get("chain") or "").strip()
+        h = (p.get("hash") or "").strip()
+        if not chain or not h:
+            return JSONResponse({"error": "chain and hash are required"}, status_code=400)
+        return await verify_settlement(chain, h)
+
+    @app.get(api + "/explain")
+    async def api_explain(request: Request):
+        # Plain-English transaction API (phase 3, item 13): one tx
+        # in, one sentence + token flows out — the tx explainer
+        # (common/explain.py, feature 3) as a productized paid-API
+        # contract. A new dedicated endpoint, not a rename:
+        # GET /api/<scope>/tx/{h}/explain stays exactly as it is
+        # (the tx-page "What happened" card's backing), while
+        # /explain is the cross-chain contract — the same
+        # explanation payload plus the contract fields, with
+        # dispatch on ?chain= (ethereum / sepolia / optimism /
+        # gnosis / solana / bitcoin). See common/explain_api.py.
+        # Rendered at #/explain.
+        p = dict(request.query_params)
+        chain = (p.get("chain") or "").strip()
+        h = (p.get("hash") or "").strip()
+        if not chain or not h:
+            return JSONResponse({"error": "chain and hash are required"}, status_code=400)
+        return await explain_transaction(chain, h)
+
     @app.get(api + "/aftermath")
     async def api_aftermath(request: Request):
         p = dict(request.query_params)
@@ -484,6 +645,37 @@ def create_wallet_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     async def api_search(q: str = ""):
         # ENS / address resolution runs against Ethereum mainnet.
         return await _search("ethereum", q)
+
+    @app.get(api + "/accounting")
+    async def api_accounting(request: Request):
+        # Accounting API (phase 3, item 10): the Q2 export as a
+        # documented paid-API contract — the full export payload
+        # (common/accounting.py accounting_export, reused wholesale)
+        # plus method / limits / coverage / price_basis_counts and
+        # api/csv/json URLs. A new dedicated endpoint, not a rename:
+        # /accounting/export stays the download backing, while
+        # /accounting is the productized contract. format=csv returns
+        # the same CSV bytes as the export endpoint; the contract
+        # fields are JSON-only. Rendered in the wallet dashboard's
+        # Accounting Export card (which now fetches this endpoint).
+        # See common/accounting_api.py.
+        from fastapi.responses import Response
+        p = dict(request.query_params)
+        address = (p.get("address") or "").strip()
+        fmt = (p.get("format") or "json").lower()
+        if not address:
+            return JSONResponse({"error": "address is required"}, status_code=400)
+        if not _valid_wallet_address(address) and not is_bitcoin_address(address):
+            return JSONResponse({"error": "Invalid address (expected 0x + 40 hex chars, a Solana base58 address, or a Bitcoin address)"}, status_code=400)
+        if fmt not in ("csv", "json"):
+            return JSONResponse({"error": "format must be csv or json"}, status_code=400)
+        if fmt == "csv":
+            return Response(
+                await accounting_api(address, fmt="csv"),
+                media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="cryptoscope-accounting-{address[:12]}.csv"'},
+            )
+        return await accounting_api(address, fmt="json")
 
     @app.get(api + "/accounting/export")
     async def api_accounting_export(request: Request):
@@ -798,6 +990,24 @@ def create_stablecoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI
     async def api_depeg_score():
         return await sc_depeg_score(scope)
 
+    @app.get(api + "/depeg-score/history")
+    async def api_depeg_score_history(days: int = 30):
+        # Depeg early-warning score history (phase 3, item 5): the
+        # current full score (reused wholesale from /depeg-score,
+        # embedded as `current`) + a daily PARTIAL-score history
+        # over the last `days` days + threshold-crossing events.
+        # A full-score daily history is not reconstructable keyless
+        # — see common/depeg_history.py: each history day covers
+        # only the 47.5% of live weight measurable from the
+        # DeFiLlama daily-close price history (redemption quality
+        # + issuer incident half), with reserve liquidity,
+        # secondary-market depth and issuer disclosure marked
+        # unknown per day, never backfilled. Rendered at
+        # #/depeg-history.
+        if days < 7 or days > 365:
+            return JSONResponse({"error": "days must be between 7 and 365"}, status_code=400)
+        return await sc_depeg_score_history(scope, days)
+
     @app.get(api + "/quote-guard")
     async def api_quote_guard(request: Request):
         p = dict(request.query_params)
@@ -819,6 +1029,20 @@ def create_stablecoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI
     async def api_whales():
         return await sc_whales(scope)
 
+    @app.get(api + "/whale-feed")
+    async def api_whale_feed(request: Request):
+        # Whale feed (phase 3, item 14) for this coin: large-transfer
+        # events (>= max($1M, 0.01% of supply), latest 10) as a
+        # paginated feed, filterable by minimum USD value
+        # (?min_usd=) and time window (?from= / ?to= epoch, ?days=N).
+        # Built on common/stablecoin.py wholesale (feature-6
+        # /whales) — see common/whalefeed.py. Rendered at
+        # #/whale-feed in the overview app (with ?coin=<this coin>).
+        try:
+            return await whale_feed_scope(scope, dict(request.query_params))
+        except UpstreamError as e:
+            return JSONResponse({"error": e.msg}, status_code=e.status)
+
     @app.get(api + "/activity")
     async def api_activity():
         return await sc_activity(scope)
@@ -831,6 +1055,19 @@ def create_stablecoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI
     async def api_freeze():
         return await sc_freeze(scope)
 
+    @app.get(api + "/freeze/feed")
+    async def api_freeze_feed(request: Request):
+        # Freeze event feed (phase 3, item 4) for this coin:
+        # paginated, filterable by event type (?kind=), address
+        # (?address=0x…), and time window (?from= / ?to= epoch,
+        # ?days=N). For DAI/USDe/USDD the response is
+        # status not_applicable with the ABI evidence — no freeze
+        # function, no events to list — never a silent empty feed.
+        try:
+            return await freeze_feed_scope(scope, dict(request.query_params))
+        except UpstreamError as e:
+            return JSONResponse({"error": e.msg}, status_code=e.status)
+
     @app.get(api + "/freeze/watch")
     async def api_freeze_watch(request: Request):
         p = dict(request.query_params)
@@ -839,6 +1076,21 @@ def create_stablecoin_app(*, scope: str, title: str, static_dir: str) -> FastAPI
             return JSONResponse({"error": "address is required"}, status_code=400)
         try:
             return await freeze_watch(scope, address)
+        except UpstreamError as e:
+            return JSONResponse({"error": e.msg}, status_code=e.status)
+
+    @app.get(api + "/supply-feed")
+    async def api_supply_feed(request: Request):
+        # Supply & flow feed (phase 3, item 8) for this coin: the
+        # daily net-issuance series + large on-chain mint/burn
+        # events, paginated and filterable by record kind (?kind=
+        # net_change / mint / burn) and time window (?from= / ?to=
+        # epoch, ?days=N). Built on common/stablecoin.py wholesale
+        # (feature-4 /mint-burn + feature-5 /supply-map) — see
+        # common/supplyfeed.py. Rendered at #/supply-feed in the
+        # overview app (with ?coin=<this coin>).
+        try:
+            return await supply_feed_scope(scope, dict(request.query_params))
         except UpstreamError as e:
             return JSONResponse({"error": e.msg}, status_code=e.status)
 
@@ -892,9 +1144,41 @@ def create_overview_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     async def api_mint_burn_rollup():
         return await ov_mint_burn()
 
+    @app.get(api + "/supply-feed")
+    async def api_supply_feed(request: Request):
+        # Supply & flow feed (phase 3, item 8): daily net-issuance
+        # series + large on-chain mint/burn events across all 8
+        # stablecoin scopes, paginated and filterable by coin
+        # (?coin=USDC, comma-separated, symbol or scope), record
+        # kind (?kind=net_change / mint / burn) and time window
+        # (?from= / ?to= epoch, ?days=N last N days). Built on
+        # common/stablecoin.py wholesale (feature-4 /mint-burn +
+        # feature-5 /supply-map) — see common/supplyfeed.py.
+        # Standalone (not in /overview): the per-coin on-chain scans
+        # are slow. Rendered at #/supply-feed.
+        try:
+            return await supply_feed(dict(request.query_params))
+        except UpstreamError as e:
+            return JSONResponse({"error": e.msg}, status_code=e.status)
+
     @app.get(api + "/whales")
     async def api_whales_rollup():
         return await ov_whales()
+
+    @app.get(api + "/whale-feed")
+    async def api_whale_feed(request: Request):
+        # Whale feed (phase 3, item 14): large-transfer events
+        # across all 8 stablecoin scopes, paginated and filterable
+        # by coin (?coin=USDC, comma-separated, symbol or scope),
+        # minimum USD value (?min_usd=) and time window (?from= /
+        # ?to= epoch, ?days=N last N days). Built on
+        # common/stablecoin.py wholesale (feature-6 /whales) — see
+        # common/whalefeed.py. Standalone (not in /overview): the
+        # per-coin transfer scans are slow. Rendered at #/whale-feed.
+        try:
+            return await whale_feed(dict(request.query_params))
+        except UpstreamError as e:
+            return JSONResponse({"error": e.msg}, status_code=e.status)
 
     @app.get(api + "/activity")
     async def api_activity_rollup():
@@ -911,6 +1195,31 @@ def create_overview_app(*, scope: str, title: str, static_dir: str) -> FastAPI:
     @app.get(api + "/issuer-risk")
     async def api_issuer_risk_rollup():
         return await ov_issuer_risk()
+
+    @app.get(api + "/issuer-risk/detail")
+    async def api_issuer_risk_detail():
+        # Issuer risk API (phase 3, item 6): the 8-issuer ranking
+        # (the /issuer-risk rollup reused wholesale) PLUS the full
+        # per-issuer payload for every coin (sc_issuer_risk reused
+        # wholesale per coin, embedded as `issuers` in rank order),
+        # with weights, bands, direction, methodology and limits
+        # stated in every response. The per-scope /issuer-risk and
+        # the rollup above are left untouched. Rendered at
+        # #/issuer-risk. See common/issuer_risk_api.py.
+        return await ov_issuer_risk_detail()
+
+    @app.get(api + "/attestations")
+    async def api_attestations():
+        # Attestation monitor API (phase 3, item 7): all 8 coins'
+        # attestation status in one call — the feature-3 tracker
+        # (GET /api/<scope>/reserves -> attestation_tracker)
+        # reused wholesale per coin via one gather of sc_reserves,
+        # embedded verbatim, coins ordered overdue first.
+        # Current-status-only: no auditor-change history exists
+        # (see common/attestation_monitor.py). Rendered at
+        # #/attestations. No per-scope endpoint is added — the
+        # per-scope tracker already exists in /reserves.
+        return await ov_attestation_monitor()
 
     @app.get(api + "/defi")
     async def api_defi_rollup():
