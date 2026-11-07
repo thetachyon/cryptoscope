@@ -536,8 +536,19 @@ async def evm_token_security(chain, addr):
             pair = None
     ds_pairs, ds_err = await _dexscreener_pairs(addr, chain)
     if pair is None and ds_pairs:
-        pair = ds_pairs[0].get("pairAddress")
-        pair_via = "dexscreener-top-pair"
+        # The DexScreener top pair is only usable as a transfer
+        # recipient / getReserves target when it is a plain 20-byte
+        # contract address. DexScreener reports some pairs (e.g.
+        # Curve) under longer pool ids — passing one to the ABI
+        # encoder raises ValueError and would 500 the whole scan, so
+        # a non-address id is rejected here and the sell leg degrades
+        # to "no DEX pair found" instead. (Caught live 2026-11-06 on
+        # USDC/Ethereum, whose DexScreener top pair is a 32-byte
+        # Curve id, when the V2-factory lookup transiently failed.)
+        cand = ds_pairs[0].get("pairAddress")
+        if cand and re.fullmatch(r"0x[0-9a-fA-F]{40}", cand):
+            pair = cand
+            pair_via = "dexscreener-top-pair"
 
     # Liquidity (e)
     liq_total = None

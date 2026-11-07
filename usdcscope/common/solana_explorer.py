@@ -654,6 +654,11 @@ def sol_docs_payload(api_prefix):
                 "description": e["description"],
                 "params": e["params"],
                 "example": e["example"].replace("/api/solscope", api_prefix),
+                # Paid-API model extension (phase 3): propagate any
+                # extra fields (paid_api, example_response, free_tier,
+                # paid_tier) so future entries render the same way.
+                **{k: v for k, v in e.items()
+                   if k not in ("method", "suffix", "description", "params", "example")},
             }
             for e in SOL_DOCS
         ]

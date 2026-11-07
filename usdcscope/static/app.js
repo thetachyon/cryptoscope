@@ -169,6 +169,7 @@ function svgChart(points, opts = {}) {
 let STATS = null;      // /stats payload (coin metadata + live figures)
 let PEG_DAYS = 30;     // home peg-chart window
 let SUPPLY_DAYS = 90;  // home supply-chart window
+let DEPEG_HIST_DAYS = 30; // depeg-score history window (#/depeg-history)
 let pollTimer = null;
 function clearPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
@@ -234,6 +235,7 @@ function depegScoreCard(d) {
     ${rows.map(([label, v, ev]) => `<tr><td>${esc(label)}</td><td style="text-align:right">${v ? Math.round(v.weight * 100) + "%" : "—"}</td><td style="text-align:right">${v ? scoreCell(v.score) : "—"}</td><td class="muted">${ev || '<span class="muted">unknown — could not be measured; weight redistributed to the other inputs</span>'}</td></tr>`).join("")}
     </tbody></table>
     <div class="notice" style="margin-top:12px">${esc(d.methodology || "")}</div>
+    <div style="margin-top:10px"><a href="#/depeg-history">Score history &amp; threshold crossings →</a> <span class="muted">(daily partial-score history + band crossings — the full score is not reconstructable historically, see that page)</span></div>
   </div>`;
 }
 
@@ -314,6 +316,7 @@ function issuerRiskCard(d) {
     ${rows.map(([label, v, ev]) => `<tr><td>${esc(label)}</td><td style="text-align:right">${v ? Math.round(v.weight * 100) + "%" : "—"}</td><td style="text-align:right">${v ? scoreCell(v.score) : "—"}</td><td class="muted">${ev || '<span class="muted">unknown — could not be measured; weight redistributed to the other inputs</span>'}</td></tr>`).join("")}
     </tbody></table>
     <div class="notice" style="margin-top:12px">${esc(d.methodology || "")}</div>
+    <div style="margin-top:10px"><a href="https://overview.vercel.app/#/issuer-risk" target="_blank" rel="noopener">Compare all 8 issuers with full breakdowns →</a> <span class="muted">(ranking + per-issuer input breakdowns in the overview app — GET /api/overview/issuer-risk/detail)</span></div>
   </div>`;
 }
 
@@ -439,6 +442,7 @@ function mintBurnCard(mb) {
     <div class="card-head" style="margin-top:16px">Issuance as a demand signal</div>
     <div style="margin-top:6px">${esc(ds.summary || "")}</div>
     <div class="notice" style="margin-top:12px">${esc(ds.caveat || "")}</div>
+    <div style="margin-top:10px"><a href="https://overview.vercel.app/#/supply-feed?coin=${esc(mb.symbol || "")}" target="_blank" rel="noopener">Supply &amp; flow feed →</a> <span class="muted">(daily net-issuance series + large on-chain events across all 8 coins — GET /api/overview/supply-feed; this coin's own feed: <span class="mono">GET /api/${esc(SCOPE)}/supply-feed</span>)</span></div>
   </div>`;
 }
 
@@ -492,6 +496,7 @@ function whalesCard(w) {
       </tbody></table></div>`
       : `<div class="empty">No transfer ≥ ${usdBig(lt.threshold_usd)} in the last ${num(lt.scanned_transfers)} transfers scanned${lt.scan_earliest ? ` (${dateTimeStr(lt.scan_earliest)} → ${dateTimeStr(lt.scan_latest)})` : ""}.</div>`}
     <div class="muted" style="margin-top:8px">${esc(lt.chain_scope_note || "")}${lts.length ? ` Scanned ${num(lt.scanned_transfers)} transfers${lt.scan_earliest ? ` (${dateTimeStr(lt.scan_earliest)} → ${dateTimeStr(lt.scan_latest)})` : ""}; showing latest ${num(lts.length)}.` : ""}${w.price_assumed_1_usd ? " USD values assume $1.00 (no live price available)." : ""}</div>
+    <div style="margin-top:10px"><a href="https://overview.vercel.app/#/whale-feed?coin=${esc(w.symbol || "")}" target="_blank" rel="noopener">Whale feed →</a> <span class="muted">(large transfers across all 8 coins — GET /api/overview/whale-feed; this coin's own feed: <span class="mono">GET /api/${esc(SCOPE)}/whale-feed</span>)</span></div>
     <div class="notice" style="margin-top:12px">${esc(w.methodology || "")}</div>
   </div>`;
 }
@@ -686,6 +691,7 @@ function freezeCard(f) {
       </tbody></table></div>`
       : `<div class="empty">${evs.status === "not_applicable" ? "No freeze function — no freeze events exist to list." : `No freeze/blacklist events in the scanned window${win.window_days ? ` (${num(win.window_days)} days)` : ""}.`}</div>`}
     <div class="muted" style="margin-top:8px">${dst.note ? esc(dst.note) : ""}</div>
+    <div class="muted" style="margin-top:8px">Full paginated feed for ${esc(f.symbol || "")} — and every issuer, filterable by event type, address and time window: <a href="https://walletscope.vercel.app/#/freeze-feed?coin=${esc(f.symbol || "")}" target="_blank" rel="noopener">Freeze event feed \u2192</a></div>
     <div class="card-head" style="margin-top:16px">Check an address <span class="muted">(is this address frozen for ${esc(f.symbol || "")}?)</span></div>
     <form id="freeze-watch-form" class="search" autocomplete="off" style="max-width:640px;margin-top:10px">
       <input id="freeze-watch-input" type="text" placeholder="0x… Ethereum address" aria-label="Address to check for a freeze">
@@ -880,7 +886,7 @@ async function homePage() {
           <div><span class="muted">Worst depeg:</span> ${dep.worst_depeg ? `${priceFmt(dep.worst_depeg.price)} (${bpsFmt(dep.worst_depeg.deviation_bps)}) on ${dateStr(dep.worst_depeg.date)}` : "none"}</div>
           <div><span class="muted">Most recent:</span> ${dep.most_recent_depeg ? `${priceFmt(dep.most_recent_depeg.price)} (${bpsFmt(dep.most_recent_depeg.deviation_bps)}) on ${dateStr(dep.most_recent_depeg.date)}` : "none"}</div>
         </div>
-        <div style="margin-top:10px"><a href="#/depegs">Full depeg history →</a> · <a href="#/holders">Top holders →</a> · <a href="#/transfers">Recent transfers →</a> · <a href="#/reserves">Reserves &amp; attestations →</a></div>
+        <div style="margin-top:10px"><a href="#/depegs">Full depeg history →</a> · <a href="#/depeg-history">Score history &amp; crossings →</a> · <a href="#/holders">Top holders →</a> · <a href="#/transfers">Recent transfers →</a> · <a href="#/reserves">Reserves &amp; attestations →</a></div>
       </div>
     </div>
     <p class="muted">Sources: DeFiLlama stablecoins API (peg + supply), CoinGecko (market cap, price fallback), ${s.primary_chain === "tron" ? "TronScan / TronGrid (Tron holders + transfers)" : "Blockscout v2 (Ethereum holders + transfers)"}. No API keys. ${denom ? "" : ""}</p>
@@ -1091,10 +1097,59 @@ async function depegsPage() {
       ${(d.events || []).map((e) => `<tr><td>${dateStr(e.date)}</td><td style="text-align:right">${priceFmt(e.price)}</td><td style="text-align:right">${bpsFmt(e.deviation_bps)}</td></tr>`).join("")}
     </tbody></table>` : '<div class="empty">No depeg days in the full price history.</div>'}
     </div>
+    <p class="muted"><a href="#/depeg-history">Depeg-score history &amp; threshold crossings →</a> — the daily partial-score history behind these depeg days.</p>
     <p class="muted">Source: DeFiLlama /stablecoinprices daily closes (${dateStr(d.history_first)} → ${dateStr(d.history_last)}).</p>
     `);
   } catch (e) {
     render(`<div class="card" style="margin-top:22px"><div class="empty">Could not load depeg history: ${esc(e.message)}<br><a href="#/depegs">Retry</a></div></div>`);
+  }
+}
+
+async function depegHistoryPage() {
+  render(`<div class="card" style="margin-top:22px"><div class="empty"><span class="spinner"></span> Loading depeg-score history…</div></div>`);
+  try {
+    const s = await loadStats();
+    const d = await get("/depeg-score/history?days=" + DEPEG_HIST_DAYS);
+    const cur = d.current || {};
+    const sum = d.crossing_summary || {};
+    const pts = (d.history || []).map((p) => ({ x: p.date_iso, y: p.partial_score }));
+    const cov = d.partial_score_coverage || {};
+    render(`
+    <h1 class="pagehead" style="margin-top:22px">Depeg-score history — ${esc(s.symbol)}</h1>
+    <p class="muted">The current full depeg-risk score, its daily history, and the dates the score crossed a risk band. <b>History is a partial score, not the full score:</b> each day covers only ${(cov.weight_covered_pct != null ? cov.weight_covered_pct : "47.5")}% of the live score's weight — redemption quality plus the issuer incident half, both rebuilt from DeFiLlama daily closes. Reserve liquidity, secondary-market depth and the issuer disclosure half cannot be reconstructed historically (past attestation dates were not recorded; DexScreener has no historical liquidity series), so they are unknown for every history day and excluded with weights renormalised. A partial score reflects price history only — it is not directly comparable to the full live score. API: <a href="#/api-docs">GET /api/${esc(SCOPE)}/depeg-score/history</a></p>
+    <div class="statgrid">
+      <div class="stat"><div class="stat-label">Current full score</div><div class="stat-value">${cur.score != null ? Number(cur.score).toFixed(1) + " / 100" : "—"}</div><div class="muted">${bandBadge(cur.band)} · ${cur.inputs_unknown && cur.inputs_unknown.length ? "unknown inputs: " + esc(cur.inputs_unknown.join(", ")) : "all inputs known"}</div></div>
+      <div class="stat"><div class="stat-label">Latest partial score</div><div class="stat-value">${sum.current_partial_score != null ? Number(sum.current_partial_score).toFixed(1) + " / 100" : "—"}</div><div class="muted">${bandBadge(sum.current_partial_band)} · ${esc(sum.bands_agree_note || "")}</div></div>
+      <div class="stat"><div class="stat-label">Band crossings in window</div><div class="stat-value">${num(sum.total)}</div><div class="muted">${num(sum.up)} up (riskier) · ${num(sum.down)} down · ${d.window ? esc(String(d.window.days_returned)) + " days (" + esc(d.window.start_date || "") + " → " + esc(d.window.end_date || "") + ")" : ""}</div></div>
+    </div>
+    <div class="card"><div class="card-head">Partial score — daily <span class="muted">(${esc(String(DEPEG_HIST_DAYS))} days · bands: low &lt;25 · moderate 25–&lt;50 · elevated 50–&lt;75 · high ≥75 · red line: 50)</span>
+      <span class="daybtns" style="float:right">${[30, 90, 365].map((n) => `<button class="btn ${n === DEPEG_HIST_DAYS ? "active" : ""}" data-histdays="${n}">${n}d</button>`).join(" ")}</span></div>
+      <div class="chart-wrap">${svgChart(pts, { label: `${s.symbol} partial depeg score, ${DEPEG_HIST_DAYS} days`, fmtY: (v) => Number(v).toFixed(1), refY: 50, refLabel: "50" })}</div>
+      <div class="muted">Each point is one daily close. ${d.history_coverage ? `Price history runs ${esc(d.history_coverage.history_first_date || "")} → ${esc(d.history_coverage.history_last_date || "")} (${num(d.history_coverage.history_days_total)} days).` : ""}</div>
+    </div>
+    <div class="card"><div class="card-head">Threshold crossings — band changes of the partial score</div>
+    ${(d.crossings || []).length ? `<table class="tbl"><thead><tr><th>Date</th><th>From → To</th><th>Direction</th><th style="text-align:right">Partial score</th><th style="text-align:right">Price</th><th style="text-align:right">Deviation</th><th>Depeg day?</th></tr></thead><tbody>
+      ${(d.crossings || []).map((c) => `<tr><td>${esc(c.date_iso)}</td><td>${bandBadge(c.from_band)} → ${bandBadge(c.to_band)}</td><td>${c.direction === "up" ? "▲ up (riskier)" : "▼ down"}</td><td style="text-align:right">${c.previous_partial_score != null ? Number(c.previous_partial_score).toFixed(1) + " → " : ""}<b>${c.partial_score != null ? Number(c.partial_score).toFixed(1) : "—"}</b></td><td style="text-align:right">${priceFmt(c.price_usd)}</td><td style="text-align:right">${bpsFmt(c.deviation_bps)}</td><td>${c.depeg_day ? "yes — |dev| &gt; 50 bps" : "no"}</td></tr>`).join("")}
+    </tbody></table>` : '<div class="empty">No band crossings in this window — the partial score stayed in one band for the whole period. Try a longer window (90d / 365d).</div>'}
+    </div>
+    <div class="card"><div class="card-head">Daily history — newest first <span class="muted">(partial score · ${esc(String((d.history || []).length))} days)</span></div>
+    ${(d.history || []).length ? `<table class="tbl"><thead><tr><th>Date</th><th style="text-align:right">Price</th><th style="text-align:right">Deviation</th><th style="text-align:right">Redemption</th><th style="text-align:right">Issuer incident</th><th style="text-align:right">Partial score</th><th>Band</th></tr></thead><tbody>
+      ${(d.history || []).slice().reverse().map((p) => `<tr><td>${esc(p.date_iso)}</td><td style="text-align:right">${priceFmt(p.price_usd)}</td><td style="text-align:right">${bpsFmt(p.deviation_bps)}${p.depeg ? ' <span class="badge fail">Depeg</span>' : ""}</td><td style="text-align:right">${p.redemption_score != null ? Number(p.redemption_score).toFixed(1) : "—"}</td><td style="text-align:right">${p.issuer_incident_score != null ? Number(p.issuer_incident_score).toFixed(1) : "—"}</td><td style="text-align:right"><b>${p.partial_score != null ? Number(p.partial_score).toFixed(1) : "—"}</b></td><td>${bandBadge(p.band)}</td></tr>`).join("")}
+    </tbody></table>` : '<div class="empty">No history in this window.</div>'}
+    </div>
+    <div class="card"><div class="card-head">What is — and is not — measured</div>
+      <div class="detail">
+        <div><span class="muted">Known each day:</span> redemption quality (${esc(String(((cov.inputs_known || [])[0] || {}).live_weight))} live weight) — current deviation that day + trailing-365d depeg frequency/worst; issuer incident half (${esc(String(((cov.inputs_known || [])[1] || {}).live_weight))} live weight) — depeg days + worst depeg in the history up to that day.</div>
+        ${(cov.inputs_unknown || []).map((u) => `<div><span class="muted">Unknown each day — ${esc(u.input)} (${esc(String(u.live_weight))} live weight):</span> ${esc(u.reason)}</div>`).join("")}
+      </div>
+      ${(d.limits || []).map((l) => `<div class="notice" style="margin-top:12px">${esc(l)}</div>`).join("")}
+      <div class="muted" style="margin-top:12px">${esc(d.method || "")}</div>
+    </div>
+    <p class="muted"><a href="#/depegs">Full depeg history →</a> · <a href="#/">Back to ${esc(s.symbol)} home →</a> · <a href="#/api-docs">API docs →</a></p>
+    `);
+    document.querySelectorAll("[data-histdays]").forEach((b) => b.addEventListener("click", () => { DEPEG_HIST_DAYS = Number(b.dataset.histdays); depegHistoryPage(); }));
+  } catch (e) {
+    render(`<div class="card" style="margin-top:22px"><div class="empty">Could not load depeg-score history: ${esc(e.message)}<br><a href="#/depeg-history">Retry</a></div></div>`);
   }
 }
 
@@ -1168,7 +1223,7 @@ async function docsPage() {
     render(`
     <h1 class="pagehead" style="margin-top:22px">API Docs — ${esc(d.name || TITLE)} <span class="muted" style="font-size:15px">(${esc(d.symbol || "")} · primary chain ${esc(d.primary_chain || "")})</span></h1>
     <div class="card"><div class="card-head">Endpoints — ${esc(API)}</div>
-    ${(d.endpoints || []).map((e) => `<div class="docitem"><span class="method">${esc(e.method)}</span> <span class="mono">${esc(e.path)}</span><div class="muted">${esc(e.description)}</div>${e.params && e.params.length ? `<div class="muted">Params: ${esc(e.params.join(", "))}</div>` : ""}<div><a class="mono" href="${esc(e.example)}" target="_blank" rel="noopener">Try: ${esc(e.example)}</a></div></div>`).join("")}
+    ${(d.endpoints || []).map((e) => `<div class="docitem"><span class="method">${esc(e.method)}</span> <span class="mono">${esc(e.path)}</span>${e.paid_api ? ` <span class="badge info">Paid API — keyed &amp; metered in the paid tier, free &amp; keyless today</span>` : ""}<div class="muted">${esc(e.description)}</div>${e.params && e.params.length ? `<div class="muted">Params: ${esc(e.params.join(", "))}</div>` : ""}<div><a class="mono" href="${esc(e.example)}" target="_blank" rel="noopener">Try: ${esc(e.example)}</a></div>${e.example_response != null ? `<div class="muted" style="margin-top:6px">Example response:<pre class="mono" style="white-space:pre-wrap;word-break:break-word;margin:4px 0 0;font-size:12px">${esc(typeof e.example_response === "string" ? e.example_response : JSON.stringify(e.example_response, null, 2))}</pre></div>` : ""}${e.free_tier ? `<div class="muted" style="margin-top:6px"><b>Free tier today:</b> ${esc(e.free_tier)}</div>` : ""}${e.paid_tier ? `<div class="muted" style="margin-top:6px"><b>Paid tier (planned):</b> ${esc(e.paid_tier)}</div>` : ""}</div>`).join("")}
     </div>
     <p class="muted">All endpoints are GET, keyless, and return JSON. DeFiLlama price history is cached 10 minutes server-side; coin detail 2 minutes.</p>
     `);
@@ -1204,6 +1259,7 @@ const routes = [
   [/^#\/holders$/, () => holdersPage()],
   [/^#\/transfers$/, () => transfersPage()],
   [/^#\/depegs$/, () => depegsPage()],
+  [/^#\/depeg-history$/, () => depegHistoryPage()],
   [/^#\/reserves$/, () => reservesPage()],
   [/^#\/api-docs$/, () => docsPage()],
   [/^#\/search\?q=(.*)$/, (m) => searchPage(decodeURIComponent(m[1] || ""))],

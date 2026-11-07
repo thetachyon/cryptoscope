@@ -3870,6 +3870,1021 @@ SC_DOCS = [
     {"method": "GET", "suffix": "/transfers", "description": "Recent transfers on the primary chain with amounts + USD values (Ethereum: Blockscout; USDD: TronScan, newest first). Paginate with next_page_params (EVM) or ?start= (Tron).", "params": ["start"], "example": "/transfers"},
     {"method": "GET", "suffix": "/depegs", "description": "Every day in the full price history where |price - $1| > 50 bps, newest first, with worst and most-recent depeg.", "params": [], "example": "/depegs"},
     {"method": "GET", "suffix": "/depeg-score", "description": "Depeg early-warning score (0-100, higher = higher depeg risk) with the four Par v0 input sub-scores and their evidence: redemption quality 40% (current deviation + 365d depeg history proxy), reserve liquidity 25% (attestation-staleness proxy — NOT a direct reserve measurement; unknown where no attestation date could be verified), secondary-market depth 20% (DexScreener near-par liquidity / circulating supply + venue-concentration penalty), issuer/operational risk 15% (attestation cadence/auditor + full-history depeg incidents). Weights are Par v0 provisional (UNCONFIRMED); heuristic screening signal, not investment advice or a rating.", "params": [], "example": "/depeg-score"},
+    {"method": "GET", "suffix": "/depeg-score/history", "description": "Depeg early-warning score history (phase 3, item 5): the current full /depeg-score evaluation reused wholesale (embedded as `current`, with all four input sub-scores and evidence) plus a daily score history over the last ?days= days and threshold-crossing events (band changes of the history score, with dates, from/to bands and direction). A full-score daily history is NOT reconstructable keyless, so history days carry a clearly-labelled partial_score — the weight-renormalised mean of the two inputs measurable from the DeFiLlama daily-close price history (redemption quality 40% of live weight, computed with the exact live function anchored to each day, plus the issuer incident half 7.5%). The other 52.5% of live weight (reserve liquidity 25%, secondary-market depth 20%, issuer disclosure half 7.5%) is unknown for every history day — past attestation dates were not recorded and DexScreener has no historical liquidity series keyless — and is excluded with weights renormalised, exactly as the live score does for unknown inputs. Partial scores cover 47.5% of live weight and reflect price history only; the response states both the latest day's partial band and the live full-score band, and whether they agree. Bands: low <25, moderate 25–<50, elevated 50–<75, high >=75. Rendered at #/depeg-history.", "params": ["days"], "example": "/depeg-score/history?days=90", "paid_api": True, "example_response": {
+  "scope": "tusdscope",
+  "symbol": "TUSD",
+  "name": "TrueUSD",
+  "issuer": "TrueUSD (Techteryx)",
+  "current": {
+    "scope": "tusdscope",
+    "symbol": "TUSD",
+    "name": "TrueUSD",
+    "issuer": "TrueUSD (Techteryx)",
+    "score": 35.3,
+    "band": "moderate",
+    "weights": {
+      "redemption_quality": 0.4,
+      "reserve_liquidity": 0.25,
+      "secondary_market_depth": 0.2,
+      "issuer_operational": 0.15
+    },
+    "weights_used": {
+      "redemption_quality": 0.4,
+      "reserve_liquidity": 0.25,
+      "secondary_market_depth": 0.2,
+      "issuer_operational": 0.15
+    },
+    "inputs": {
+      "redemption_quality": {
+        "weight": 0.4,
+        "score": 17.8,
+        "evidence": {
+          "price_usd": 0.9984675215127694,
+          "current_deviation_bps": -15.32,
+          "depeg_days_365d": 4,
+          "worst_depeg_365d_bps": -55.88,
+          "worst_depeg_365d_date": 1764028800,
+          "current_component": 15.3,
+          "history_component": 21.5,
+          "note": "Proxy: current deviation + 365d depeg frequency/worst depeg. Redemption gates or halts are not observed directly; the proxy assumes a gated/halted redemption shows up as a price deviation."
+        }
+      },
+      "reserve_liquidity": {
+        "weight": 0.25,
+        "score": 20.0,
+        "evidence": {
+          "cadence": "real-time",
+          "auditor": "The Network Firm",
+          "last_attestation": None,
+          "source_url": "https://real-time-attest.trustexplorer.io/truecurrencies",
+          "note": "PROXY: no keyless API exposes live reserve composition, so reserve liquidity is proxied by how stale the last verified attestation is and how often the issuer publishes. It is not a measurement of reserves.",
+          "days_since_attestation": None,
+          "staleness_note": "No dated attestation: backing is published live/on-chain rather than in dated reports, so staleness does not apply; composition is still not measured here."
+        }
+      },
+      "secondary_market_depth": {
+        "weight": 0.2,
+        "score": 72.7,
+        "evidence": {
+          "near_par_liquidity_usd": 239243.97,
+          "tracked_pairs_near_par": 5,
+          "pairs_returned_by_dexscreener": 9,
+          "top_pair": {
+            "dex": "pancakeswap",
+            "pair_address": "0x6C2348DEeC1508724C0207a84d21cC5EE88231C8",
+            "liquidity_usd": 221238.24,
+            "share_of_near_par_pct": 92.5
+          },
+          "supply_usd": 484484718.87,
+          "liquidity_to_supply_ratio": 0.0004938111785197408,
+          "liquidity_to_supply_pct": 0.0494,
+          "concentration_penalty": 15.0,
+          "note": "DexScreener-tracked pairs on the primary chain only, via the chain-scoped token-pairs endpoint, which returns at most 30 pairs per token (ordering not by liquidity) \u2014 this is a lower bound on tracked DEX liquidity, not total market depth. CEX depth and untracked venues are not covered.",
+          "total_tracked_liquidity_usd": 271699.0
+        }
+      },
+      "issuer_operational": {
+        "weight": 0.15,
+        "score": 57.5,
+        "evidence": {
+          "cadence": "real-time",
+          "auditor": "The Network Firm",
+          "auditor_tier": "other",
+          "disclosure_component": 15.0,
+          "depeg_days_total": 131,
+          "worst_depeg_bps": -356.45,
+          "worst_depeg_date": 1709164800,
+          "incident_component": 100.0,
+          "note": "Disclosure quality is from the issuer's stated attestation cadence and auditor; incident history is depeg days in the full DeFiLlama daily-close history (intraday depegs larger than the daily close are not counted)."
+        }
+      }
+    },
+    "inputs_unknown": [],
+    "price_usd": 0.9984675215127694,
+    "price_source": "defillama",
+    "deviation_bps": -15.32,
+    "supply_usd": 484484718.87,
+    "methodology": "Depeg early-warning score (Par v0, provisional UNCONFIRMED weights: redemption quality 40%, reserve liquidity 25%, secondary-market depth 20%, issuer/operational risk 15%). Redemption quality is proxied by current peg deviation plus depeg frequency and worst depeg in the last 365 days \u2014 if redemption were gated or halted, the price deviates; redemption status itself is not observed directly. Reserve liquidity is NOT measurable live keyless, so it is proxied by attestation staleness plus disclosure cadence, and is unknown where no attestation date could be verified. Secondary-market depth is DexScreener-tracked liquidity in near-par pairs (within 50 bps of $1.00) on the primary chain as a share of circulating supply, with a venue-concentration penalty. The DexScreener endpoint returns at most 30 pairs per token, so the figure is a lower bound on tracked DEX liquidity, not total market depth; CEX depth is not covered. Issuer/operational risk combines attestation cadence and auditor quality with incident history (depeg days over the full price history). Unknown inputs are excluded and the remaining weights renormalised. Heuristic screening signal \u2014 not investment advice, not a rating, not a guarantee.",
+    "attestation": {
+      "cadence": "real-time",
+      "auditor": "The Network Firm",
+      "last_attestation": None,
+      "source_url": "https://real-time-attest.trustexplorer.io/truecurrencies",
+      "note": "Real-time attestation feed, not dated reports \u2014 no attestation date applies. Note: TUSD supply is frozen (no new mint/burn)."
+    },
+    "as_of": 1794006111,
+    "sources": [
+      "DeFiLlama stablecoins API (price, supply, depeg history)",
+      "DexScreener keyless API (secondary-market depth)",
+      "Issuer transparency pages (attestation cadence/auditor/date, as verified \u2014 see attestation block)"
+    ]
+  },
+  "window": {
+    "days_requested": 30,
+    "days_returned": 30,
+    "start": 1791417600,
+    "start_date": "2026-10-08",
+    "end": 1793923200,
+    "end_date": "2026-11-06"
+  },
+  "history": [
+    {
+      "date": 1791417600,
+      "date_iso": "2026-10-08",
+      "price_usd": 0.9988228955659202,
+      "deviation_bps": -11.77,
+      "depeg": False,
+      "redemption_score": 15.6,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 28.9,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1791504000,
+      "date_iso": "2026-10-09",
+      "price_usd": 0.9990454185264143,
+      "deviation_bps": -9.55,
+      "depeg": False,
+      "redemption_score": 14.3,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 27.8,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1791590400,
+      "date_iso": "2026-10-10",
+      "price_usd": 0.9992383676210262,
+      "deviation_bps": -7.62,
+      "depeg": False,
+      "redemption_score": 13.2,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 26.9,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1791676800,
+      "date_iso": "2026-10-11",
+      "price_usd": 0.9989055195756359,
+      "deviation_bps": -10.94,
+      "depeg": False,
+      "redemption_score": 15.2,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 28.6,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1791763200,
+      "date_iso": "2026-10-12",
+      "price_usd": 0.9986519834854254,
+      "deviation_bps": -13.48,
+      "depeg": False,
+      "redemption_score": 16.7,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 29.9,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1791849600,
+      "date_iso": "2026-10-13",
+      "price_usd": 0.9990220946628872,
+      "deviation_bps": -9.78,
+      "depeg": False,
+      "redemption_score": 14.5,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 28.0,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1791936000,
+      "date_iso": "2026-10-14",
+      "price_usd": 0.999064531752529,
+      "deviation_bps": -9.35,
+      "depeg": False,
+      "redemption_score": 14.2,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 27.7,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792022400,
+      "date_iso": "2026-10-15",
+      "price_usd": 0.9986423270555388,
+      "deviation_bps": -13.58,
+      "depeg": False,
+      "redemption_score": 16.7,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 29.9,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792108800,
+      "date_iso": "2026-10-16",
+      "price_usd": 0.9988032970892439,
+      "deviation_bps": -11.97,
+      "depeg": False,
+      "redemption_score": 15.8,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 29.1,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792195200,
+      "date_iso": "2026-10-17",
+      "price_usd": 0.9999414063779906,
+      "deviation_bps": -0.59,
+      "depeg": False,
+      "redemption_score": 8.9,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 23.3,
+      "band": "low",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792281600,
+      "date_iso": "2026-10-18",
+      "price_usd": 0.9988152644709835,
+      "deviation_bps": -11.85,
+      "depeg": False,
+      "redemption_score": 15.7,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 29.0,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792368000,
+      "date_iso": "2026-10-19",
+      "price_usd": 0.9988212108179468,
+      "deviation_bps": -11.79,
+      "depeg": False,
+      "redemption_score": 15.7,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 29.0,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792454400,
+      "date_iso": "2026-10-20",
+      "price_usd": 0.9986602759966028,
+      "deviation_bps": -13.4,
+      "depeg": False,
+      "redemption_score": 16.6,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 29.8,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792540800,
+      "date_iso": "2026-10-21",
+      "price_usd": 0.9988731492057371,
+      "deviation_bps": -11.27,
+      "depeg": False,
+      "redemption_score": 15.3,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 28.7,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792627200,
+      "date_iso": "2026-10-22",
+      "price_usd": 0.9989648521767945,
+      "deviation_bps": -10.35,
+      "depeg": False,
+      "redemption_score": 14.8,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 28.3,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792713600,
+      "date_iso": "2026-10-23",
+      "price_usd": 0.9981573658151119,
+      "deviation_bps": -18.43,
+      "depeg": False,
+      "redemption_score": 19.6,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 32.3,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792800000,
+      "date_iso": "2026-10-24",
+      "price_usd": 0.9997630512884049,
+      "deviation_bps": -2.37,
+      "depeg": False,
+      "redemption_score": 10.0,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 24.2,
+      "band": "low",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792886400,
+      "date_iso": "2026-10-25",
+      "price_usd": 0.9984005668116824,
+      "deviation_bps": -15.99,
+      "depeg": False,
+      "redemption_score": 18.2,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 31.1,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1792972800,
+      "date_iso": "2026-10-26",
+      "price_usd": 0.9975289145989775,
+      "deviation_bps": -24.71,
+      "depeg": False,
+      "redemption_score": 23.4,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 35.5,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793059200,
+      "date_iso": "2026-10-27",
+      "price_usd": 0.998490060291848,
+      "deviation_bps": -15.1,
+      "depeg": False,
+      "redemption_score": 17.6,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 30.6,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793145600,
+      "date_iso": "2026-10-28",
+      "price_usd": 0.9979658121191763,
+      "deviation_bps": -20.34,
+      "depeg": False,
+      "redemption_score": 20.8,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 33.3,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793232000,
+      "date_iso": "2026-10-29",
+      "price_usd": 0.9982421313033676,
+      "deviation_bps": -17.58,
+      "depeg": False,
+      "redemption_score": 19.1,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 31.9,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793318400,
+      "date_iso": "2026-10-30",
+      "price_usd": 0.9973209852019831,
+      "deviation_bps": -26.79,
+      "depeg": False,
+      "redemption_score": 24.7,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 36.6,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793404800,
+      "date_iso": "2026-10-31",
+      "price_usd": 0.9991328688214389,
+      "deviation_bps": -8.67,
+      "depeg": False,
+      "redemption_score": 13.8,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 27.4,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793491200,
+      "date_iso": "2026-11-01",
+      "price_usd": 0.9977531975454303,
+      "deviation_bps": -22.47,
+      "depeg": False,
+      "redemption_score": 22.1,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 34.4,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793577600,
+      "date_iso": "2026-11-02",
+      "price_usd": 0.9978251834235314,
+      "deviation_bps": -21.75,
+      "depeg": False,
+      "redemption_score": 21.6,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 34.0,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793664000,
+      "date_iso": "2026-11-03",
+      "price_usd": 0.999026126566181,
+      "deviation_bps": -9.74,
+      "depeg": False,
+      "redemption_score": 14.4,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 27.9,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793750400,
+      "date_iso": "2026-11-04",
+      "price_usd": 0.9987149797262125,
+      "deviation_bps": -12.85,
+      "depeg": False,
+      "redemption_score": 16.3,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 29.5,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793836800,
+      "date_iso": "2026-11-05",
+      "price_usd": 0.9982408638952748,
+      "deviation_bps": -17.59,
+      "depeg": False,
+      "redemption_score": 19.1,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 31.9,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    },
+    {
+      "date": 1793923200,
+      "date_iso": "2026-11-06",
+      "price_usd": 0.9984675215127694,
+      "deviation_bps": -15.32,
+      "depeg": False,
+      "redemption_score": 17.8,
+      "redemption_evidence": {
+        "depeg_days_365d": 4,
+        "worst_depeg_365d_bps": -55.88,
+        "worst_depeg_365d_date": 1764028800
+      },
+      "issuer_incident_score": 100.0,
+      "issuer_incident_evidence": {
+        "depeg_days_total": 131,
+        "worst_depeg_bps": -356.45,
+        "worst_depeg_date": 1709164800
+      },
+      "partial_score": 30.8,
+      "band": "moderate",
+      "inputs_unknown": [
+        "reserve_liquidity",
+        "secondary_market_depth",
+        "issuer_operational_disclosure"
+      ]
+    }
+  ],
+  "crossings": [
+    {
+      "date": 1792195200,
+      "date_iso": "2026-10-17",
+      "from_band": "moderate",
+      "to_band": "low",
+      "direction": "down",
+      "partial_score": 23.3,
+      "previous_partial_score": 29.1,
+      "price_usd": 0.9999414063779906,
+      "deviation_bps": -0.59,
+      "depeg_day": False
+    },
+    {
+      "date": 1792281600,
+      "date_iso": "2026-10-18",
+      "from_band": "low",
+      "to_band": "moderate",
+      "direction": "up",
+      "partial_score": 29.0,
+      "previous_partial_score": 23.3,
+      "price_usd": 0.9988152644709835,
+      "deviation_bps": -11.85,
+      "depeg_day": False
+    },
+    {
+      "date": 1792800000,
+      "date_iso": "2026-10-24",
+      "from_band": "moderate",
+      "to_band": "low",
+      "direction": "down",
+      "partial_score": 24.2,
+      "previous_partial_score": 32.3,
+      "price_usd": 0.9997630512884049,
+      "deviation_bps": -2.37,
+      "depeg_day": False
+    },
+    {
+      "date": 1792886400,
+      "date_iso": "2026-10-25",
+      "from_band": "low",
+      "to_band": "moderate",
+      "direction": "up",
+      "partial_score": 31.1,
+      "previous_partial_score": 24.2,
+      "price_usd": 0.9984005668116824,
+      "deviation_bps": -15.99,
+      "depeg_day": False
+    }
+  ],
+  "crossing_summary": {
+    "total": 4,
+    "up": 2,
+    "down": 2,
+    "current_partial_band": "moderate",
+    "current_partial_score": 30.8,
+    "current_full_band": "moderate",
+    "current_full_score": 35.3,
+    "bands_agree": True,
+    "bands_agree_note": "The latest day's partial band and the live full-score band agree."
+  },
+  "bands": {
+    "low": "score < 25",
+    "moderate": "25 <= score < 50",
+    "elevated": "50 <= score < 75",
+    "high": "score >= 75"
+  },
+  "partial_score_coverage": {
+    "weight_covered": 0.47500000000000003,
+    "weight_covered_pct": 47.5,
+    "inputs_known": [
+      {
+        "input": "redemption_quality",
+        "live_weight": 0.4
+      },
+      {
+        "input": "issuer_incident (half of issuer_operational)",
+        "live_weight": 0.075
+      }
+    ],
+    "inputs_unknown": [
+      {
+        "input": "reserve_liquidity",
+        "live_weight": 0.25,
+        "reason": "Past attestation dates were not recorded; only the latest verified attestation date is known, so past attestation staleness is unknowable."
+      },
+      {
+        "input": "secondary_market_depth",
+        "live_weight": 0.2,
+        "reason": "DexScreener exposes no historical liquidity series keyless \u2014 only a live snapshot."
+      },
+      {
+        "input": "issuer_operational_disclosure",
+        "live_weight": 0.075,
+        "reason": "Attestation cadence / auditor as verified today; the cadence/auditor in force on a past day is not recorded."
+      }
+    ]
+  },
+  "history_coverage": {
+    "history_first": 1609286400,
+    "history_first_date": "2020-12-30",
+    "history_last": 1793923200,
+    "history_last_date": "2026-11-06",
+    "history_days_total": 2132,
+    "note": "History is DeFiLlama daily closes only. A window longer than the available history returns fewer days; days are never invented."
+  },
+  "method": "Depeg early-warning score history (phase 3, item 5). The current full score (Par v0, provisional UNCONFIRMED weights) is the live /depeg-score evaluation reused wholesale and embedded as `current`. Each history day carries a partial_score \u2014 the weight-renormalised mean of the two inputs reconstructable from the DeFiLlama daily-close price history (redemption quality, 40% of live weight, computed with the exact live function anchored to that day; and the issuer incident half, 7.5% of live weight, same function on the history up to that day). The other 52.5% of live weight (reserve liquidity 25%, secondary-market depth 20%, issuer disclosure half 7.5%) cannot be reconstructed historically \u2014 past attestation dates were not recorded and DexScreener has no historical liquidity series keyless \u2014 so those inputs are unknown for every history day and excluded with weights renormalised, exactly as the live score does for unknown inputs. A partial score therefore covers 47.5% of the live score's weight and reflects price history only. Threshold crossings are band changes of the partial score between consecutive days (bands low <25, moderate 25\u2013<50, elevated 50\u2013<75, high >=75, same as the live score). Heuristic screening signal \u2014 not investment advice, not a rating, not a guarantee.",
+  "limits": [
+    "History is a PARTIAL score, not the full score: each day covers 47.5% of the live score's weight (redemption quality 40% + issuer incident half 7.5%). Reserve liquidity (25%), secondary-market depth (20%) and the issuer disclosure half (7.5%) are unknown for every history day \u2014 past attestation dates were not recorded, so past attestation staleness is unknowable, and DexScreener exposes no historical liquidity series keyless. Day-to-day moves in the partial score reflect price history only, not reserve or depth changes.",
+    "A partial score is not directly comparable to the full live score: the same day can sit in a different band under the partial score than under the full score, because the unknown inputs are excluded rather than assumed. The response states both bands for the latest day.",
+    "All history inputs are DeFiLlama daily closes \u2014 intraday depegs larger than the daily close are not counted, and a depeg that recovered intraday never appears.",
+    "The price history starts when DeFiLlama's series starts for the coin (e.g. USDe's series is much shorter than USDT's). A window longer than the available history returns fewer days, stated in history_coverage \u2014 days are never invented.",
+    "Threshold crossings are band changes of the partial score, not depeg days. A coin can cross bands without a depeg day (a slow drift in the trailing-365d history component), and can have depeg days without crossing a band."
+  ],
+  "as_of": 1794006111
+}, "free_tier": "Free tier today: keyless, no auth, no rate limit of our own. One history per call (?days=7–365, default 30); the current score is cached 300s and the DeFiLlama price history 600s server-side, so repeat calls inside the window are served from cache. A cold call downloads the full DeFiLlama price series (~6MB, shared across coins) and calls DexScreener once for the live score, and can take ~10s. Upstream rate limits (DeFiLlama, DexScreener) apply — expect occasional 502s on slow calls.", "paid_tier": "Paid tier (planned): API key required; calls metered per history call. Higher rate limits, longer windows than 365d, a stored score history (so the full score — including reserve and depth inputs — is available historically instead of the 47.5%-weight partial), per-coin webhooks on band crossings, and batch / export (CSV / JSON). No auth, metering, or billing is enforced yet — this endpoint is free and keyless today."},
     {"method": "GET", "suffix": "/quote-guard", "description": "Peg guard at quote time (phase 2, P3) for this coin: ok / warn / block (+ unknown when the peg cannot be verified) with thresholds stated in the response — block when |deviation| > 50 bps or depeg-risk score >= 75, warn when |deviation| > 10 bps or score >= 50. Reuses the /depeg-score evaluation (not re-implemented). On warn/block the lowest-depeg-score coin among the other 7 scopes is suggested as the nearest stable alternative, with its own peg state. Screening signal only, not investment advice. Cached 60s.", "params": ["amount (optional)"], "example": "/quote-guard?amount=100"},
     {"method": "GET", "suffix": "/peg-leaderboard", "description": "Peg-stability leaderboard across all 8 stablecoin scopes (this coin flagged): current deviation, max |deviation| in 30d and all-time (with dates), off-peg days (>50 bps) in 30/90/365d with shares, depeg episodes in 365d with median/max recovery days (recovery = first subsequent close back within 5 bps; ongoing episodes counted but excluded from median/max), and 30d volatility (sample std of daily log returns, %/day; null if <30 closes). Ranked by fewest off-peg days in 365d, then smallest max |deviation|. All figures are DeFiLlama daily closes — intraday depegs are not counted. Cached 300s.", "params": [], "example": "/peg-leaderboard"},
     {"method": "GET", "suffix": "/reserves", "description": "Reserves/attestations + attestation tracker (feature 3): auditor, cadence, last verified attestation (+ source), days since, status (current / due soon / overdue / live / on_chain / no_attestation), next expected reporting date, alerts, and — where a dated published figure could be verified — the reserve total and reserve mix as of that date with its source, plus reserve-to-supply ratio (dated reserves / current DeFiLlama supply, both dates stated) and reserve-to-outstanding ratio (same-attestation denominator). No reserve numbers are invented — no keyless API exposes live figures; coins with no dated attestation carry reserve_figures null. Market figures (market cap, supply) are labelled as market figures.", "params": [], "example": "/reserves"},
@@ -3880,6 +4895,9 @@ SC_DOCS = [
     {"method": "GET", "suffix": "/defi", "description": "DeFi deployment & yield (feature 9): lending rates from DeFiLlama yields (single-asset pools on lending markets only — Aave, Compound, Morpho, Spark, Euler, Fluid, Kamino, Jupiter Lend, Venus, Moonwell, JustLend, Save, Silo, Gearbox and similar; vaults/aggregators excluded), with the supply-APY range (min/max/median/TVL-weighted) across venues — never one pool's APY as 'the' yield — plus best market, majors present/absent, and lending TVL; largest LP pools holding the coin (one row per DEX/chain/pair, top 10 by TVL; pool TVL counts the whole pool, both sides); collateral usage (markets the coin is supplied in + general per-protocol mechanics — live per-market collateral eligibility, LTV and liquidation thresholds are not exposed keyless; borrow APYs unavailable — DeFiLlama /poolsBorrow is paywalled, HTTP 402); total DeFi TVL (lending + LP) and its share of supply. APYs are a snapshot at as_of. Cached 300s (yields snapshot shared across coins).", "params": [], "example": "/defi"},
     {"method": "GET", "suffix": "/freeze", "description": "Freeze & blacklist monitor (feature 10): issuer freeze/blacklist capability (feature 8's live eth_call probes reused, cross-checked against the live contract ABI — implementation contract for proxies; TUSD's write-only setBlacklisted is caught by the ABI even though the read probe misses it), frozen supply as a LOWER-BOUND ESTIMATE (sum of balanceOf over addresses the scanned window's freeze events show as currently frozen, batched via Multicall3 — the blacklist is not enumerable on-chain, so addresses frozen before the window are missed), freeze/blacklist/pause events on the primary chain in the last 365 days (5-year lookback only when a coin has freeze signatures but zero events in 365d — TUSD), destroyed black funds (burned out of blacklisted addresses — seized, never added to frozen supply), and sanctions exposure (vendored OFAC SDN set, 514 addresses 2026-11-05, checked against currently-frozen addresses, top-50 holders, and counterparties of the latest 250 transfers). DAI/USDe have no freeze function (not applicable, with ABI evidence); USDD has none observed on Tron and its sanctions check is not applicable (SDN set holds no Tron-format addresses). Cached 300s.", "params": [], "example": "/freeze"},
     {"method": "GET", "suffix": "/freeze/watch", "description": "Freeze / blacklist watch (phase 2, Q6): is this address currently frozen/blacklisted for this coin, and does any freeze event name it? Live read probe via eth_call (USDC isBlacklisted, USDT isBlackListed, PYUSD isFrozen, FDUSD frozen — pre-flight probes reused) plus the freeze/blacklist events naming the address from the same window as /freeze (365d, 5y extended lookback for silent coins), the address's current balance in the coin, and the verdict frozen / not_frozen / unknown / not_freezable / not_applicable. TUSD has no on-chain read function, so its state is derived from its last freeze event, labelled event-derived, never live-verified. DAI/USDe have no freeze function (not_freezable); USDD is Tron-native (not_applicable). The blacklist is NOT enumerable on-chain — 'not frozen' means the live probe says not frozen and no event in the scanned window names the address; it cannot prove the address was never frozen before the window. Cached 300s per address. Rendered as the 'Check an address' form in the Freeze & blacklist card.", "params": ["address"], "example": "/freeze/watch?address=0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"},
+    {"method": "GET", "suffix": "/freeze/feed", "description": "Freeze event feed (phase 3, item 4) for this coin: the coin's freeze/blacklist/pause events on the primary chain, paginated and filterable by event type (?kind=blacklisted / unblacklisted / destroyed / frozen / unfrozen / wiped / blacklist_set / paused / unpaused), holder address (?address=0x...), and time window (?from= / ?to= unix epoch, ?days=N last N days). Each event carries issuer/coin, event type, address, amount where known (destroyed black funds carry the burned amount in coin + USD at feed time), tx hash, block and timestamp, plus currently_frozen (from the window's frozen set — True/False for holder-state events, null for global/destroyed events). The `coins` coverage block lists this coin plus DAI/USDe/USDD as not_applicable. For DAI/USDe/USDD the response is status not_applicable with the ABI evidence — no freeze function, no events to list — never a silent empty feed. Built on common/freeze.py (feature 10) wholesale — same Blockscout getLogs scan over the same window (365 days; 5-year lookback only for a coin with freeze signatures but zero holder-state events in 365d — TUSD) and the same currently-frozen set; event list cached 300s. Frozen state is a LOWER-BOUND ESTIMATE (the blacklist is not enumerable on-chain; addresses frozen before the window are missed) and event windows are limited by log-scan depth — see the response's limits. The cross-coin feed is GET /api/walletscope/freeze/feed, rendered at #/freeze-feed.", "params": ["kind (optional, event type)", "address (optional, 0x holder address)", "from (optional, unix epoch seconds)", "to (optional, unix epoch seconds)", "days (optional, last N days, 1-1825)", "page (optional, default 1)", "page_size (optional, default 50, max 100)"], "example": "/freeze/feed", "paid_api": True, "example_response": {'events': [{'timestamp': 1793995895, 'date': '2026-11-06T20:11:35Z', 'coin': 'USDC', 'symbol': 'USDC', 'scope': 'usdcscope', 'issuer': 'Circle', 'chain': 'ethereum', 'event_type': 'blacklisted', 'kind': 'blacklisted', 'event': 'Blacklisted(address)', 'address': '0xdc8cb80786ed2823e5d6cdf22bd542db5b5b4b96', 'currently_frozen': True, 'amount': None, 'amount_usd': None, 'tx_hash': '0x94a933dc41d03291bcdb5e89a2c0a8cb8435c9b126e7ddc734fbe5ac0d92c0cf', 'block': 26358115}, {'timestamp': 1793995727, 'date': '2026-11-06T20:08:47Z', 'coin': 'USDC', 'symbol': 'USDC', 'scope': 'usdcscope', 'issuer': 'Circle', 'chain': 'ethereum', 'event_type': 'blacklisted', 'kind': 'blacklisted', 'event': 'Blacklisted(address)', 'address': '0x78b3ad18b66c41f766bbf452a609d004a2b2a1e1', 'currently_frozen': True, 'amount': None, 'amount_usd': None, 'tx_hash': '0x115654a38683babbed1df566590680a037550731b215e35b18390f23aca3a3cf', 'block': 26358101}], 'page': 1, 'page_size': 2, 'total_pages': 290, 'total_filtered': 579, 'total_events': 579, 'counts_by_coin': {'USDC': 579}, 'counts_by_kind': {'blacklisted': 488, 'unblacklisted': 91}, 'filters': {'coins': ['USDC'], 'kind': None, 'address': None, 'from': None, 'to': None, 'days': None}, 'coins': [{'scope': 'usdcscope', 'symbol': 'USDC', 'name': 'USD Coin', 'issuer': 'Circle', 'status': 'freezable', 'reason': "FiatTokenV2_2 implementation ABI: isBlacklisted / blacklist / unBlacklist / paused — freeze capability confirmed by both the ABI and feature 8's live probe.", 'events_in_window': 579, 'scan_status': 'ok', 'scan_note': None, 'window_days': 365, 'window_start_block': 23730911, 'window_end_block': 26358911, 'extended_lookback': False, 'extended_reason': None, 'currently_frozen_addresses': 394}, {'scope': 'daiscope', 'symbol': 'DAI', 'name': 'Dai', 'issuer': 'MakerDAO / Sky', 'status': 'not_applicable', 'reason': 'Dai token ABI (22 functions) has no freeze/blacklist/pause function and no freeze event. rely/deny are admin authorisation (wards — who may mint/burn), not holder freezes: a denied address loses minting rights, its existing DAI keeps moving. No freeze/blacklist/pause function or event in the token ABI, so there are no freeze events to scan — reported as not applicable, not as zero.', 'events_in_window': 0, 'scan_status': 'not_applicable', 'scan_note': 'No freeze/blacklist/pause function or event in the token ABI, so there are no freeze events to scan — reported as not applicable, not as zero.', 'window_days': None, 'window_start_block': None, 'window_end_block': None, 'extended_lookback': False, 'extended_reason': None, 'currently_frozen_addresses': 0}, {'scope': 'usdescope', 'symbol': 'USDe', 'name': 'Ethena USDe', 'issuer': 'Ethena Labs', 'status': 'not_applicable', 'reason': 'Ethena USDe token ABI (25 functions) has no freeze/blacklist/pause function and no freeze event. No freeze/blacklist/pause function or event in the token ABI, so there are no freeze events to scan — reported as not applicable, not as zero.', 'events_in_window': 0, 'scan_status': 'not_applicable', 'scan_note': 'No freeze/blacklist/pause function or event in the token ABI, so there are no freeze events to scan — reported as not applicable, not as zero.', 'window_days': None, 'window_start_block': None, 'window_end_block': None, 'extended_lookback': False, 'extended_reason': None, 'currently_frozen_addresses': 0}, {'scope': 'usddscope', 'symbol': 'USDD', 'name': 'Decentralized USD', 'issuer': 'TRON DAO Reserve', 'status': 'not_applicable', 'reason': "TronScan's published method map for the USDD contract lists 11 observed functions (approve, burn, deny, mint, move, permit, pull, push, rely, transfer, transferFrom) — DAI-style, no freeze/blacklist/pause. The map is PARTIAL (built from observed transactions), so a rarely-called freeze function could be missing; there is no keyless Tron ABI endpoint to check further. No freeze/blacklist function appears in TronScan's published method map for the USDD contract (11 observed functions — a PARTIAL list built from observed transactions), so there are no freeze events to scan.", 'events_in_window': 0, 'scan_status': 'not_applicable', 'scan_note': "No freeze/blacklist function appears in TronScan's published method map for the USDD contract (11 observed functions — a PARTIAL list built from observed transactions), so there are no freeze events to scan.", 'window_days': None, 'window_start_block': None, 'window_end_block': None, 'extended_lookback': False, 'extended_reason': None, 'currently_frozen_addresses': 0}], 'method': 'Freeze event feed (phase 3, item 4). Freeze/blacklist/pause events per issuer, merged across the freezable stablecoins (USDC, USDT, PYUSD, FDUSD, TUSD — Ethereum primary chain) and paginated. Built on common/freeze.py (feature 10) wholesale: the same Blockscout getLogs scan over the same window (365 days; 5-year lookback only for a coin with freeze signatures but zero holder-state events in 365d — TUSD), the same currently-frozen set rebuilt by applying holder-state events in order (latest event per address wins), and the same capability evidence. DAI/USDe have no freeze function in their token ABI and USDD has none observed on Tron, so those coins are reported not_applicable with the evidence, never as empty feeds. A feed event is a screening signal, not a legal determination; it does not say why the issuer froze the address.', 'limits': ['Frozen supply / currently-frozen state is a LOWER-BOUND ESTIMATE: the issuer blacklist is not enumerable on-chain, so the currently-frozen set is rebuilt from the freeze events inside the scanned window only (365 days, 5-year lookback only for a coin with freeze signatures but zero holder-state events in 365d — TUSD). Addresses frozen before the window are missed.', 'Event windows are limited by log-scan depth: Blockscout getLogs is paged (offset=1000, up to 3 pages per event signature), so a very chatty signature could be truncated — the per-coin scan_status says ok / partial / unavailable when that happens.', 'Primary chain only (Ethereum for the 5 freezable coins). FDUSD/TUSD hold most of their supply off the primary chain (BSC / Tron); freezes on other chains are not covered.', 'Destroyed black funds (USDT/TUSD DestroyedBlackFunds) are funds the issuer BURNED out of a blacklisted address — seized, not merely frozen — and are never counted as frozen.', 'Pause/unpause events are global (they halt ALL transfers, not one holder) and carry no address.', 'USD amounts use the live price at feed time (DeFiLlama, same as /freeze); for destroyed funds that is the value destroyed, not a current balance.', "DAI and USDe have no freeze/blacklist/pause function in their token ABIs, so there are no freeze events to scan for them. USDD (Tron) has no freeze function in TronScan's published method map (11 observed functions, partial list)."], 'as_of': 1794005578}, "free_tier": "Free tier today: keyless, no auth, no rate limit of our own. One page per call (default 50 events, max 100); the coin's event list cached 300s server-side, so repeat calls inside the window are served from cache. A cold call scans the coin's getLogs over 365 days (5 years for silent TUSD) and can take ~10s. Upstream rate limits (Blockscout) apply — expect occasional 502s on slow scans.", "paid_tier": 'Paid tier (planned): API key required; calls metered per feed call. Higher rate limits, longer retention / deeper windows than the 365d log scan, per-coin webhooks on new freeze events, and batch / export (CSV / JSON, no pagination). No auth, metering, or billing is enforced yet — this endpoint is free and keyless today.'},
+    {"method": "GET", "suffix": "/supply-feed", "description": "Supply & flow feed (phase 3, item 8) for this coin: the daily net-issuance series (one row per coin per day — the SERIES form of net issuance, labelled as such, never presented as discrete mint/burn events) plus large on-chain mint/burn events (Transfer from/to the zero address, >= max($1M, 0.1% of circulating supply), latest 20), paginated and filterable by record kind (?kind=net_change / mint / burn) and time window (?from= / ?to= unix epoch, ?days=N last N days, 1-365, default 30). Net issuance is net supply change from the DeFiLlama daily series, NOT gross mint/burn. The `coins` coverage block carries the coin's 7/30/90d net issuance (with partial flags), supply-history range and any series gap (USDD's 83-day gap), flat-supply flag (TUSD), on-chain event scan status (USDT: unavailable — Blockscout's zero-address query times out), and the top 5 chains with per-chain 7d/30d net change (bridges + local mint/burn combined — NOT a bridge-flow measurement). Built on common/stablecoin.py wholesale (feature-4 /mint-burn + feature-5 /supply-map); per-coin data cached 300s. The cross-coin feed is GET /api/overview/supply-feed, rendered at #/supply-feed in the overview app.", "params": ['kind (optional, net_change / mint / burn)', 'from (optional, unix epoch seconds)', 'to (optional, unix epoch seconds)', 'days (optional, last N days, 1-365, default 30)', 'page (optional, default 1)', 'page_size (optional, default 50, max 100)'], "example": "/supply-feed", "paid_api": True, "example_response": {'items': [{'record_type': 'daily_net_change', 'kind': 'net_change', 'timestamp': 1793923200, 'date': '2026-11-06T00:00:00Z', 'coin': 'USDC', 'symbol': 'USDC', 'scope': 'usdcscope', 'issuer': 'Circle', 'delta_usd': -414970570.05, 'supply_usd': 70725780103.9496, 'delta_pct': -0.5867, 'label': 'Daily net supply change — net issuance, NOT a discrete mint/burn event.'}, {'record_type': 'daily_net_change', 'kind': 'net_change', 'timestamp': 1793836800, 'date': '2026-11-05T00:00:00Z', 'coin': 'USDC', 'symbol': 'USDC', 'scope': 'usdcscope', 'issuer': 'Circle', 'delta_usd': 193394002.0, 'supply_usd': 71140750674.0, 'delta_pct': 0.2718, 'label': 'Daily net supply change — net issuance, NOT a discrete mint/burn event.'}], 'page': 1, 'page_size': 2, 'total_pages': 15, 'total_filtered': 30, 'total_items': 30, 'counts_by_coin': {'USDC': 30}, 'counts_by_kind': {'net_change': 30}, 'totals': {'total_supply_usd': 70535581526.52, 'total_net_7d_usd': -754093787.05, 'total_net_30d_usd': -3584450575.05, 'total_net_90d_usd': -1563149001.05, 'coins_included': 1, 'large_events_in_window': 0, 'note': 'Totals sum only the coins whose mint/burn data loaded. Net issuance is net supply change, NOT gross mint/burn.'}, 'filters': {'coins': ['USDC'], 'kind': None, 'from': 1791416020, 'to': None, 'days': 30}, 'coins': [{'scope': 'usdcscope', 'symbol': 'USDC', 'name': 'USD Coin', 'issuer': 'Circle', 'supply_usd': 70535581526.51599, 'price_usd': 0.9998335366500001, 'supply_history_first': 1536624000, 'supply_history_last': 1793923200, 'supply_history_points': 2979, 'supply_gap': None, 'flat_supply': False, 'net_7d_usd': -754093787.05, 'net_30d_usd': -3584450575.05, 'net_90d_usd': -1563149001.05, 'net_7d_partial': False, 'net_30d_partial': False, 'net_90d_partial': False, 'largest_mint_day': {'date': 1787270400, 'delta_usd': 859092516.0}, 'largest_burn_day': {'date': 1789516800, 'delta_usd': -766971210.0}, 'demand_direction': 'shrinking', 'daily_rows': 2978, 'on_chain_events': {'count': 0, 'cap': 20, 'status': 'ok', 'status_note': None, 'threshold_usd': 70535581.53, 'primary_chain': 'ethereum', 'primary_chain_share_pct': 60.75, 'scanned_zero_address_transfers': 500, 'scan_earliest': 1794002363}, 'chains': [{'chain': 'Ethereum', 'supply_usd': 42848407058.04029, 'share_pct': 60.75, 'change_7d': {'net_usd': -1119184992.12, 'pct': -2.53, 'start_date': 1793318400, 'end_date': 1793923200, 'window_days': 7, 'partial': False}, 'change_30d': {'net_usd': -2640689593.12, 'pct': -5.78, 'start_date': 1791331200, 'end_date': 1793923200, 'window_days': 30, 'partial': False}}, {'chain': 'Solana', 'supply_usd': 7003740135.108945, 'share_pct': 9.93, 'change_7d': {'net_usd': 214832328.25, 'pct': 3.15, 'start_date': 1793318400, 'end_date': 1793923200, 'window_days': 7, 'partial': False}, 'change_30d': {'net_usd': -175456867.75, 'pct': -2.43, 'start_date': 1791331200, 'end_date': 1793923200, 'window_days': 30, 'partial': False}}, {'chain': 'Hyperliquid L1', 'supply_usd': 6579215625.655549, 'share_pct': 9.33, 'change_7d': {'net_usd': -216514999.28, 'pct': -3.18, 'start_date': 1793318400, 'end_date': 1793923200, 'window_days': 7, 'partial': False}, 'change_30d': {'net_usd': -779856452.28, 'pct': -10.57, 'start_date': 1791331200, 'end_date': 1793923200, 'window_days': 30, 'partial': False}}, {'chain': 'Base', 'supply_usd': 4234887593.173839, 'share_pct': 6.0, 'change_7d': {'net_usd': -11678096.16, 'pct': -0.27, 'start_date': 1793318400, 'end_date': 1793923200, 'window_days': 7, 'partial': False}, 'change_30d': {'net_usd': -131961386.16, 'pct': -2.97, 'start_date': 1791331200, 'end_date': 1793923200, 'window_days': 30, 'partial': False}}, {'chain': 'Arbitrum', 'supply_usd': 2273550289.158309, 'share_pct': 3.22, 'change_7d': {'net_usd': 171350191.01, 'pct': 8.06, 'start_date': 1793318400, 'end_date': 1793923200, 'window_days': 7, 'partial': False}, 'change_30d': {'net_usd': -14418853.99, 'pct': -0.62, 'start_date': 1791331200, 'end_date': 1793923200, 'window_days': 30, 'partial': False}}], 'chain_note': 'Per-chain net change (7d/30d) combines bridges + local mint/burn — NOT a bridge-flow measurement. Covered 99.73% of total supply; $190198577.43 unattributed.', 'error': None}], 'method': 'Supply & flow feed (phase 3, item 8). Mint/burn events and net issuance as a feed, built on common/stablecoin.py wholesale: the feature-4 mint/burn monitor (sc_mint_burn — 7/30/90d net issuance windows from the DeFiLlama daily supply series, plus large on-chain mint/burn events on the primary chain) and the feature-5 supply map (sc_supply_map — per-chain supply and per-chain 7d/30d net change, bridges + local mint/burn combined). Two record types, newest first: daily_net_change rows (one per coin per day — the SERIES form of net issuance, labelled as such, never presented as discrete mint/burn events) and on_chain_event rows (large individual mints/burns above max($1M, 0.1% of circulating supply), latest 20 per coin). Net issuance is net supply change, NOT gross mint/burn.', 'limits': ["Net issuance is the net change in DeFiLlama's daily total circulating supply — net supply change, NOT gross mint/burn. A day's net mint is new issuance minus redemptions; a small net figure can hide large offsetting gross flows. Daily rows are labelled 'daily net change', never presented as discrete mint/burn events.", 'On-chain mint/burn events cover the primary chain only (Ethereum for 7 coins, Tron for USDD). FDUSD/TUSD hold most of their supply off the primary chain (BSC / Tron); mint/burn events on other chains are not shown.', "USDT on-chain events are unavailable: Blockscout's zero-address transfer query times out for USDT. Tether's issue()/redeem() emit Issue/Redeem events, not zero-address Transfers, so a zero-address scan would undercount USDT mint/burn even if the query succeeded.", 'TUSD supply is frozen — no new mint/burn is expected, so an empty on-chain event list is consistent with the flat daily series shown instead.', "USDD's DeFiLlama daily supply series has an 83-day gap (2026-07-07 to 2026-09-28). Daily deltas spanning more than 2 days are excluded, so USDD's daily series has a hole over the gap and its 90d net-issuance window is flagged partial (it covers 122 days, not 90). The gap is reported in USDD's coverage block.", 'Per-chain flow figures (7d/30d net change per chain, from the supply map) combine bridges + local mint/burn — they are NOT a bridge-flow measurement. No keyless source reports per-coin bridge flows over a window (DeFiLlama bridges is paywalled; Wormholescan ignores the symbol filter).', 'Net issuance is a PROXY for demand, not a direct measure of it. Redemptions, chain migrations (supply moving between chains) and issuer treasury moves also change total supply.'], 'as_of': 1794008020}, "free_tier": "Free tier today: keyless, no auth, no rate limit of our own. One page per call (default 50 rows, max 100); the coin's series + event list cached 300s server-side, so repeat calls inside the window are served from cache. A cold call runs the coin's mint/burn evaluation (Blockscout zero-address scan — USDT's times out after ~20s) and supply-map parse and can take ~20s. Upstream rate limits (DeFiLlama, Blockscout, TronScan) apply — expect occasional 502s on slow calls.", "paid_tier": 'Paid tier (planned): API key required; calls metered per feed call. Higher rate limits, longer windows than 365d, per-coin webhooks on large mint/burn events, gross mint/burn (not just net) from a stored event history, and batch / export (CSV / JSON, no pagination). No auth, metering, or billing is enforced yet — this endpoint is free and keyless today.'},
+    {"method": "GET", "suffix": "/whale-feed", "description": "Whale feed (phase 3, item 14) for this coin: large-transfer events (>= max($1M, 0.01% of circulating supply), latest 10) as a paginated feed, filterable by minimum USD value (?min_usd=) and time window (?from= / ?to= unix epoch, ?days=N last N days, 1-365, default 30). One record type, newest first: large_transfer rows — individual primary-chain transfers; zero-address counterparty labelled mint / burn, everything else transfer. A min_usd below this coin's threshold cannot surface smaller transfers (the scan never saw them) — the effective minimum is in the coverage block. The coverage block carries the threshold, scanned count, scan window and status (ok / partial / unavailable — never a silent empty feed). Built on common/stablecoin.py wholesale (feature-6 /whales); per-coin data cached 300s. The cross-coin feed is GET /api/overview/whale-feed, rendered at #/whale-feed in the overview app.", "params": ['min_usd (optional, minimum USD value per event)', 'from (optional, unix epoch seconds)', 'to (optional, unix epoch seconds)', 'days (optional, last N days, 1-365, default 30)', 'page (optional, default 1)', 'page_size (optional, default 50, max 100)'], "example": "/whale-feed", "paid_api": True, "example_response": {'items': [{'record_type': 'large_transfer', 'kind': 'transfer', 'direction': 'transfer', 'timestamp': 1794010775, 'date': '2026-11-07T00:19:35Z', 'coin': 'USDC', 'symbol': 'USDC', 'scope': 'usdcscope', 'issuer': 'Circle', 'chain': 'ethereum', 'amount': 14898544.0, 'amount_usd': 14896585.62, 'from': '0xbe84c0e15C37B1FD5b278496b1bD3f06198f8308', 'from_label': None, 'to': '0x55FE002aefF02F77364de339a1292923A15844B8', 'to_label': 'Circle: Hot Wallet', 'tx_hash': '0x1445b2633f38f53b45a0ac593bd9606114dc0f172c3c99020db53331ad375edd', 'block': 26359351, 'threshold_usd': 7059781.07}], 'page': 1, 'page_size': 2, 'total_pages': 1, 'total_filtered': 1, 'total_items': 1, 'counts_by_coin': {'USDC': 1}, 'counts_by_kind': {'transfer': 1}, 'totals': {'total_volume_usd': 14896585.62, 'largest_transfer': {'record_type': 'large_transfer', 'kind': 'transfer', 'direction': 'transfer', 'timestamp': 1794010775, 'date': '2026-11-07T00:19:35Z', 'coin': 'USDC', 'symbol': 'USDC', 'scope': 'usdcscope', 'issuer': 'Circle', 'chain': 'ethereum', 'amount': 14898544.0, 'amount_usd': 14896585.62, 'from': '0xbe84c0e15C37B1FD5b278496b1bD3f06198f8308', 'from_label': None, 'to': '0x55FE002aefF02F77364de339a1292923A15844B8', 'to_label': 'Circle: Hot Wallet', 'tx_hash': '0x1445b2633f38f53b45a0ac593bd9606114dc0f172c3c99020db53331ad375edd', 'block': 26359351, 'threshold_usd': 7059781.07}, 'coins_included': 1, 'note': "Totals sum only the coins whose whales data loaded, and only transfers above each coin's threshold in the scanned window (latest 10 per coin). Not a total of all large transfers in the window."}, 'filters': {'coins': ['USDC'], 'min_usd': None, 'from': 1791419056, 'to': None, 'days': 30}, 'coins': [{'scope': 'usdcscope', 'symbol': 'USDC', 'name': 'USD Coin', 'issuer': 'Circle', 'primary_chain': 'ethereum', 'contract': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', 'supply_usd': 70597810657.96846, 'price_usd': 0.9998685521999999, 'price_assumed_1_usd': False, 'primary_chain_share_pct': 60.8, 'threshold_usd': 7059781.07, 'threshold_rule': 'A transfer counts as large when its USD value is >= max($1,000,000, 0.01% of circulating supply), applied uniformly to every coin.', 'cap': 10, 'events_count': 1, 'scanned_transfers': 300, 'scan_earliest': 1794010715, 'scan_latest': 1794010775, 'status': 'partial', 'status_note': 'The transfer scan stopped early (upstream error) after 300 transfers — the list below may be incomplete.', 'chain_scope_note': 'Transfers cover the primary chain only (Ethereum). Ethereum holds 60.8% of total supply; large transfers on other chains are not shown.', 'error': None, 'min_usd_requested': None, 'effective_min_usd': 7059781.07}], 'method': 'Whale feed (phase 3, item 14). Large-transfer events across all stablecoin scopes as a feed, built on common/stablecoin.py wholesale: the feature-6 whale & exchange exposure evaluation (sc_whales — large recent transfers above max($1,000,000, 0.01% of circulating supply), latest 10 per coin, found by paging the recent-transfers feed, up to 10 pages of 50). One record type, newest first: large_transfer rows (individual primary-chain transfers; zero-address counterparty labelled mint / burn, everything else transfer). No large-transfer detection, holder/concentration logic, or exchange attribution is re-implemented here.', 'limits': ["Large transfers are defined as >= max($1,000,000, 0.01% of circulating supply) per coin; each coin's threshold is reported in its coverage block. For the largest coins the 0.01% leg dominates (USDT ~$18M, USDC ~$7M), so their lists are short by design.", 'The scan covers the recent-transfers feed only (up to 10 pages of 50 transfers per coin; at most the latest 10 large transfers per coin are kept). For high-volume coins 500 transfers cover only a minute or two of activity, so the window is whatever the feed covers — the scanned count and the scan window (earliest/latest timestamp) are reported per coin. An empty list means no transfer above the threshold in the scanned window, not that no large transfer happened.', 'Transfers cover the primary chain only (Ethereum for 7 coins, Tron for USDD). FDUSD/TUSD hold most of their supply off the primary chain (BSC / Tron); large transfers on other chains are not shown.', 'Concentration denominators are primary-chain supply only (Blockscout total_supply on Ethereum; DeFiLlama Tron chain balance for USDD) — shares are never presented as shares of all-chain supply. The feed itself carries no concentration figures; this is the denominator rule of the /whales evaluation it is built on.', "Exchange attribution is a lower bound from keyless source name tags only (Blockscout address tags / TronScan addressTag): an address counts as an exchange wallet only when the source's own tag names a known exchange. From/to labels on feed rows are those source-provided tags, shown verbatim; an untagged wallet stays unlabeled even if its size suggests an exchange.", "If a coin's large transfers cannot be observed keyless in a window (its transfer feed fails, or the scan stops early), its coverage block reports status unavailable / partial with the reason — the feed never returns a silent empty list for it.", "A ?min_usd below a coin's own threshold cannot surface smaller transfers: the scan only ever saw transfers above the threshold. The effective minimum per coin (max(min_usd, threshold_usd)) is reported in its coverage block."], 'as_of': 1794011056}, "free_tier": "Free tier today: keyless, no auth, no rate limit of our own. One page per call (default 50 rows, max 100); the coin's large-transfer list cached 300s server-side, so repeat calls inside the window are served from cache. A cold call runs the coin's whales evaluation (Blockscout transfer scan, up to 10 pages) and can take ~20s. Upstream rate limits (DeFiLlama, Blockscout, TronScan) apply — expect occasional 502s on slow calls.", "paid_tier": 'Paid tier (planned): API key required; calls metered per feed call. Higher rate limits, longer windows than 365d, per-coin webhooks on large transfers, a stored event history (no 10-per-coin cap, no recent-feed-only window), and batch / export (CSV / JSON, no pagination). No auth, metering, or billing is enforced yet — this endpoint is free and keyless today.'},
     {"method": "GET", "suffix": "/issuer-risk", "description": "Issuer risk score (feature 11): one 0-100 score per coin (higher = riskier) composed of six documented inputs reused wholesale from earlier features — depeg risk 25% (feature-1 score as-is), reserve transparency 25% (feature-3 attestation tracker: status, days since last verified attestation, auditor tier, dated reserve-to-outstanding ratio where verifiable — transparency, NOT a live reserve measurement), issuance direction 15% (feature-4 net issuance, 30d primary / 90d confirmation; frozen supply scores high), concentration 15% (feature-6 top-10 holder share of primary-chain supply + identified-exchange share, a lower bound), freeze exposure 15% (feature-10 capability + observed use: freeze events, frozen supply share as a LOWER-BOUND ESTIMATE, destroyed funds, sanctions matches), adoption 5% (feature-8 chain-coverage + fees/finality legs only, inverted — the peg/liquidity/freeze legs are excluded to avoid double-counting). Unknown inputs are excluded and the remaining weights renormalised. Weights are this implementation's stated choice (no Par spec exists); heuristic screening signal, not investment advice or a rating. Cached 300s.", "params": [], "example": "/issuer-risk"},
     {"method": "GET", "suffix": "/chains", "description": "Per-chain supply breakdown (DeFiLlama currentChainBalances).", "params": [], "example": "/chains"},
     {"method": "GET", "suffix": "/supply-map", "description": "Cross-chain supply map (feature 5): per-chain supply + share, net supply change per chain over 7d/30d (bridges + local mint/burn combined — NOT a bridge-flow measurement), and bridged-in stock per bridge/source chain (latest daily bridgedTo snapshot, token units converted to USD at the live price, approximate). Covered share vs latest daily total is shown explicitly; the remainder is unattributed, never folded into a chain. No keyless source reports per-coin bridge flows over a window (Wormholescan ignores the symbol filter; DeFiLlama bridges is paywalled). Cached 300s.", "params": [], "example": "/supply-map"},
@@ -3901,6 +4919,11 @@ def sc_docs_payload(api_prefix, scope):
                 "description": e["description"],
                 "params": e["params"],
                 "example": api_prefix + e["suffix"].split("?")[0] + ("?days=90" if "days" in e["params"] else ""),
+                # Paid-API model extension (phase 3): propagate any
+                # extra fields (paid_api, example_response, free_tier,
+                # paid_tier) so future entries render the same way.
+                **{k: v for k, v in e.items()
+                   if k not in ("method", "suffix", "description", "params", "example")},
             }
             for e in SC_DOCS
         ]

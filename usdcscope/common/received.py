@@ -93,7 +93,7 @@ BTC_PAGE = 25
 ONWARD_SHOWN = 10
 
 HONEST_NOTES = [
-    "Forward-looking from receipt time only: only onward transfers after the receipt that the page loads are visible (EVM first page: 50 native txs + 50 token transfers; Solana latest 25 signatures, 10 parsed; Bitcoin latest 25 txs). A clean result is not proof of clean.",
+    "Forward-looking from receipt time only: only onward transfers after the receipt that the page loads are visible (EVM first page: 50 native txs + 50 token transfers; Solana latest 25 signatures, 10 parsed; Bitcoin first page of txs). A clean result is not proof of clean.",
     "\"Onward\" means the sender's later transfers — it is not proven to be the same funds. No keyless taint tracking exists, so the monitor reports the sender's later movements, never that the received funds went to a specific address.",
     "The counterparty risk walk covers the counterparty's most recent transactions (same sampled-window limits as the risk walk), which include onward transfers plus possibly older ones — only the onward list and the direct destination checks are scoped to post-receipt time.",
     "The freeze read probe reports the counterparty's CURRENT frozen state and cannot date when a freeze happened. Only the targeted freeze-event scan (freezable stablecoins on Ethereum) can say \"frozen since the receipt\"; for other coins the answer is current-state only.",
