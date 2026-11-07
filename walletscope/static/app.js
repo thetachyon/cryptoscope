@@ -807,11 +807,6 @@ async function home() {
     <div class="hero">
       <h1>${esc(chainLabel())} Explorer</h1>
       <p>Blocks, transactions, addresses and tokens on ${esc(chainLabel())} — powered by the Blockscout API.</p>
-      <form id="hero-search" class="search" autocomplete="off">
-        <input id="hero-input" type="text" placeholder="Search by Address / Txn Hash / Block / Token / ENS">
-        <button type="submit" title="Search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
-        <div id="hero-suggest" class="suggest hidden"></div>
-      </form>
     </div>
     <div class="statgrid" id="stats"></div>
     <div class="cols2">
@@ -836,7 +831,6 @@ async function home() {
         <div class="muted" style="font-size:12px;padding:0 14px 12px">Trailing 5-minute rate, from transactions in each block. Updates every 10s.</div>
       </div>
     </div>` : ""}`);
-  wireSearch($("#hero-search"), $("#hero-input"), $("#hero-suggest"));
   // A single slow upstream must not blank the page or stick a red banner
   // on it: render whatever came back, and only warn after 2 failures in
   // a row. A later success clears the banner again.
