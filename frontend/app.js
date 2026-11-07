@@ -175,6 +175,15 @@ function ethFmt(s, dec = 6) {
 function utc(ts) {
   try { return new Date(ts).toUTCString().replace("GMT", "UTC"); } catch (e) { return ts; }
 }
+/* Compact absolute timestamp for table cells: "2026-11-07 14:21:47" (UTC).
+   Tables show Age (relative) next to it; this is the exact time. */
+function tsTable(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (isNaN(d)) return "—";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+}
 function shortH(h) {
   h = String(h || "");
   return h.length > 18 ? h.slice(0, 10) + "..." + h.slice(-8) : h;
@@ -538,6 +547,7 @@ function txRow(t, lite) {
     `<td>${statusBadge(t.status)}</td>`,
     `<td>${t.block != null ? linkBlock(t.block) : '<span class="muted">pending</span>'}</td>`,
     `<td class="muted" style="white-space:nowrap">${esc(t.age || "")}</td>`,
+    `<td class="muted" style="white-space:nowrap">${tsTable(t.timestamp)}</td>`,
     `<td>${linkAddr(t.from)}</td>`,
     `<td>${linkAddr(t.to)}</td>`,
   ];
@@ -547,12 +557,13 @@ function txRow(t, lite) {
   return `<tr>${cells.join("")}</tr>`;
 }
 function txHead(lite) {
-  return `<tr><th>Txn Hash</th><th>Status</th><th>Block</th><th>Age</th><th>From</th><th>To</th><th class="r">Value${lite ? "" : " (" + esc(nativeSym()) + ")"}</th>${lite ? "" : '<th class="r">Fee (' + esc(nativeSym()) + ')</th>'}</tr>`;
+  return `<tr><th>Txn Hash</th><th>Status</th><th>Block</th><th>Age</th><th>Timestamp (UTC)</th><th>From</th><th>To</th><th class="r">Value${lite ? "" : " (" + esc(nativeSym()) + ")"}</th>${lite ? "" : '<th class="r">Fee (' + esc(nativeSym()) + ')</th>'}</tr>`;
 }
 function blockRow(b) {
   return `<tr>
     <td>${linkBlock(b.height)}</td>
     <td class="muted" style="white-space:nowrap">${esc(b.age || "")}</td>
+    <td class="muted" style="white-space:nowrap">${tsTable(b.timestamp)}</td>
     <td>${linkAddr(b.miner)}</td>
     <td class="r">${num(b.tx_count)}</td>
     <td class="r">${b.gas_used_pct}%</td>
@@ -564,6 +575,7 @@ function ttRow(tt) {
   return `<tr>
     <td>${linkTx(tt.tx_hash)}</td>
     <td class="muted" style="white-space:nowrap">${esc(tt.age || "")}</td>
+    <td class="muted" style="white-space:nowrap">${tsTable(tt.timestamp)}</td>
     <td>${linkAddr(tt.from)}</td>
     <td>${linkAddr(tt.to)}</td>
     <td class="r mono">${esc(tt.amount)}&nbsp;${esc(tt.token.symbol || "")}</td>
@@ -574,6 +586,7 @@ function internalRow(i) {
   return `<tr>
     <td>${linkTx(i.tx_hash)}</td>
     <td class="muted" style="white-space:nowrap">${esc(i.age || "")}</td>
+    <td class="muted" style="white-space:nowrap">${tsTable(i.timestamp)}</td>
     <td>${linkAddr(i.from)}</td>
     <td>${linkAddr(i.to)}</td>
     <td class="r mono">${ethFmt(i.value_eth)}</td>
@@ -837,11 +850,11 @@ async function home() {
     <div class="cols2">
       <div class="card">
         <div class="card-head">Latest Blocks <span class="spacer"></span><span class="badge info">live</span></div>
-        <div class="tbl-wrap"><table class="tbl tbl-home"><colgroup><col style="width:20%"><col style="width:18%"><col style="width:29%"><col style="width:11%"><col style="width:22%"></colgroup><thead><tr><th>Block</th><th>Age</th><th>Miner</th><th class="r">Txns</th><th class="r">Gas Used</th></tr></thead><tbody id="lb"><tr><td colspan="5"><div class="spinner">Loading…</div></td></tr></tbody></table></div>
+        <div class="tbl-wrap"><table class="tbl tbl-home"><colgroup><col style="width:13%"><col style="width:11%"><col style="width:20%"><col style="width:25%"><col style="width:9%"><col style="width:22%"></colgroup><thead><tr><th>Block</th><th>Age</th><th>Timestamp (UTC)</th><th>Miner</th><th class="r">Txns</th><th class="r">Gas Used</th></tr></thead><tbody id="lb"><tr><td colspan="6"><div class="spinner">Loading…</div></td></tr></tbody></table></div>
       </div>
       <div class="card">
         <div class="card-head">Latest Transactions <span class="spacer"></span><span class="badge info">live</span></div>
-        <div class="tbl-wrap"><table class="tbl tbl-home"><colgroup><col style="width:28%"><col style="width:24%"><col style="width:28%"><col style="width:20%"></colgroup><thead><tr><th>Txn Hash</th><th>From</th><th>To</th><th class="r">Value</th></tr></thead><tbody id="lt"><tr><td colspan="4"><div class="spinner">Loading…</div></td></tr></tbody></table></div>
+        <div class="tbl-wrap"><table class="tbl tbl-home"><colgroup><col style="width:24%"><col style="width:20%"><col style="width:20%"><col style="width:20%"><col style="width:16%"></colgroup><thead><tr><th>Txn Hash</th><th>Timestamp (UTC)</th><th>From</th><th>To</th><th class="r">Value</th></tr></thead><tbody id="lt"><tr><td colspan="5"><div class="spinner">Loading…</div></td></tr></tbody></table></div>
       </div>
     </div>
     ${SCOPE === "ethscope" ? `<div class="cols2" style="margin-top:16px">
@@ -884,9 +897,9 @@ async function home() {
     if (s.status === "fulfilled") renderStats(s.value);
     const lb = $("#lb"), lt = $("#lt");
     if (bl.status === "fulfilled" && lb) lb.innerHTML = bl.value.items.slice(0, 10).map((b) =>
-      `<tr><td><span class="cell-clip">${linkBlock(b.height)}</span></td><td class="muted" style="white-space:nowrap">${esc(b.age || "")}</td><td><span class="addr-cell">${linkAddr(b.miner)}</span></td><td class="r">${num(b.tx_count)}</td><td class="r">${b.gas_used_pct}%</td></tr>`).join("");
+      `<tr><td><span class="cell-clip">${linkBlock(b.height)}</span></td><td class="muted" style="white-space:nowrap">${esc(b.age || "")}</td><td class="muted" style="white-space:nowrap">${tsTable(b.timestamp)}</td><td><span class="addr-cell">${linkAddr(b.miner)}</span></td><td class="r">${num(b.tx_count)}</td><td class="r">${b.gas_used_pct}%</td></tr>`).join("");
     if (tx.status === "fulfilled" && lt) lt.innerHTML = tx.value.items.slice(0, 10).map((t) =>
-      `<tr><td><span class="cell-clip">${linkTx(t.hash)}</span></td><td><span class="addr-cell">${linkAddr(t.from)}</span></td><td><span class="addr-cell">${linkAddr(t.to)}</span></td><td class="r mono">${ethFmt(t.value_eth)}</td></tr>`).join("");
+      `<tr><td><span class="cell-clip">${linkTx(t.hash)}</span></td><td class="muted" style="white-space:nowrap">${tsTable(t.timestamp)}</td><td><span class="addr-cell">${linkAddr(t.from)}</span></td><td><span class="addr-cell">${linkAddr(t.to)}</span></td><td class="r mono">${ethFmt(t.value_eth)}</td></tr>`).join("");
     if (bl.status === "fulfilled" && SCOPE === "ethscope") {
       const { bps, tps } = throughputSeries(bl.value.items || []);
       const bpsEl = $("#bps-chart"), tpsEl = $("#tps-chart");
@@ -990,7 +1003,7 @@ async function txPage(h, retried) {
     </div>
     <div class="card" id="tt-card">
       <div class="card-head">Token Transfers <span class="spacer"></span><span class="badge grey" id="tt-count">…</span></div>
-      <table class="tbl"><thead><tr><th>Txn Hash</th><th>Age</th><th>From</th><th>To</th><th class="r">Amount</th><th>Token</th></tr></thead><tbody id="ttx"></tbody></table>
+      <table class="tbl"><thead><tr><th>Txn Hash</th><th>Age</th><th>Timestamp (UTC)</th><th>From</th><th>To</th><th class="r">Amount</th><th>Token</th></tr></thead><tbody id="ttx"></tbody></table>
     </div>
     <div class="card">
       <div class="card-head">Logs <span class="spacer"></span><span class="badge grey" id="log-count">…</span></div>
@@ -998,7 +1011,7 @@ async function txPage(h, retried) {
     </div>
     <div class="card">
       <div class="card-head">Internal Transactions <span class="spacer"></span><span class="badge grey" id="in-count">…</span></div>
-      <table class="tbl"><thead><tr><th>Parent Txn</th><th>Age</th><th>From</th><th>To</th><th class="r">Value</th><th>Status</th></tr></thead><tbody id="inx"></tbody></table>
+      <table class="tbl"><thead><tr><th>Parent Txn</th><th>Age</th><th>Timestamp (UTC)</th><th>From</th><th>To</th><th class="r">Value</th><th>Status</th></tr></thead><tbody id="inx"></tbody></table>
     </div>`);
 
   // "What happened" card (Feature 3) — loads independently so a slow
@@ -1012,10 +1025,10 @@ async function txPage(h, retried) {
     $("#tt-count").textContent = t.token_transfers.length + (t.token_transfers_overflow ? "+" : "");
     if (t.token_transfers_overflow) ttBody.insertAdjacentHTML("afterend", '<div class="empty">More transfers exist — showing first page.</div>');
   } else if (t.indexing) {
-    ttBody.innerHTML = '<tr><td colspan="6"><div class="empty">Still indexing — token transfers will appear shortly.</div></td></tr>';
+    ttBody.innerHTML = '<tr><td colspan="7"><div class="empty">Still indexing — token transfers will appear shortly.</div></td></tr>';
     $("#tt-count").textContent = "…";
   } else {
-    ttBody.innerHTML = '<tr><td colspan="6"><div class="empty">No token transfers</div></td></tr>';
+    ttBody.innerHTML = '<tr><td colspan="7"><div class="empty">No token transfers</div></td></tr>';
     $("#tt-count").textContent = "0";
   }
   // logs + internal in parallel — skipped while the tx is still being
@@ -1025,7 +1038,7 @@ async function txPage(h, retried) {
     $("#log-count").textContent = "…";
     $("#logs").innerHTML = '<div class="empty">Still indexing — logs will appear shortly.</div>';
     $("#in-count").textContent = "…";
-    $("#inx").innerHTML = '<tr><td colspan="6"><div class="empty">Still indexing — internal transactions will appear shortly.</div></td></tr>';
+    $("#inx").innerHTML = '<tr><td colspan="7"><div class="empty">Still indexing — internal transactions will appear shortly.</div></td></tr>';
   } else {
   try {
     const [logs, ix] = await Promise.all([get(`/tx/${h}/logs`), get(`/tx/${h}/internal`)]);
@@ -1036,7 +1049,7 @@ async function txPage(h, retried) {
        ${l.data && l.data !== "0x" ? `<pre class="hex" style="max-height:120px;margin-top:8px">${esc(l.data)}</pre>` : ""}</div></div>`
     ).join("") : '<div class="empty">No logs emitted</div>';
     $("#in-count").textContent = ix.items.length;
-    $("#inx").innerHTML = ix.items.length ? ix.items.map(internalRow).join("") : '<tr><td colspan="6"><div class="empty">No internal transactions</div></td></tr>';
+    $("#inx").innerHTML = ix.items.length ? ix.items.map(internalRow).join("") : '<tr><td colspan="7"><div class="empty">No internal transactions</div></td></tr>';
   } catch (e) { banner("Failed to load logs/internal txs: " + e.message); }
   }
 }
@@ -1373,11 +1386,11 @@ function renderAddrTab(h) {
     $("#csv-txs").onclick = (e) => exportCsv(e.currentTarget, `/address/${h}/txs`, `ethscope-address-${h}-transactions.csv`, TX_CSV_HEADER, txCsvRow);
   } else if (addrTab === "token-transfers") {
     body.innerHTML = `<div class="toolbar"><span class="muted">All token transfers involving this address.</span><span class="spacer"></span><button class="btn" id="csv-tt">Export CSV</button></div>
-      <table class="tbl"><thead><tr><th>Txn Hash</th><th>Age</th><th>From</th><th>To</th><th class="r">Amount</th><th>Token</th></tr></thead><tbody id="att"></tbody></table><button class="loadmore" id="att-more">Load more</button>`;
+      <table class="tbl"><thead><tr><th>Txn Hash</th><th>Age</th><th>Timestamp (UTC)</th><th>From</th><th>To</th><th class="r">Amount</th><th>Token</th></tr></thead><tbody id="att"></tbody></table><button class="loadmore" id="att-more">Load more</button>`;
     mountPager("#att", "#att-more", `/address/${h}/token-transfers`, ttRow, "No token transfers");
     $("#csv-tt").onclick = (e) => exportCsv(e.currentTarget, `/address/${h}/token-transfers`, `ethscope-address-${h}-token-transfers.csv`, TT_CSV_HEADER, ttCsvRow);
   } else if (addrTab === "internal") {
-    body.innerHTML = `<table class="tbl"><thead><tr><th>Parent Txn</th><th>Age</th><th>From</th><th>To</th><th class="r">Value</th><th>Status</th></tr></thead><tbody id="ain"></tbody></table><button class="loadmore" id="ain-more">Load more</button>`;
+    body.innerHTML = `<table class="tbl"><thead><tr><th>Parent Txn</th><th>Age</th><th>Timestamp (UTC)</th><th>From</th><th>To</th><th class="r">Value</th><th>Status</th></tr></thead><tbody id="ain"></tbody></table><button class="loadmore" id="ain-more">Load more</button>`;
     mountPager("#ain", "#ain-more", `/address/${h}/internal`, internalRow, "No internal transactions");
   } else if (addrTab === "tokens") {
     body.innerHTML = `<table class="tbl"><thead><tr><th>Token</th><th class="r">Balance</th><th class="r">USD Price</th><th class="r">USD Value</th><th class="r">24h %</th><th>Type</th></tr></thead><tbody id="atok"><tr><td colspan="6"><div class="spinner">Loading…</div></td></tr></tbody></table><div id="atok-total"></div>`;
@@ -1426,7 +1439,7 @@ async function tokenPage(h) {
     ${isNft ? `<div class="card"><div class="card-head">Instances <span class="spacer"></span><span class="badge grey" id="nft-count">…</span></div><div id="nft-grid"><div class="spinner">Loading…</div></div></div>` : ""}
     <div class="card">
       <div class="card-head">Transfers</div>
-      <table class="tbl"><thead><tr><th>Txn Hash</th><th>Age</th><th>From</th><th>To</th><th class="r">Amount</th><th>Token</th></tr></thead><tbody id="ttk"></tbody></table>
+      <table class="tbl"><thead><tr><th>Txn Hash</th><th>Age</th><th>Timestamp (UTC)</th><th>From</th><th>To</th><th class="r">Amount</th><th>Token</th></tr></thead><tbody id="ttk"></tbody></table>
       <button class="loadmore" id="ttk-more">Load more</button>
     </div>`);
   loadSecurityCard(h);
@@ -1486,7 +1499,7 @@ async function tokenInstancePage(h, id) {
     ${attrs.length ? `<div class="card"><div class="card-head">Attributes</div><table class="tbl"><thead><tr><th>Trait</th><th>Value</th></tr></thead><tbody>${attrs.map((a) => `<tr><td>${esc(a.trait_type || a.traitType || "")}</td><td>${esc(String(a.value ?? ""))}</td></tr>`).join("")}</tbody></table></div>` : ""}
     <div class="card">
       <div class="card-head">Transfers of this instance</div>
-      <table class="tbl"><thead><tr><th>Txn Hash</th><th>Age</th><th>From</th><th>To</th><th class="r">Amount</th><th>Token</th></tr></thead><tbody id="itx"></tbody></table>
+      <table class="tbl"><thead><tr><th>Txn Hash</th><th>Age</th><th>Timestamp (UTC)</th><th>From</th><th>To</th><th class="r">Amount</th><th>Token</th></tr></thead><tbody id="itx"></tbody></table>
       <button class="loadmore" id="itx-more">Load more</button>
     </div>`);
   mountPager("#itx", "#itx-more", `/token/${h}/instance/${encodeURIComponent(id)}/transfers`, ttRow, "No transfers for this instance");
@@ -4121,7 +4134,7 @@ async function walletPage(param) {
 
   /* ---- unified activity feed (merged, time-sorted, Load-more/chain) ---- */
   function activityRow(t) {
-    return `<tr><td>${linkTxC(t.chain, t.hash)}</td><td>${chainBadge(t.chain)}</td><td class="muted" style="white-space:nowrap">${esc(t.age || "")}</td><td>${linkAddrC(t.chain, t.from)}</td><td>${linkAddrC(t.chain, t.to)}</td><td class="r mono">${ethFmt(t.value_eth)}&nbsp;${esc(chainNativeSym(t.chain))}</td></tr>`;
+    return `<tr><td>${linkTxC(t.chain, t.hash)}</td><td>${chainBadge(t.chain)}</td><td class="muted" style="white-space:nowrap">${esc(t.age || "")}</td><td class="muted" style="white-space:nowrap">${tsTable(t.timestamp)}</td><td>${linkAddrC(t.chain, t.from)}</td><td>${linkAddrC(t.chain, t.to)}</td><td class="r mono">${ethFmt(t.value_eth)}&nbsp;${esc(chainNativeSym(t.chain))}</td></tr>`;
   }
   async function renderActivity() {
     const el = $("#w-activity"); if (!el) return;
@@ -4131,11 +4144,11 @@ async function walletPage(param) {
       st.activityCursors = d.next_page_params || {};
       st.activityRows = d.items || [];
       el.innerHTML = `
-        <table class="tbl"><thead><tr><th>Txn Hash</th><th>Chain</th><th>Age</th><th>From</th><th>To</th><th class="r">Value</th></tr></thead><tbody id="w-act-body"></tbody></table>
+        <table class="tbl"><thead><tr><th>Txn Hash</th><th>Chain</th><th>Age</th><th>Timestamp (UTC)</th><th>From</th><th>To</th><th class="r">Value</th></tr></thead><tbody id="w-act-body"></tbody></table>
         <button class="loadmore" id="w-act-more">Load more</button>
         ${Object.keys(d.errors || {}).length ? `<div class="muted" style="padding:10px 16px;font-size:12px">Errors: ${esc(Object.entries(d.errors).map(([c, e]) => c + ": " + e).join("; "))}</div>` : ""}`;
       const body = $("#w-act-body");
-      body.innerHTML = st.activityRows.length ? st.activityRows.map(activityRow).join("") : `<tr><td colspan="6"><div class="empty">No EVM transactions — Solana activity is not wired into this feed yet.</div></td></tr>`;
+      body.innerHTML = st.activityRows.length ? st.activityRows.map(activityRow).join("") : `<tr><td colspan="7"><div class="empty">No EVM transactions — Solana activity is not wired into this feed yet.</div></td></tr>`;
       wireActivityMore();
     } catch (e) {
       if (!alive()) return;
