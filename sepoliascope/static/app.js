@@ -775,6 +775,30 @@ function renderStats(s) {
     <div class="stat"><div class="k">Network Utilization</div><div class="v">${esc(String(s.network_utilization_pct))}<small>%</small></div></div>`;
 }
 
+/* Trailing-window throughput from a /blocks page: for each 10s step,
+   blocks/sec and transactions/sec over the preceding 5 minutes, computed
+   from block timestamps and tx counts. One fetch seeds ~5 minutes of
+   history; every poll slides the window forward. Only full 5-minute
+   windows are emitted, so the left edge is never undercounted. */
+function throughputSeries(blocks) {
+  const rows = (blocks || []).map((b) => ({ t: Date.parse(b.timestamp), tx: Number(b.tx_count) || 0 }))
+    .filter((r) => Number.isFinite(r.t)).sort((a, b) => a.t - b.t);
+  if (rows.length < 2) return { bps: [], tps: [] };
+  const W = 300000, STEP = 10000;
+  const newest = rows[rows.length - 1].t;
+  const start = rows[0].t + W;
+  if (start > newest) return { bps: [], tps: [] };
+  const bps = [], tps = [];
+  for (let t = start; t <= newest; t += STEP) {
+    let n = 0, tx = 0;
+    for (const r of rows) if (r.t > t - W && r.t <= t) { n++; tx += r.tx; }
+    const label = new Date(t).toLocaleTimeString("en-US", { hour12: false });
+    bps.push({ x: label, y: n / (W / 1000) });
+    tps.push({ x: label, y: tx / (W / 1000) });
+  }
+  return { bps, tps };
+}
+
 async function home() {
   clearPoll();
   const myHash = location.hash || "#/";
@@ -799,7 +823,19 @@ async function home() {
         <div class="card-head">Latest Transactions <span class="spacer"></span><span class="badge info">live</span></div>
         <div class="tbl-wrap"><table class="tbl tbl-home"><colgroup><col style="width:28%"><col style="width:24%"><col style="width:28%"><col style="width:20%"></colgroup><thead><tr><th>Txn Hash</th><th>From</th><th>To</th><th class="r">Value</th></tr></thead><tbody id="lt"><tr><td colspan="4"><div class="spinner">Loading…</div></td></tr></tbody></table></div>
       </div>
-    </div>`);
+    </div>
+    ${SCOPE === "ethscope" ? `<div class="cols2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head">Blocks per Second <span class="spacer"></span><span class="badge info">live</span></div>
+        <div class="chart-wrap" id="bps-chart"><div class="spinner">Loading…</div></div>
+        <div class="muted" style="font-size:12px;padding:0 14px 12px">Trailing 5-minute rate, from block timestamps. Updates every 10s.</div>
+      </div>
+      <div class="card">
+        <div class="card-head">Transactions per Second <span class="spacer"></span><span class="badge info">live</span></div>
+        <div class="chart-wrap" id="tps-chart"><div class="spinner">Loading…</div></div>
+        <div class="muted" style="font-size:12px;padding:0 14px 12px">Trailing 5-minute rate, from transactions in each block. Updates every 10s.</div>
+      </div>
+    </div>` : ""}`);
   wireSearch($("#hero-search"), $("#hero-input"), $("#hero-suggest"));
   // A single slow upstream must not blank the page or stick a red banner
   // on it: render whatever came back, and only warn after 2 failures in
@@ -813,6 +849,12 @@ async function home() {
       `<tr><td><span class="cell-clip">${linkBlock(b.height)}</span></td><td class="muted" style="white-space:nowrap">${esc(b.age || "")}</td><td><span class="addr-cell">${linkAddr(b.miner)}</span></td><td class="r">${num(b.tx_count)}</td><td class="r">${b.gas_used_pct}%</td></tr>`).join("");
     if (tx.status === "fulfilled" && lt) lt.innerHTML = tx.value.items.slice(0, 10).map((t) =>
       `<tr><td><span class="cell-clip">${linkTx(t.hash)}</span></td><td><span class="addr-cell">${linkAddr(t.from)}</span></td><td><span class="addr-cell">${linkAddr(t.to)}</span></td><td class="r mono">${ethFmt(t.value_eth)}</td></tr>`).join("");
+    if (bl.status === "fulfilled" && SCOPE === "ethscope") {
+      const { bps, tps } = throughputSeries(bl.value.items || []);
+      const bpsEl = $("#bps-chart"), tpsEl = $("#tps-chart");
+      if (bpsEl) bpsEl.innerHTML = svgChart(bps, { label: "Blocks per second, trailing 5 min", fmtY: (v) => Number(v).toFixed(3) });
+      if (tpsEl) tpsEl.innerHTML = svgChart(tps, { label: "Transactions per second, trailing 5 min", fmtY: (v) => Number(v).toFixed(1) });
+    }
     const failed = [s, bl, tx].filter((r) => r.status === "rejected");
     if (!failed.length) { liveFailStreak = 0; banner(null); return; }
     liveFailStreak += 1;
